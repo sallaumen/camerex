@@ -38,6 +38,10 @@ defmodule CamerexWeb.ItemLive do
      |> push_navigate(to: ~p"/")}
   end
 
+  def handle_event("reconvert", _params, socket) do
+    {:noreply, push_navigate(socket, to: ~p"/?#{reconvert_query(socket.assigns.manifest)}")}
+  end
+
   def handle_event("retry", _params, socket) do
     id = socket.assigns.id
 
@@ -142,6 +146,14 @@ defmodule CamerexWeb.ItemLive do
             Tentar de novo
           </button>
           <button
+            type="button"
+            id="reconvert-button"
+            class="neon-cta rounded border border-cx-border px-4 py-2 text-sm"
+            phx-click="reconvert"
+          >
+            re-converter com ajustes
+          </button>
+          <button
             id="delete"
             phx-click="delete"
             data-confirm="Apagar esta conversão? Os arquivos serão removidos."
@@ -157,6 +169,23 @@ defmodule CamerexWeb.ItemLive do
       </div>
     </Layouts.app>
     """
+  end
+
+  @doc "Query string do fluxo re-converter com ajustes (Task 5.2). Pública para teste."
+  @spec reconvert_query(map()) :: map()
+  def reconvert_query(manifest) do
+    params = manifest["params"] || %{}
+
+    %{
+      "source" => manifest["id"],
+      "preset" => manifest["preset"],
+      "halo" => params["halo"],
+      "trail" => params["trail"],
+      "detail" => params["detail"],
+      "swap_sides" => params["swap_sides"]
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
   end
 
   defp status_note("queued"), do: "na fila — aguardando processamento"

@@ -23,7 +23,8 @@ defmodule CamerexWeb.GalleryLive do
         preview_data_url: nil,
         preview_error: nil,
         progress: %{},
-        subscribed_jobs: MapSet.new()
+        subscribed_jobs: MapSet.new(),
+        reconvert_source: nil
       )
       # params exatos do contrato §8; auto_upload: o arquivo sobe na seleção
       # (progresso aparece na hora e a prévia funciona antes do submit)
@@ -43,7 +44,66 @@ defmodule CamerexWeb.GalleryLive do
   end
 
   @impl true
-  def handle_params(_params, _uri, socket), do: {:noreply, socket}
+  def handle_params(params, _uri, socket) do
+    %{source: source, settings: settings} = parse_reconvert(params)
+
+    socket =
+      socket
+      |> apply_settings(settings)
+      |> assign_reconvert_source(source)
+
+    {:noreply, socket}
+  end
+
+  @reconvert_floats [halo: {0.0, 1.0}, trail: {0.0, 0.95}, detail: {0.0, 1.0}]
+
+  @doc "Lê e valida os params de re-conversão da query string. Pública para teste."
+  @spec parse_reconvert(map()) :: %{source: String.t() | nil, settings: map()}
+  def parse_reconvert(params) do
+    settings =
+      %{}
+      |> maybe_put_preset(params["preset"])
+      |> maybe_put_floats(params)
+      |> maybe_put_bool(:swap_sides, params["swap_sides"])
+
+    %{source: params["source"], settings: settings}
+  end
+
+  defp maybe_put_preset(settings, nil), do: settings
+
+  defp maybe_put_preset(settings, id) do
+    if Palette.get(id), do: Map.put(settings, :preset, id), else: settings
+  end
+
+  defp maybe_put_floats(settings, params) do
+    Enum.reduce(@reconvert_floats, settings, fn {key, {lo, hi}}, acc ->
+      case Float.parse(params[Atom.to_string(key)] || "") do
+        {value, ""} -> Map.put(acc, key, value |> max(lo) |> min(hi))
+        _ -> acc
+      end
+    end)
+  end
+
+  defp maybe_put_bool(settings, key, "true"), do: Map.put(settings, key, true)
+  defp maybe_put_bool(settings, key, "false"), do: Map.put(settings, key, false)
+  defp maybe_put_bool(settings, _key, _other), do: settings
+
+  # a query usa :preset; o assign do painel é :preset_id
+  defp apply_settings(socket, settings) do
+    Enum.reduce(settings, socket, fn
+      {:preset, value}, acc -> assign(acc, :preset_id, value)
+      {key, value}, acc -> assign(acc, key, value)
+    end)
+  end
+
+  defp assign_reconvert_source(socket, nil), do: assign(socket, :reconvert_source, nil)
+
+  defp assign_reconvert_source(socket, id) do
+    case Workspace.manifest(id) do
+      {:ok, manifest} -> assign(socket, :reconvert_source, manifest)
+      {:error, :not_found} -> assign(socket, :reconvert_source, nil)
+    end
+  end
 
   @impl true
   def handle_info({:jobs_changed}, socket), do: {:noreply, load_items(socket)}
@@ -92,6 +152,31 @@ defmodule CamerexWeb.GalleryLive do
 
       [] ->
         {:noreply, socket}
+    end
+  end
+
+  def handle_event("reconvert_cancel", _params, socket) do
+    {:noreply, assign(socket, :reconvert_source, nil)}
+  end
+
+  def handle_event("reconvert_submit", _params, socket) do
+    source = socket.assigns.reconvert_source
+    original = Workspace.item_path(source["id"], source["original_file"])
+    type = if source["type"] == "video", do: :video, else: :photo
+
+    case Workspace.create_item(
+           original,
+           source["original_filename"],
+           type,
+           socket.assigns.preset_id,
+           panel_params(socket, type)
+         ) do
+      {:ok, id} ->
+        :ok = Jobs.enqueue(id)
+        {:noreply, socket |> assign(:reconvert_source, nil) |> load_items() |> push_patch(to: ~p"/")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "falha ao re-converter: #{inspect(reason)}")}
     end
   end
 
@@ -204,6 +289,17 @@ defmodule CamerexWeb.GalleryLive do
   defp default_model(:photo), do: "u2net"
   defp default_model(:video), do: "u2net"
 
+  # params do manifest §3 a partir do estado do painel (convert e reconvert)
+  defp panel_params(socket, type) do
+    %{
+      "halo" => socket.assigns.halo,
+      "trail" => socket.assigns.trail,
+      "detail" => socket.assigns.detail,
+      "swap_sides" => socket.assigns.swap_sides,
+      "model" => default_model(type)
+    }
+  end
+
   # prévia usa u2netp: é descartável e a velocidade importa mais que a
   # fidelidade absoluta ao modelo final
   defp current_params(socket) do
@@ -304,6 +400,28 @@ defmodule CamerexWeb.GalleryLive do
               copiar
             </button>
           </div>
+        </div>
+
+        <div
+          :if={@reconvert_source}
+          id="reconvert-chip"
+          class="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-cx-teal bg-cx-surface p-3 text-sm"
+        >
+          <span>
+            re-convertendo <strong>{@reconvert_source["original_filename"]}</strong>
+            com novos ajustes
+          </span>
+          <button
+            type="button"
+            id="reconvert-submit"
+            class="neon-cta rounded bg-cx-teal px-3 py-1.5 font-medium text-cx-bg"
+            phx-click="reconvert_submit"
+          >
+            converter de novo
+          </button>
+          <button type="button" class="text-cx-text-dim underline" phx-click="reconvert_cancel">
+            cancelar
+          </button>
         </div>
 
         <form
