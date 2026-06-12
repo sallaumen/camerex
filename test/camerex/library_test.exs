@@ -65,6 +65,21 @@ defmodule Camerex.LibraryTest do
     end
   end
 
+  describe "snapshot/1" do
+    test "equivale a items_in + tree + contagem da raiz num scan só", %{tmp: tmp} do
+      raiz = create_item_in!(tmp, "")
+      create_item_in!(tmp, "shows")
+      {:ok, _} = Library.create_folder("vazia")
+
+      snapshot = Library.snapshot("shows")
+
+      assert snapshot.items == Library.items_in("shows")
+      assert snapshot.tree == Library.tree()
+      assert snapshot.root_count == 1
+      assert [%{"id" => ^raiz}] = Library.snapshot("").items
+    end
+  end
+
   describe "itens" do
     test "items_in/1 devolve só a pasta exata, recentes primeiro", %{tmp: tmp} do
       a = create_item_in!(tmp, "shows")

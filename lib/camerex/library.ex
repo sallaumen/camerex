@@ -14,22 +14,33 @@ defmodule Camerex.Library do
   defdelegate normalize_folder(path), to: Workspace
 
   @doc """
+  Visão completa da biblioteca para uma pasta com UM único scan do disco:
+  itens diretos da pasta, árvore com contagens e total de itens na raiz.
+  É o que a UI usa a cada recarga — `tree/0` + 2× `items_in/1` fariam o
+  mesmo com três varreduras de manifests.
+  """
+  @spec snapshot(String.t()) :: %{
+          items: [map()],
+          tree: [%{path: String.t(), count: non_neg_integer()}],
+          root_count: non_neg_integer()
+        }
+  def snapshot(folder) do
+    all = Workspace.list_items()
+
+    %{
+      items: Enum.filter(all, &(&1["folder"] == folder)),
+      tree: tree_from(all),
+      root_count: Enum.count(all, &(&1["folder"] == ""))
+    }
+  end
+
+  @doc """
   Pastas da biblioteca (sem a raiz), ordenadas, com contagem de itens
   diretos. Une as registradas em `folders.json`, as referenciadas por itens
   e os ancestrais implícitos (um item em `a/b` faz `a` existir).
   """
   @spec tree() :: [%{path: String.t(), count: non_neg_integer()}]
-  def tree do
-    counts = Enum.frequencies_by(Workspace.list_items(), & &1["folder"])
-
-    item_folders = counts |> Map.keys() |> Enum.reject(&(&1 == ""))
-
-    (registered_folders() ++ item_folders)
-    |> Enum.flat_map(&with_ancestors/1)
-    |> Enum.uniq()
-    |> Enum.sort()
-    |> Enum.map(&%{path: &1, count: Map.get(counts, &1, 0)})
-  end
+  def tree, do: tree_from(Workspace.list_items())
 
   @doc "Itens cuja pasta é exatamente `folder`, mais recentes primeiro."
   @spec items_in(String.t()) :: [map()]
@@ -146,6 +157,18 @@ defmodule Camerex.Library do
       end)
 
     :ok = Jobs.enqueue(manifest["id"])
+  end
+
+  defp tree_from(items) do
+    counts = Enum.frequencies_by(items, & &1["folder"])
+
+    item_folders = counts |> Map.keys() |> Enum.reject(&(&1 == ""))
+
+    (registered_folders() ++ item_folders)
+    |> Enum.flat_map(&with_ancestors/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.map(&%{path: &1, count: Map.get(counts, &1, 0)})
   end
 
   defp folder_empty?(folder) do

@@ -577,13 +577,14 @@ defmodule CamerexWeb.LibraryLive do
   ## Internas — estado
 
   defp reload(socket) do
-    items = Library.items_in(socket.assigns.folder)
+    %{items: items, tree: tree, root_count: root_count} =
+      Library.snapshot(socket.assigns.folder)
 
     socket
     |> assign(
       items: items,
-      tree: Library.tree(),
-      root_count: length(Library.items_in("")),
+      tree: tree,
+      root_count: root_count,
       selected: MapSet.intersection(socket.assigns.selected, MapSet.new(items, & &1["id"]))
     )
     |> subscribe_processing(items)
