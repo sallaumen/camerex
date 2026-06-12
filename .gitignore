@@ -21,11 +21,8 @@ camerex-*.tar
 /priv/static/assets/
 /priv/static/cache_manifest.json
 
-# Protótipos Python (referência)
-/python/.venv/
-__pycache__/
 
-# Artefatos de sessão do Claude Code
+# Configuração local de ferramentas
 /.claude/
 
 # macOS

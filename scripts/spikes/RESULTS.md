@@ -23,8 +23,8 @@ PATH inline.
 
 FAIL inicial: 3,6% dos pixels divergiam da máscara da rembg, concentrados na
 cabeça do condutor (região ambígua: cabelo claro em fundo claro). Debug
-sistemático (scripts golden_mask_debug.exs, dump_input_d0.exs, cross_check.py,
-resampler_test.py):
+sistemático (scripts golden_mask_debug.exs e dump_input_d0.exs; os scripts
+Python do experimento cruzado foram aposentados junto com os protótipos):
 
 - `largest_component` e troca de canais RGB/BGR descartados (máscara tem 1
   componente; canais corretos).

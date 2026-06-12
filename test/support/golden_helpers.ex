@@ -1,7 +1,8 @@
 defmodule Camerex.GoldenHelpers do
   @moduledoc """
-  Comparação de tensores com golden files PNG gerados pelo protótipo Python
-  (`python/gen_goldens.py`). Critério do contrato §6.
+  Comparação de tensores com os golden files PNG de `exemplos/golden/` —
+  fixtures canônicos de paridade do pipeline (diff médio + fração de pixels
+  acima do limiar).
   """
 
   import ExUnit.Assertions

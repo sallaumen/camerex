@@ -90,8 +90,9 @@ mix test                  # suíte rápida (segmentação via fixtures)
 mix test --include model  # + paridade golden com o modelo ONNX real
 ```
 
-- `python/` — protótipos de referência e `gen_goldens.py` (gera os golden
-  files de `exemplos/golden/` usados nos testes de paridade).
+- `exemplos/golden/` — golden files canônicos dos testes de paridade
+  (gerados uma única vez pelo protótipo Python original, hoje aposentado;
+  o pipeline Elixir é a implementação de referência).
 - `design/` — linha paralela dos bonequinhos vetoriais SVG (roadmap:
   pipeline foto → pose → boneco).
 - `scripts/spikes/` — spikes da Fase 0 e `RESULTS.md` com benchmarks e
