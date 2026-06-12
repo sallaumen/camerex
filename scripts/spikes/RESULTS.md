@@ -57,7 +57,7 @@ Speedup u2netp vs u2net: **1,9x** — abaixo do critério de 2x do plano para
 fixar u2netp como default do vídeo. Em termos práticos (15 fps):
 clipe de 30 s ≈ 2,4 min com u2net vs ≈ 1,3 min com u2netp.
 
-**Decisão (dono do projeto, gate da Fase 0):** <pendente — ver conversa>
+**Decisão (dono do projeto, gate da Fase 0):** modelo default = `u2net` para foto E vídeo (qualidade máxima; ~2,4 min por clipe de 30 s é aceitável). `u2netp` vira o toggle "modo rápido" no painel. Inverte o palpite do spec §2, com base na medição real.
 
 Aprendizados de API registrados nesta task:
 - `Exile.stream!` + `Stream.take/2` quebra o pipe no meio (ffmpeg morre com
