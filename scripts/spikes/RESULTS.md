@@ -40,3 +40,28 @@ resampler_test.py):
 
 Consequência normativa: `U2Net.preprocess` (Fase 1) usa `INTER_AREA`;
 contrato §4 e plano atualizados.
+
+## Benchmark de segmentação (Task 0.9)
+
+Medido com `mix run scripts/spikes/bench_segmenter.exs` em 2026-06-12
+(Apple M4 Pro): 10 frames reais de `exemplos/entrada/clip.mp4` a 640px,
+warm-up descartado.
+
+| medida | ms/frame |
+|---|---|
+| u2net (pré + inferência + pós) | 309,9 |
+| u2netp (pré + inferência + pós) | 160,5 |
+| trace_edges (ops Evision) | 2,3 |
+
+Speedup u2netp vs u2net: **1,9x** — abaixo do critério de 2x do plano para
+fixar u2netp como default do vídeo. Em termos práticos (15 fps):
+clipe de 30 s ≈ 2,4 min com u2net vs ≈ 1,3 min com u2netp.
+
+**Decisão (dono do projeto, gate da Fase 0):** <pendente — ver conversa>
+
+Aprendizados de API registrados nesta task:
+- `Exile.stream!` + `Stream.take/2` quebra o pipe no meio (ffmpeg morre com
+  Broken pipe e o stream levanta AbnormalExit) — limitar sempre no produtor
+  (`-frames:v`/`-t` no ffmpeg).
+- Evision 0.2.x não expõe `cv::bitwise_and/or`; para máscaras 0/255 usar
+  `Evision.min/2` (AND) e `Evision.max/2` (OR) — semântica idêntica.
