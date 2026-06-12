@@ -37,6 +37,8 @@ defmodule CamerexWeb.GalleryLive do
       )
       |> load_items()
 
+    socket = assign(socket, :doctor_problems, doctor_problems(doctor_module().check()))
+
     {:ok, socket}
   end
 
@@ -157,6 +159,17 @@ defmodule CamerexWeb.GalleryLive do
   defp progress_pct(%{done: d, total: t}) when t > 0, do: Float.round(d / t * 100, 1)
   defp progress_pct(_), do: 0.0
 
+  defp doctor_module do
+    Application.get_env(:camerex, :doctor, Camerex.Doctor)
+  end
+
+  defp doctor_problems(%{ffmpeg: ffmpeg, models: models}) do
+    for {result, cmd} <- [{ffmpeg, "brew install ffmpeg"}, {models, "mix camerex.setup"}],
+        {:error, msg} <- [result] do
+      %{msg: msg, cmd: cmd}
+    end
+  end
+
   defp duotone?(preset_id) do
     case Palette.get(preset_id) do
       %{mode: :duotone} -> true
@@ -270,6 +283,28 @@ defmodule CamerexWeb.GalleryLive do
     <Layouts.app flash={@flash}>
       <div class="mx-auto max-w-6xl p-6">
         <h1 class="text-2xl font-semibold">camerex</h1>
+
+        <div
+          :if={@doctor_problems != []}
+          id="doctor-banner"
+          class="mt-6 rounded-lg border border-cx-orange bg-cx-surface p-4"
+        >
+          <p class="font-semibold text-cx-orange">dependências faltando</p>
+          <div
+            :for={{problem, i} <- Enum.with_index(@doctor_problems)}
+            class="mt-2 flex flex-wrap items-center gap-3 text-sm"
+          >
+            <span>{problem.msg}</span>
+            <code id={"doctor-fix-#{i}"} class="rounded bg-cx-bg px-2 py-1">{problem.cmd}</code>
+            <button
+              type="button"
+              class="text-cx-teal underline"
+              phx-click={JS.dispatch("camerex:copy", to: "#doctor-fix-#{i}")}
+            >
+              copiar
+            </button>
+          </div>
+        </div>
 
         <form
           id="convert-form"
