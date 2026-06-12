@@ -4,7 +4,7 @@ defmodule Camerex.Video.Encoder do
   ffmpeg persistente (Exile.Process, write com backpressure).
   """
 
-  @opaque t :: %{proc: pid(), width: pos_integer(), height: pos_integer()}
+  @opaque t :: %{proc: Exile.Process.t(), width: pos_integer(), height: pos_integer()}
 
   @spec open(Path.t(), pos_integer(), pos_integer(), number()) :: {:ok, t()} | {:error, term()}
   def open(path, width, height, fps) do
@@ -52,10 +52,11 @@ defmodule Camerex.Video.Encoder do
   def close(%{proc: proc}) do
     :ok = Exile.Process.close_stdin(proc)
 
+    # await_exit só devolve {:ok, status} (timeout mata o processo e
+    # devolve o status do kill) — não há cláusula de erro
     case Exile.Process.await_exit(proc, 60_000) do
       {:ok, 0} -> :ok
       {:ok, status} -> {:error, "ffmpeg saiu com status #{status}"}
-      other -> {:error, other}
     end
   end
 end
