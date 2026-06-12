@@ -168,14 +168,19 @@ defmodule CamerexWeb.LibraryComponents do
         processar com ajustes atuais
       </button>
 
-      <form :if={@user_presets != []} phx-change="bulk_process_preset" class="contents">
+      <form
+        :if={@user_presets != []}
+        id="bulk-preset-form"
+        phx-change="bulk_process_preset"
+        class="contents"
+      >
         <select name="preset_id" class="rounded border border-cx-border bg-cx-bg px-2 py-1.5">
           <option value="">processar com preset salvo…</option>
           <option :for={p <- @user_presets} value={p["id"]}>{p["name"]}</option>
         </select>
       </form>
 
-      <form phx-change="bulk_move" class="contents">
+      <form id="bulk-move-form" phx-change="bulk_move" class="contents">
         <select name="folder" class="rounded border border-cx-border bg-cx-bg px-2 py-1.5">
           <option value="__none__">mover para…</option>
           <option value="">⌂ biblioteca</option>
