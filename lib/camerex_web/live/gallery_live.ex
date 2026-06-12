@@ -73,8 +73,7 @@ defmodule CamerexWeb.GalleryLive do
         {:noreply, assign(socket, preview_data_url: data_url, preview_error: nil)}
 
       [{:error, reason} | _] ->
-        {:noreply,
-         assign(socket, preview_data_url: nil, preview_error: error_message(reason))}
+        {:noreply, assign(socket, preview_data_url: nil, preview_error: error_message(reason))}
 
       [] ->
         {:noreply, socket}
@@ -324,8 +323,7 @@ defmodule CamerexWeb.GalleryLive do
                 :for={{r, g, b} <- preset.colors}
                 class="mr-1 inline-block h-4 w-4 rounded-full"
                 style={"background-color: rgb(#{r}, #{g}, #{b})"}
-              >
-              </span>
+              ></span>
               {preset.name}
             </button>
           </fieldset>
@@ -333,7 +331,15 @@ defmodule CamerexWeb.GalleryLive do
           <div class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
             <label>
               halo ({@halo})
-              <input type="range" name="halo" min="0" max="1" step="0.05" value={@halo} class="w-full" />
+              <input
+                type="range"
+                name="halo"
+                min="0"
+                max="1"
+                step="0.05"
+                value={@halo}
+                class="w-full"
+              />
             </label>
             <label>
               rastro ({@trail})
@@ -361,7 +367,11 @@ defmodule CamerexWeb.GalleryLive do
             </label>
           </div>
 
-          <label :if={duotone?(@preset_id)} id="swap-sides" class="mt-3 flex items-center gap-2 text-sm">
+          <label
+            :if={duotone?(@preset_id)}
+            id="swap-sides"
+            class="mt-3 flex items-center gap-2 text-sm"
+          >
             <input type="hidden" name="swap_sides" value="false" />
             <input type="checkbox" name="swap_sides" value="true" checked={@swap_sides} />
             inverter lados
@@ -420,8 +430,7 @@ defmodule CamerexWeb.GalleryLive do
             >
               <%= if prog = @progress[item["id"]] do %>
                 <div class="h-1.5 rounded bg-cx-border">
-                  <div class="h-1.5 rounded bg-cx-teal" style={"width: #{progress_pct(prog)}%"}>
-                  </div>
+                  <div class="h-1.5 rounded bg-cx-teal" style={"width: #{progress_pct(prog)}%"}></div>
                 </div>
                 <span class="text-xs text-cx-text-dim">
                   {prog.done}/{prog.total}{if prog.eta_s, do: " · ~#{round(prog.eta_s)}s"}
@@ -430,7 +439,11 @@ defmodule CamerexWeb.GalleryLive do
                 <span class="text-xs text-cx-text-dim">processando…</span>
               <% end %>
             </div>
-            <p :if={item["error"]} class="mt-1 truncate text-xs text-cx-text-dim" title={item["error"]}>
+            <p
+              :if={item["error"]}
+              class="mt-1 truncate text-xs text-cx-text-dim"
+              title={item["error"]}
+            >
               {item["error"]}
             </p>
           </article>

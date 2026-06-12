@@ -58,7 +58,35 @@ defmodule CamerexWeb.ItemLive do
         <.link navigate={~p"/"} class="text-sm text-cx-text-dim">&larr; galeria</.link>
         <h1 class="mt-2 truncate text-xl font-semibold">{@manifest["original_filename"]}</h1>
 
-        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div :if={@manifest["type"] == "video"} class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <figure>
+            <figcaption class="mb-1 text-xs text-cx-text-dim">antes</figcaption>
+            <video
+              controls
+              preload="metadata"
+              data-role="video-original"
+              class="w-full rounded-lg border border-cx-border"
+              src={Workspace.media_url(@id, @manifest["original_file"])}
+            ></video>
+          </figure>
+
+          <figure :if={@manifest["status"] == "done"}>
+            <figcaption class="mb-1 text-xs text-cx-text-dim">depois (neon)</figcaption>
+            <video
+              controls
+              preload="metadata"
+              data-role="video-neon"
+              class="w-full rounded-lg border border-cx-border"
+              src={Workspace.media_url(@id, @manifest["output_file"])}
+            ></video>
+          </figure>
+
+          <p :if={@manifest["status"] != "done"} id="status-note" class="self-center text-cx-text-dim">
+            {status_note(@manifest["status"])}
+          </p>
+        </div>
+
+        <div :if={@manifest["type"] != "video"} class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <figure>
             <img
               id="before"
