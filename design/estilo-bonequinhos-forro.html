@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estilo · Bonequinhos de Forró — v4</title>
+<style>
+  :root{
+    --bege:#F2EBDD; --bege-card:#FAF5E9; --borda:#E2D7BF;
+    --verde-escuro:#1E3D32; --condutor:#FF6B35; --condutor-sombra:#C84E1E;
+    --conduzido:#0F8A7D; --conduzido-sombra:#0A5F55;
+    --couro:#7B4B28; --tinta:#2B2A26;
+  }
+  *{ box-sizing:border-box; margin:0; }
+  body{ background:var(--bege); color:var(--tinta);
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding:28px 18px 60px; max-width:980px; margin:0 auto; }
+  h1{ font-family:Georgia,"Times New Roman",serif; font-weight:400;
+    font-size:clamp(26px,4vw,38px); letter-spacing:-0.5px; }
+  .sub{ margin-top:6px; font-size:14px; opacity:.65; max-width:64ch; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:16px; margin-top:28px; }
+  .card{ background:var(--bege-card); border:1px solid var(--borda);
+    border-radius:16px; padding:18px; }
+  .card h2{ font-size:12px; text-transform:uppercase; letter-spacing:1.4px;
+    font-weight:600; opacity:.55; margin-bottom:10px; }
+  .card.dark{ background:var(--verde-escuro); border-color:var(--verde-escuro); }
+  .card.dark h2{ color:#fff; opacity:.65; }
+  svg{ width:100%; height:auto; display:block; border-radius:10px; }
+  .nota{ font-size:13px; line-height:1.55; opacity:.8; margin-top:10px; }
+  .card.dark .nota{ color:#fff; opacity:.75; }
+  .swatches{ display:flex; gap:10px; flex-wrap:wrap; }
+  .sw{ flex:1; min-width:86px; border-radius:12px; padding:14px 12px 10px;
+    color:#fff; font-size:12px; }
+  .sw small{ display:block; opacity:.85; font-size:11px; margin-top:2px; }
+  .sw.bege-sw{ color:var(--tinta); border:1px solid var(--borda); }
+</style>
+</head>
+<body>
+
+<h1>Bonequinhos de Forró — estudo de estilo v4</h1>
+<p class="sub">Rig de cápsulas com tronco em duas peças: a linha do ombro e a linha do
+quadril são elementos visuais explícitos que inclinam e deslocam de forma independente —
+a dissociação da dança, desenhável. Profundidade por tom escuro sólido do membro de trás.
+Corpos idênticos e neutros; papéis marcados por cor + chapéu de couro do condutor.</p>
+
+<div class="grid">
+
+  <div class="card">
+    <h2>Pose 01 · Abraço fechado</h2>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 270"><rect width="380" height="270" fill="#F2EBDD"/><ellipse cx="190.0" cy="252" rx="114.0" ry="7" fill="#2B2A26" opacity="0.07"/><line x1="139" y1="102" x2="132" y2="126" stroke="#C84E1E" stroke-width="10" stroke-linecap="round"/><line x1="132" y1="126" x2="136" y2="148" stroke="#C84E1E" stroke-width="8.5" stroke-linecap="round"/><circle cx="137" cy="153" r="5" fill="#C84E1E"/><line x1="141" y1="152" x2="132" y2="182" stroke="#C84E1E" stroke-width="12" stroke-linecap="round"/><line x1="132" y1="182" x2="127" y2="210" stroke="#C84E1E" stroke-width="10" stroke-linecap="round"/><line x1="127" y1="210" x2="141" y2="212" stroke="#C84E1E" stroke-width="8" stroke-linecap="round"/><line x1="141" y1="152" x2="159" y2="150" stroke="#FF6B35" stroke-width="16" stroke-linecap="round"/><line x1="152" y1="92" x2="150" y2="136" stroke="#FF6B35" stroke-width="13" stroke-linecap="round"/><line x1="139" y1="102" x2="167" y2="98" stroke="#FF6B35" stroke-width="16" stroke-linecap="round"/><line x1="159" y1="150" x2="170" y2="181" stroke="#FF6B35" stroke-width="12" stroke-linecap="round"/><line x1="170" y1="181" x2="175" y2="209" stroke="#FF6B35" stroke-width="10" stroke-linecap="round"/><line x1="175" y1="209" x2="189" y2="211" stroke="#FF6B35" stroke-width="8" stroke-linecap="round"/><line x1="167" y1="98" x2="193" y2="112" stroke="#FF6B35" stroke-width="10" stroke-linecap="round"/><line x1="193" y1="112" x2="216" y2="126" stroke="#FF6B35" stroke-width="8.5" stroke-linecap="round"/><circle cx="221" cy="129" r="5" fill="#FF6B35"/><line x1="155" y1="85" x2="152" y2="92" stroke="#FF6B35" stroke-width="8" stroke-linecap="round"/><circle cx="155" cy="74" r="13" fill="#FF6B35"/><path d="M 132 67 Q 155 55 178 67" stroke="#7B4B28" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M 145 65 Q 147 50 155 48 Q 163 50 165 65 Z" fill="#7B4B28"/><path d="M 149 50 Q 155 42 161 50" stroke="#7B4B28" stroke-width="3.5" fill="none" stroke-linecap="round"/><line x1="226" y1="100" x2="233" y2="124" stroke="#0A5F55" stroke-width="10" stroke-linecap="round"/><line x1="233" y1="124" x2="228" y2="146" stroke="#0A5F55" stroke-width="8.5" stroke-linecap="round"/><circle cx="227" cy="151" r="5" fill="#0A5F55"/><line x1="222" y1="152" x2="229" y2="182" stroke="#0A5F55" stroke-width="12" stroke-linecap="round"/><line x1="229" y1="182" x2="233" y2="210" stroke="#0A5F55" stroke-width="10" stroke-linecap="round"/><line x1="233" y1="210" x2="219" y2="212" stroke="#0A5F55" stroke-width="8" stroke-linecap="round"/><line x1="204" y1="150" x2="222" y2="152" stroke="#0F8A7D" stroke-width="16" stroke-linecap="round"/><line x1="212" y1="90" x2="214" y2="134" stroke="#0F8A7D" stroke-width="13" stroke-linecap="round"/><line x1="198" y1="96" x2="226" y2="100" stroke="#0F8A7D" stroke-width="16" stroke-linecap="round"/><line x1="204" y1="150" x2="208" y2="182" stroke="#0F8A7D" stroke-width="12" stroke-linecap="round"/><line x1="208" y1="182" x2="206" y2="210" stroke="#0F8A7D" stroke-width="10" stroke-linecap="round"/><line x1="206" y1="210" x2="192" y2="212" stroke="#0F8A7D" stroke-width="8" stroke-linecap="round"/><line x1="198" y1="96" x2="183" y2="89" stroke="#0F8A7D" stroke-width="10" stroke-linecap="round"/><line x1="183" y1="89" x2="170" y2="95" stroke="#0F8A7D" stroke-width="8.5" stroke-linecap="round"/><circle cx="166" cy="97" r="5" fill="#0F8A7D"/><line x1="209" y1="83" x2="212" y2="90" stroke="#0F8A7D" stroke-width="8" stroke-linecap="round"/><circle cx="209" cy="72" r="13" fill="#0F8A7D"/></svg>
+    <p class="nota">Cabeças inclinadas uma à outra, peito do conduzido apontado ao
+    condutor, mão na lateral da cintura, pés se encontrando ponta a ponta.</p>
+  </div>
+
+  <div class="card">
+    <h2>Pose 02 · Dois pra lá (quadril)</h2>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 270"><rect width="380" height="270" fill="#F2EBDD"/><ellipse cx="190.0" cy="252" rx="114.0" ry="7" fill="#2B2A26" opacity="0.07"/><line x1="102" y1="102" x2="92" y2="124" stroke="#C84E1E" stroke-width="10" stroke-linecap="round"/><line x1="92" y1="124" x2="88" y2="144" stroke="#C84E1E" stroke-width="8.5" stroke-linecap="round"/><circle cx="87" cy="149" r="5" fill="#C84E1E"/><line x1="95" y1="149" x2="93" y2="181" stroke="#C84E1E" stroke-width="12" stroke-linecap="round"/><line x1="93" y1="181" x2="92" y2="210" stroke="#C84E1E" stroke-width="10" stroke-linecap="round"/><line x1="92" y1="210" x2="106" y2="212" stroke="#C84E1E" stroke-width="8" stroke-linecap="round"/><line x1="95" y1="149" x2="123" y2="155" stroke="#FF6B35" stroke-width="16" stroke-linecap="round"/><line x1="116" y1="94" x2="109" y2="138" stroke="#FF6B35" stroke-width="13" stroke-linecap="round"/><line x1="102" y1="102" x2="130" y2="102" stroke="#FF6B35" stroke-width="16" stroke-linecap="round"/><line x1="123" y1="155" x2="134" y2="181" stroke="#FF6B35" stroke-width="12" stroke-linecap="round"/><line x1="134" y1="181" x2="142" y2="208" stroke="#FF6B35" stroke-width="10" stroke-linecap="round"/><line x1="142" y1="208" x2="155" y2="211" stroke="#FF6B35" stroke-width="8" stroke-linecap="round"/><line x1="130" y1="102" x2="152" y2="118" stroke="#FF6B35" stroke-width="10" stroke-linecap="round"/><line x1="152" y1="118" x2="170" y2="127" stroke="#FF6B35" stroke-width="8.5" stroke-linecap="round"/><circle cx="174" cy="129" r="5" fill="#FF6B35"/><line x1="118" y1="87" x2="116" y2="94" stroke="#FF6B35" stroke-width="8" stroke-linecap="round"/><circle cx="118" cy="76" r="13" fill="#FF6B35"/><path d="M 95 69 Q 118 57 141 69" stroke="#7B4B28" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M 108 67 Q 110 52 118 50 Q 126 52 128 67 Z" fill="#7B4B28"/><path d="M 112 52 Q 118 44 124 52" stroke="#7B4B28" stroke-width="3.5" fill="none" stroke-linecap="round"/><line x1="258" y1="102" x2="268" y2="124" stroke="#0A5F55" stroke-width="10" stroke-linecap="round"/><line x1="268" y1="124" x2="272" y2="144" stroke="#0A5F55" stroke-width="8.5" stroke-linecap="round"/><circle cx="273" cy="149" r="5" fill="#0A5F55"/><line x1="222" y1="149" x2="220" y2="181" stroke="#0A5F55" stroke-width="12" stroke-linecap="round"/><line x1="220" y1="181" x2="219" y2="210" stroke="#0A5F55" stroke-width="10" stroke-linecap="round"/><line x1="219" y1="210" x2="205" y2="212" stroke="#0A5F55" stroke-width="8" stroke-linecap="round"/><line x1="222" y1="149" x2="250" y2="155" stroke="#0F8A7D" stroke-width="16" stroke-linecap="round"/><line x1="244" y1="94" x2="236" y2="138" stroke="#0F8A7D" stroke-width="13" stroke-linecap="round"/><line x1="230" y1="102" x2="258" y2="102" stroke="#0F8A7D" stroke-width="16" stroke-linecap="round"/><line x1="250" y1="155" x2="260" y2="182" stroke="#0F8A7D" stroke-width="12" stroke-linecap="round"/><line x1="260" y1="182" x2="266" y2="208" stroke="#0F8A7D" stroke-width="10" stroke-linecap="round"/><line x1="266" y1="208" x2="252" y2="211" stroke="#0F8A7D" stroke-width="8" stroke-linecap="round"/><line x1="230" y1="102" x2="206" y2="118" stroke="#0F8A7D" stroke-width="10" stroke-linecap="round"/><line x1="206" y1="118" x2="180" y2="127" stroke="#0F8A7D" stroke-width="8.5" stroke-linecap="round"/><circle cx="177" cy="129" r="5" fill="#0F8A7D"/><line x1="242" y1="87" x2="244" y2="94" stroke="#0F8A7D" stroke-width="8" stroke-linecap="round"/><circle cx="242" cy="76" r="13" fill="#0F8A7D"/></svg>
+    <p class="nota">Dissociação: linha do ombro nivelada enquanto a pelve desloca e
+    inclina — lado do peso mais alto, perna de peso vertical sob a pelve, perna livre
+    estendida com pé apontado. A cintura acompanha o quadril, então a coluna entra
+    no movimento.</p>
+  </div>
+
+  <div class="card">
+    <h2>Paleta</h2>
+    <div class="swatches">
+      <div class="sw" style="background:var(--condutor)">Condutor<small>#FF6B35</small></div>
+      <div class="sw" style="background:var(--condutor-sombra)">Sombra<small>#C84E1E</small></div>
+      <div class="sw" style="background:var(--conduzido)">Conduzido<small>#0F8A7D</small></div>
+      <div class="sw" style="background:var(--conduzido-sombra)">Sombra<small>#0A5F55</small></div>
+      <div class="sw" style="background:var(--couro)">Couro<small>#7B4B28</small></div>
+      <div class="sw bege-sw" style="background:var(--bege)">Fundo<small>#F2EBDD</small></div>
+    </div>
+    <p class="nota">Cada papel tem cor principal + tom de sombra sólido para o lado de
+    trás do corpo (braço e perna mais distantes), no estilo Just Dance. Sombra sólida
+    em vez de opacidade: funciona igual em qualquer fundo.</p>
+  </div>
+
+  <div class="card dark">
+    <h2>Variante neon · fundo escuro</h2>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 270"><rect width="380" height="270" fill="#1E3D32"/><ellipse cx="190.0" cy="252" rx="114.0" ry="7" fill="#2B2A26" opacity="0.2"/><line x1="139" y1="102" x2="132" y2="126" stroke="#E0622E" stroke-width="10" stroke-linecap="round"/><line x1="132" y1="126" x2="136" y2="148" stroke="#E0622E" stroke-width="8.5" stroke-linecap="round"/><circle cx="137" cy="153" r="5" fill="#E0622E"/><line x1="141" y1="152" x2="132" y2="182" stroke="#E0622E" stroke-width="12" stroke-linecap="round"/><line x1="132" y1="182" x2="127" y2="210" stroke="#E0622E" stroke-width="10" stroke-linecap="round"/><line x1="127" y1="210" x2="141" y2="212" stroke="#E0622E" stroke-width="8" stroke-linecap="round"/><line x1="141" y1="152" x2="159" y2="150" stroke="#FF8A5C" stroke-width="16" stroke-linecap="round"/><line x1="152" y1="92" x2="150" y2="136" stroke="#FF8A5C" stroke-width="13" stroke-linecap="round"/><line x1="139" y1="102" x2="167" y2="98" stroke="#FF8A5C" stroke-width="16" stroke-linecap="round"/><line x1="159" y1="150" x2="170" y2="181" stroke="#FF8A5C" stroke-width="12" stroke-linecap="round"/><line x1="170" y1="181" x2="175" y2="209" stroke="#FF8A5C" stroke-width="10" stroke-linecap="round"/><line x1="175" y1="209" x2="189" y2="211" stroke="#FF8A5C" stroke-width="8" stroke-linecap="round"/><line x1="167" y1="98" x2="193" y2="112" stroke="#FF8A5C" stroke-width="10" stroke-linecap="round"/><line x1="193" y1="112" x2="216" y2="126" stroke="#FF8A5C" stroke-width="8.5" stroke-linecap="round"/><circle cx="221" cy="129" r="5" fill="#FF8A5C"/><line x1="155" y1="85" x2="152" y2="92" stroke="#FF8A5C" stroke-width="8" stroke-linecap="round"/><circle cx="155" cy="74" r="13" fill="#FF8A5C"/><path d="M 132 67 Q 155 55 178 67" stroke="#A2693A" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M 145 65 Q 147 50 155 48 Q 163 50 165 65 Z" fill="#A2693A"/><path d="M 149 50 Q 155 42 161 50" stroke="#A2693A" stroke-width="3.5" fill="none" stroke-linecap="round"/><line x1="226" y1="100" x2="233" y2="124" stroke="#0F8A7D" stroke-width="10" stroke-linecap="round"/><line x1="233" y1="124" x2="228" y2="146" stroke="#0F8A7D" stroke-width="8.5" stroke-linecap="round"/><circle cx="227" cy="151" r="5" fill="#0F8A7D"/><line x1="222" y1="152" x2="229" y2="182" stroke="#0F8A7D" stroke-width="12" stroke-linecap="round"/><line x1="229" y1="182" x2="233" y2="210" stroke="#0F8A7D" stroke-width="10" stroke-linecap="round"/><line x1="233" y1="210" x2="219" y2="212" stroke="#0F8A7D" stroke-width="8" stroke-linecap="round"/><line x1="204" y1="150" x2="222" y2="152" stroke="#2BC4B2" stroke-width="16" stroke-linecap="round"/><line x1="212" y1="90" x2="214" y2="134" stroke="#2BC4B2" stroke-width="13" stroke-linecap="round"/><line x1="198" y1="96" x2="226" y2="100" stroke="#2BC4B2" stroke-width="16" stroke-linecap="round"/><line x1="204" y1="150" x2="208" y2="182" stroke="#2BC4B2" stroke-width="12" stroke-linecap="round"/><line x1="208" y1="182" x2="206" y2="210" stroke="#2BC4B2" stroke-width="10" stroke-linecap="round"/><line x1="206" y1="210" x2="192" y2="212" stroke="#2BC4B2" stroke-width="8" stroke-linecap="round"/><line x1="198" y1="96" x2="183" y2="89" stroke="#2BC4B2" stroke-width="10" stroke-linecap="round"/><line x1="183" y1="89" x2="170" y2="95" stroke="#2BC4B2" stroke-width="8.5" stroke-linecap="round"/><circle cx="166" cy="97" r="5" fill="#2BC4B2"/><line x1="209" y1="83" x2="212" y2="90" stroke="#2BC4B2" stroke-width="8" stroke-linecap="round"/><circle cx="209" cy="72" r="13" fill="#2BC4B2"/></svg>
+    <p class="nota">Nas seções escuras: #FF8A5C / #2BC4B2, sombras #E0622E / #0F8A7D,
+    couro #A2693A.</p>
+  </div>
+
+</div>
+</body>
+</html>
