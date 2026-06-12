@@ -7,13 +7,16 @@ defmodule Camerex.Application do
 
   @impl true
   def start(_type, _args) do
+    # ordem normativa do contrato §4: PubSub → Ortex → TaskSupervisor →
+    # Jobs → Endpoint. O Ortex carrega modelos lazy: subir sem os .onnx
+    # presentes não quebra o boot (o Doctor avisa na UI).
     children = [
       CamerexWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:camerex, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Camerex.PubSub},
-      # Start a worker by calling: Camerex.Worker.start_link(arg)
-      # {Camerex.Worker, arg},
-      # Start to serve requests, typically the last entry
+      Camerex.Segmenter.Ortex,
+      {Task.Supervisor, name: Camerex.TaskSupervisor},
+      Camerex.Jobs,
       CamerexWeb.Endpoint
     ]
 

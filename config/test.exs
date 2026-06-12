@@ -28,3 +28,7 @@ config :phoenix,
   sort_verified_routes_query_params: true
 
 config :camerex, segmenter: Camerex.Segmenter.Fixture
+
+# o boot do app em test roda mark_interrupted_on_boot(): nunca apontar
+# para o workspace real
+config :camerex, workspace_root: Path.expand("tmp/test_workspace")

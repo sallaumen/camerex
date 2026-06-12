@@ -15,6 +15,15 @@ defmodule CamerexWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  # mídia do workspace; MFA em :from resolve o diretório em runtime
+  # (o workspace_root muda nos testes). Plug.Static dá Range/206 nativo,
+  # exigência do <video> no Safari — nunca servir via controller+send_file.
+  plug Plug.Static,
+    at: "/media",
+    from: {Camerex.Workspace, :root, []},
+    only: ["items"],
+    gzip: false
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),

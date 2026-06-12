@@ -56,6 +56,10 @@ defmodule Camerex.Jobs do
 
   @impl true
   def init(_opts) do
+    # itens presos em "processing" por um restart viram "interrupted",
+    # e workspace/tmp/ é limpo (implementado na Fase 2)
+    :ok = Camerex.Workspace.mark_interrupted_on_boot()
+
     {:ok,
      %{
        queue: :queue.new(),

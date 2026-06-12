@@ -131,6 +131,21 @@ defmodule Camerex.JobsTest do
     send(pid, {:finish, :ok})
   end
 
+  test "no boot, manifests presos em processing viram interrupted", %{tmp: tmp} do
+    id = create_photo_item!(tmp, %{status: "processing"})
+
+    # segunda instância no mesmo teste: precisa de child id próprio, senão
+    # colide com o id default (Camerex.Jobs) da instância do setup
+    start_supervised!(
+      Supervisor.child_spec(
+        {Jobs, name: :"jobs_boot_#{System.unique_integer([:positive])}"},
+        id: :jobs_boot
+      )
+    )
+
+    assert {:ok, %{"status" => "interrupted"}} = Workspace.manifest(id)
+  end
+
   test "foto pequena real passa pelo pipeline de verdade até done", %{jobs: jobs, tmp: tmp} do
     # usa o Camerex.Pipeline.Photo real; o segmenter de teste é o Fixture
     Application.put_env(:camerex, :photo_pipeline, Camerex.Pipeline.Photo)
