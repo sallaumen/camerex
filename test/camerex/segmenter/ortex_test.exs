@@ -6,7 +6,13 @@ defmodule Camerex.Segmenter.OrtexTest do
   @moduletag :model
 
   setup do
-    start_supervised!(Camerex.Segmenter.Ortex)
+    # desde a Fase 3 o app supervisiona o Ortex; usar a instância viva e
+    # resetar o cache lazy para o teste de load ser determinístico
+    pid =
+      Process.whereis(Camerex.Segmenter.Ortex) ||
+        start_supervised!(Camerex.Segmenter.Ortex)
+
+    :sys.replace_state(pid, fn state -> %{state | models: %{}} end)
     :ok
   end
 

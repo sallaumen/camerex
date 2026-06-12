@@ -16,7 +16,11 @@ defmodule Camerex.Pipeline.PhotoGoldenTest do
     Application.put_env(:camerex, :segmenter, Camerex.Segmenter.Ortex)
     on_exit(fn -> Application.put_env(:camerex, :segmenter, prev) end)
 
-    start_supervised!(Camerex.Segmenter.Ortex)
+    # o app já supervisiona o Ortex desde a Fase 3
+    unless Process.whereis(Camerex.Segmenter.Ortex) do
+      start_supervised!(Camerex.Segmenter.Ortex)
+    end
+
     :ok
   end
 
