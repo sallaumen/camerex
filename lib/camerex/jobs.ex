@@ -141,48 +141,51 @@ defmodule Camerex.Jobs do
   end
 
   # preenche o pool até a concorrência configurada
-  defp fill_pool(state) do
-    if map_size(state.running) < state.concurrency do
-      case :queue.out(state.queue) do
-        {{:value, item_id}, rest} ->
-          %{state | queue: rest}
-          |> start_job(item_id)
-          |> fill_pool()
+  defp fill_pool(%{running: running, concurrency: c} = state) when map_size(running) >= c do
+    state
+  end
 
-        {:empty, _} ->
-          state
-      end
-    else
-      state
+  defp fill_pool(state) do
+    case :queue.out(state.queue) do
+      {{:value, item_id}, rest} ->
+        %{state | queue: rest}
+        |> start_job(item_id)
+        |> fill_pool()
+
+      {:empty, _} ->
+        state
     end
   end
 
   defp start_job(state, item_id) do
     case Workspace.update_manifest(item_id, &mark_processing/1) do
       {:ok, manifest} ->
-        server = self()
-        pipeline = pipeline_for(manifest)
-
-        task =
-          Task.Supervisor.async_nolink(Camerex.TaskSupervisor, fn ->
-            pipeline.run(item_id, fn done, total ->
-              send(server, {:progress, item_id, done, total})
-            end)
-          end)
-
-        job = %{
-          item_id: item_id,
-          progress: %{done: 0, total: 0, eta_s: nil},
-          started_at_ms: System.monotonic_time(:millisecond),
-          last_broadcast_ms: nil
-        }
-
-        put_in(state.running[task.ref], job)
+        task = launch_task(item_id, manifest)
+        put_in(state.running[task.ref], new_job(item_id))
 
       {:error, :not_found} ->
         # item apagado enquanto esperava na fila: segue para o próximo
         state
     end
+  end
+
+  defp launch_task(item_id, manifest) do
+    server = self()
+    pipeline = pipeline_for(manifest)
+    progress_cb = fn done, total -> send(server, {:progress, item_id, done, total}) end
+
+    Task.Supervisor.async_nolink(Camerex.TaskSupervisor, fn ->
+      pipeline.run(item_id, progress_cb)
+    end)
+  end
+
+  defp new_job(item_id) do
+    %{
+      item_id: item_id,
+      progress: %{done: 0, total: 0, eta_s: nil},
+      started_at_ms: System.monotonic_time(:millisecond),
+      last_broadcast_ms: nil
+    }
   end
 
   # entrar em processing zera restos da conversão anterior (overwrite limpo)

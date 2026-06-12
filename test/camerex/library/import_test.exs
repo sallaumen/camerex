@@ -1,8 +1,8 @@
 defmodule Camerex.Library.ImportTest do
   use Camerex.WorkspaceCase
 
-  alias Camerex.Library.Import
   alias Camerex.{Library, Workspace}
+  alias Camerex.Library.Import
 
   # árvore sintética no disco: 2 fotos na raiz, 1 vídeo em subpasta,
   # 1 txt ignorado, 1 subpasta com nome acentuado

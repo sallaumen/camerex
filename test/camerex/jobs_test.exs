@@ -183,6 +183,32 @@ defmodule Camerex.JobsTest do
     send(pid, {:finish, :ok})
   end
 
+  test "entrar em processing zera restos da conversão anterior", %{jobs: jobs, tmp: tmp} do
+    :ok = Jobs.set_concurrency(1, jobs)
+    id = create_photo_item!(tmp)
+
+    {:ok, _} =
+      Workspace.update_manifest(id, fn m ->
+        Map.merge(m, %{
+          "status" => "done",
+          "media" => %{"width" => 1},
+          "timings_ms" => %{"total" => 99, "per_frame_avg" => 9},
+          "error" => "resto antigo"
+        })
+      end)
+
+    :ok = Jobs.enqueue(id, jobs)
+    assert_receive {:pipeline_started, ^id, pid}
+
+    {:ok, m} = Workspace.manifest(id)
+    assert m["status"] == "processing"
+    assert m["media"] == nil
+    assert m["error"] == nil
+    assert m["timings_ms"] == %{"total" => nil, "per_frame_avg" => nil}
+
+    send(pid, {:finish, :ok})
+  end
+
   test "no boot, manifests presos em processing viram interrupted", %{tmp: tmp} do
     id = create_photo_item!(tmp, %{status: "processing"})
 

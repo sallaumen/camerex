@@ -31,6 +31,26 @@ defmodule Camerex.Pipeline.PhotoRunTest do
     assert_received {:cb, 1, 1}
   end
 
+  test "reprocesso sobrescreve a conversão do mesmo item", %{tmp: tmp} do
+    id = create_photo_item!(tmp)
+    assert :ok = Photo.run(id, nil)
+    bytes_v1 = File.read!(Workspace.item_path(id, "neon.png"))
+
+    # novos ajustes direto no manifest (o caminho real é Library.process_items)
+    {:ok, _} =
+      Workspace.update_manifest(id, fn m ->
+        Map.merge(m, %{"preset" => "ouro", "params" => Map.put(m["params"], "halo", 1.0)})
+      end)
+
+    assert :ok = Photo.run(id, nil)
+
+    {:ok, m} = Workspace.manifest(id)
+    assert m["status"] == "done"
+    assert m["preset"] == "ouro"
+    # cor diferente → png diferente: a conversão foi de fato regravada
+    refute File.read!(Workspace.item_path(id, "neon.png")) == bytes_v1
+  end
+
   test "original ilegível: manifest failed com erro e exceção propagada", %{tmp: tmp} do
     src = Path.join(tmp, "quebrada.jpg")
     File.write!(src, "isto nao e uma imagem")
