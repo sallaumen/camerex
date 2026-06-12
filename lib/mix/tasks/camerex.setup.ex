@@ -1,75 +1,108 @@
 defmodule Mix.Tasks.Camerex.Setup do
-  @shortdoc "Baixa os modelos ONNX (u2net, u2netp) para priv/models, com verificação MD5"
+  @shortdoc "Baixa os modelos ONNX (u2net/u2netp) com verificação MD5"
 
   @moduledoc """
-  Baixa os modelos de segmentação dos releases da rembg e confere o MD5.
-  Idempotente: arquivo já presente com MD5 correto é pulado.
+  Baixa os modelos de segmentação para `priv/models/` (config
+  `:camerex, :models_dir`) com verificação de MD5.
 
-      mix camerex.setup
+      mix camerex.setup            # idempotente: pula o que já está íntegro
+      mix camerex.setup --force    # re-baixa tudo
+
+  Termina com um resumo (modelos + ffmpeg) e dica de correção quando falta algo.
   """
 
   use Mix.Task
 
-  @requirements ["app.config"]
-
-  # u2net: MD5 do spec §2; u2netp: MD5 extraído de rembg/sessions/u2netp.py
-  @models [
-    %{
-      file: "u2net.onnx",
-      url: "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
-      md5: "60024c5c889badc19c04ad937298a77b"
-    },
-    %{
-      file: "u2netp.onnx",
-      url: "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx",
-      md5: "8e83ca70e441ab06c318d82300c84806"
-    }
-  ]
+  alias Camerex.Doctor
 
   @impl Mix.Task
-  def run(_args) do
-    models_dir = Application.fetch_env!(:camerex, :models_dir)
-    File.mkdir_p!(models_dir)
-    Enum.each(@models, &ensure_model(&1, models_dir))
-    :ok
+  def run(argv) do
+    %{force: force} = parse_argv(argv)
+    # carrega a config da app sem subir a árvore de supervisão (não há
+    # por que iniciar Ortex/Jobs/Endpoint só para baixar arquivos)
+    Mix.Task.run("app.config")
+
+    dir = Application.fetch_env!(:camerex, :models_dir)
+    File.mkdir_p!(dir)
+
+    results = Enum.map(Doctor.models(), &{&1, ensure_model(&1, dir, force)})
+    print_summary(results)
+
+    if Enum.any?(results, &match?({_, {:error, _}}, &1)) do
+      Mix.raise("mix camerex.setup terminou com erros — veja o resumo acima")
+    end
   end
 
-  defp ensure_model(%{file: file, url: url, md5: md5}, dir) do
-    path = Path.join(dir, file)
+  @doc false
+  @spec parse_argv([String.t()]) :: %{force: boolean()}
+  def parse_argv(argv) do
+    {opts, _positional, _invalid} = OptionParser.parse(argv, strict: [force: :boolean])
+    %{force: Keyword.get(opts, :force, false)}
+  end
 
-    if File.exists?(path) and md5_of(path) == md5 do
-      Mix.shell().info("ok: #{file} já presente (md5 confere)")
+  @doc false
+  @spec action(:ok | :missing | :bad_md5, boolean()) :: :skip | :download
+  def action(:ok, false), do: :skip
+  def action(:ok, true), do: :download
+  def action(:missing, _force), do: :download
+  def action(:bad_md5, _force), do: :download
+
+  defp ensure_model(model, dir, force) do
+    case action(Doctor.model_status(model, dir), force) do
+      :skip ->
+        Mix.shell().info("✓ #{model.file} já presente (MD5 ok) — pulando")
+        :ok
+
+      :download ->
+        download(model, dir)
+    end
+  end
+
+  defp download(model, dir) do
+    dest = Path.join(dir, model.file)
+    part = dest <> ".part"
+    Mix.shell().info("↓ baixando #{model.file} de #{model.url}")
+
+    status = Mix.shell().cmd(~s(curl -L --fail --progress-bar -o "#{part}" "#{model.url}"))
+
+    if status == 0 do
+      verify_and_install(model, part, dest)
     else
-      Mix.shell().info("baixando #{file} (pode demorar alguns minutos) ...")
-      download!(url, path)
+      File.rm_rf!(part)
+      {:error, "download falhou (curl exit #{status}) — verifique a rede e tente de novo"}
+    end
+  end
 
-      case md5_of(path) do
-        ^md5 ->
-          Mix.shell().info("ok: #{file} baixado (md5 confere)")
+  defp verify_and_install(model, part, dest) do
+    case Doctor.md5_file(part) do
+      md5 when md5 == model.md5 ->
+        File.rename!(part, dest)
+        Mix.shell().info("✓ #{model.file} verificado (MD5 #{md5})")
+        :ok
 
-        other ->
-          File.rm(path)
-          Mix.raise("md5 inválido para #{file}: esperado #{md5}, obtido #{other}")
+      other ->
+        File.rm_rf!(part)
+        {:error, "MD5 divergente em #{model.file}: esperado #{model.md5}, obtido #{other}"}
+    end
+  end
+
+  defp print_summary(results) do
+    Mix.shell().info("\n— resumo do setup —")
+
+    for {model, result} <- results do
+      case result do
+        :ok -> Mix.shell().info("modelo #{model.file}: ok")
+        {:error, msg} -> Mix.shell().error("modelo #{model.file}: #{msg}")
       end
     end
-  end
 
-  # -L segue o redirect do GitHub Releases para o CDN; --fail aborta em HTTP >= 400
-  defp download!(url, path) do
-    args = ["-L", "--fail", "--retry", "3", "-sS", "-o", path, url]
+    case Doctor.check([]).ffmpeg do
+      :ok ->
+        Mix.shell().info("ffmpeg/ffprobe: ok")
 
-    case System.cmd("curl", args, stderr_to_stdout: true) do
-      {_, 0} -> :ok
-      {out, status} -> Mix.raise("download falhou (curl exit #{status}): #{url}\n#{out}")
+      {:error, msg} ->
+        Mix.shell().error("ffmpeg: #{msg}")
+        Mix.shell().info("dica: brew install ffmpeg")
     end
-  end
-
-  # hash em streaming de 2 MiB para não carregar 176 MB em memória
-  defp md5_of(path) do
-    path
-    |> File.stream!(2 * 1024 * 1024)
-    |> Enum.reduce(:crypto.hash_init(:md5), &:crypto.hash_update(&2, &1))
-    |> :crypto.hash_final()
-    |> Base.encode16(case: :lower)
   end
 end
