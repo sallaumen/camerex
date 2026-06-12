@@ -286,4 +286,34 @@ defmodule Camerex.WorkspaceTest do
       refute File.exists?(Workspace.item_path(id, "thumb_neon.jpg"))
     end
   end
+
+  describe "mark_interrupted_on_boot/0" do
+    test "processing vira interrupted; demais status ficam intactos" do
+      src = fake_source!("upload.jpg")
+      {:ok, presa} = Workspace.create_item(src, "presa.jpg", :photo, "ouro", @params)
+      {:ok, pronta} = Workspace.create_item(src, "pronta.jpg", :photo, "ouro", @params)
+      {:ok, na_fila} = Workspace.create_item(src, "fila.jpg", :photo, "ouro", @params)
+
+      {:ok, _} = Workspace.update_manifest(presa, &Map.put(&1, "status", "processing"))
+      {:ok, _} = Workspace.update_manifest(pronta, &Map.put(&1, "status", "done"))
+
+      assert :ok = Workspace.mark_interrupted_on_boot()
+
+      assert {:ok, %{"status" => "interrupted"}} = Workspace.manifest(presa)
+      assert {:ok, %{"status" => "done"}} = Workspace.manifest(pronta)
+      assert {:ok, %{"status" => "queued"}} = Workspace.manifest(na_fila)
+    end
+
+    test "esvazia tmp/ mas mantém o diretório" do
+      File.write!(Path.join(Workspace.tmp_dir(), "upload-abandonado.jpg"), "lixo")
+
+      assert :ok = Workspace.mark_interrupted_on_boot()
+
+      # path montado na mão de propósito: chamar tmp_dir() recriaria o
+      # diretório e mascararia uma implementação que esqueceu o mkdir_p
+      tmp = Path.join(Workspace.root(), "tmp")
+      assert File.dir?(tmp)
+      assert {:ok, []} = File.ls(tmp)
+    end
+  end
 end

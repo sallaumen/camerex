@@ -180,6 +180,24 @@ defmodule Camerex.Workspace do
     end
   end
 
+  @doc """
+  Varredura de boot: manifests presos em "processing" (app morreu no meio)
+  viram "interrupted", e `tmp/` é esvaziado.
+  """
+  @spec mark_interrupted_on_boot() :: :ok
+  def mark_interrupted_on_boot do
+    list_items()
+    |> Enum.filter(&(&1["status"] == "processing"))
+    |> Enum.each(fn m ->
+      {:ok, _} = update_manifest(m["id"], &Map.put(&1, "status", "interrupted"))
+    end)
+
+    tmp = tmp_dir()
+    File.rm_rf!(tmp)
+    File.mkdir_p!(tmp)
+    :ok
+  end
+
   defp manifest_path(id), do: item_path(id, "manifest.json")
 
   defp write_manifest!(id, manifest) do
