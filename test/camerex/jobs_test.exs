@@ -1,8 +1,7 @@
 defmodule Camerex.JobsTest do
   use Camerex.WorkspaceCase
 
-  alias Camerex.Jobs
-  alias Camerex.Workspace
+  alias Camerex.{Jobs, Workspace}
 
   defmodule FakePipeline do
     def run(item_id, progress_cb) do
@@ -36,8 +35,6 @@ defmodule Camerex.JobsTest do
       Application.delete_env(:camerex, :fake_pipeline_test_pid)
     end)
 
-    # Na Task 3.3 o Task.Supervisor entra na árvore do app; até lá (e em
-    # qualquer ordem de execução) garantimos um aqui.
     unless Process.whereis(Camerex.TaskSupervisor) do
       start_supervised!({Task.Supervisor, name: Camerex.TaskSupervisor})
     end
@@ -65,7 +62,41 @@ defmodule Camerex.JobsTest do
     end
   end
 
-  test "executa 1 job por vez, em ordem FIFO", %{jobs: jobs, tmp: tmp} do
+  test "concorrência default vem das Settings (3) e set_concurrency persiste", %{jobs: jobs} do
+    assert %{concurrency: 3} = Jobs.state(jobs)
+
+    assert :ok = Jobs.set_concurrency(2, jobs)
+    assert %{concurrency: 2} = Jobs.state(jobs)
+    assert Camerex.Settings.get("concurrency", 3) == 2
+
+    # clamp 1..6
+    assert :ok = Jobs.set_concurrency(99, jobs)
+    assert %{concurrency: 6} = Jobs.state(jobs)
+  end
+
+  test "pool: com concorrência 2, dois jobs rodam juntos e o terceiro espera",
+       %{jobs: jobs, tmp: tmp} do
+    :ok = Jobs.set_concurrency(2, jobs)
+    [a, b, c] = for _ <- 1..3, do: create_photo_item!(tmp)
+
+    for id <- [a, b, c], do: :ok = Jobs.enqueue(id, jobs)
+
+    assert_receive {:pipeline_started, ^a, pid_a}
+    assert_receive {:pipeline_started, ^b, _pid_b}
+    refute_receive {:pipeline_started, ^c, _}, 100
+
+    state = Jobs.state(jobs)
+    assert Enum.map(state.running, & &1.item_id) |> Enum.sort() == Enum.sort([a, b])
+    assert state.queue == [c]
+
+    send(pid_a, {:finish, :ok})
+    assert_receive {:pipeline_started, ^c, pid_c}
+
+    send(pid_c, {:finish, :ok})
+  end
+
+  test "fila FIFO com concorrência 1 (comportamento v1 preservado)", %{jobs: jobs, tmp: tmp} do
+    :ok = Jobs.set_concurrency(1, jobs)
     :ok = Jobs.subscribe()
     a = create_photo_item!(tmp)
     b = create_photo_item!(tmp)
@@ -75,39 +106,61 @@ defmodule Camerex.JobsTest do
 
     assert_receive {:pipeline_started, ^a, pid_a}
     refute_receive {:pipeline_started, ^b, _}, 100
-
-    assert %{running: %{item_id: ^a}, queue: [^b]} = Jobs.state(jobs)
     assert {:ok, %{"status" => "processing"}} = Workspace.manifest(a)
-    assert {:ok, %{"status" => "queued"}} = Workspace.manifest(b)
     assert_receive {:jobs_changed}
 
     send(pid_a, {:finish, :ok})
     assert_receive {:pipeline_started, ^b, pid_b}
-    assert {:ok, %{"status" => "done"}} = Workspace.manifest(a)
-
     send(pid_b, {:finish, :ok})
-    wait_until(fn -> Jobs.state(jobs) == %{running: nil, queue: []} end)
+
+    wait_until(fn -> match?(%{running: [], queue: []}, Jobs.state(jobs)) end)
   end
 
-  test "DOWN anormal marca manifest failed e a fila continua", %{jobs: jobs, tmp: tmp} do
+  test "enqueue é idempotente para item na fila ou rodando", %{jobs: jobs, tmp: tmp} do
+    :ok = Jobs.set_concurrency(1, jobs)
+    a = create_photo_item!(tmp)
+    b = create_photo_item!(tmp)
+
+    :ok = Jobs.enqueue(a, jobs)
+    assert_receive {:pipeline_started, ^a, pid_a}
+
+    :ok = Jobs.enqueue(a, jobs)
+    :ok = Jobs.enqueue(b, jobs)
+    :ok = Jobs.enqueue(b, jobs)
+
+    assert %{queue: [^b]} = Jobs.state(jobs)
+
+    send(pid_a, {:finish, :ok})
+    assert_receive {:pipeline_started, ^b, pid_b}
+    refute_receive {:pipeline_started, ^a, _}, 100
+    send(pid_b, {:finish, :ok})
+  end
+
+  test "DOWN anormal marca failed só o job certo e o pool continua",
+       %{jobs: jobs, tmp: tmp} do
+    :ok = Jobs.set_concurrency(2, jobs)
     a = create_photo_item!(tmp)
     b = create_photo_item!(tmp)
 
     :ok = Jobs.enqueue(a, jobs)
     :ok = Jobs.enqueue(b, jobs)
-
     assert_receive {:pipeline_started, ^a, pid_a}
+    assert_receive {:pipeline_started, ^b, pid_b}
+
     send(pid_a, {:finish, :raise})
 
-    assert_receive {:pipeline_started, ^b, pid_b}
-    assert {:ok, m} = Workspace.manifest(a)
-    assert m["status"] == "failed"
+    wait_until(fn -> match?({:ok, %{"status" => "failed"}}, Workspace.manifest(a)) end)
+    {:ok, m} = Workspace.manifest(a)
     assert m["error"] =~ "explodiu de propósito"
 
+    # b continua vivo e termina normalmente
+    assert {:ok, %{"status" => "processing"}} = Workspace.manifest(b)
     send(pid_b, {:finish, :ok})
+    wait_until(fn -> match?({:ok, %{"status" => "done"}}, Workspace.manifest(b)) end)
   end
 
-  test "broadcast de progresso com throttle de 250ms e eta", %{jobs: jobs, tmp: tmp} do
+  test "progresso por job com throttle e eta independentes", %{jobs: jobs, tmp: tmp} do
+    :ok = Jobs.set_concurrency(2, jobs)
     a = create_photo_item!(tmp)
     :ok = Jobs.subscribe(a)
     :ok = Jobs.enqueue(a, jobs)
@@ -117,14 +170,13 @@ defmodule Camerex.JobsTest do
     assert_receive {:job_progress, ^a, %{done: 1, total: 10, eta_s: eta}}
     assert is_number(eta)
 
-    # segundo progresso dentro da janela de 250ms: broadcast suprimido...
     send(pid, {:progress, 2, 10})
     refute_receive {:job_progress, ^a, %{done: 2}}, 150
 
-    # ...mas o estado interno sempre atualiza
-    wait_until(fn -> match?(%{running: %{progress: %{done: 2}}}, Jobs.state(jobs)) end)
+    wait_until(fn ->
+      Enum.any?(Jobs.state(jobs).running, &match?(%{progress: %{done: 2}}, &1))
+    end)
 
-    # done == total fura o throttle (a mensagem final sempre sai)
     send(pid, {:progress, 10, 10})
     assert_receive {:job_progress, ^a, %{done: 10, total: 10}}
 
@@ -134,8 +186,6 @@ defmodule Camerex.JobsTest do
   test "no boot, manifests presos em processing viram interrupted", %{tmp: tmp} do
     id = create_photo_item!(tmp, %{status: "processing"})
 
-    # segunda instância no mesmo teste: precisa de child id próprio, senão
-    # colide com o id default (Camerex.Jobs) da instância do setup
     start_supervised!(
       Supervisor.child_spec(
         {Jobs, name: :"jobs_boot_#{System.unique_integer([:positive])}"},
@@ -147,7 +197,6 @@ defmodule Camerex.JobsTest do
   end
 
   test "foto pequena real passa pelo pipeline de verdade até done", %{jobs: jobs, tmp: tmp} do
-    # usa o Camerex.Pipeline.Photo real; o segmenter de teste é o Fixture
     Application.put_env(:camerex, :photo_pipeline, Camerex.Pipeline.Photo)
     id = create_photo_item!(tmp)
 

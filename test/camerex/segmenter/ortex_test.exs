@@ -42,7 +42,7 @@ defmodule Camerex.Segmenter.OrtexTest do
     assert only_binary == 1
   end
 
-  test "carrega modelos lazy, um por id, e serializa chamadas concorrentes" do
+  test "carrega modelos lazy, um por id, e roda inferências CONCORRENTES" do
     pid = Process.whereis(Camerex.Segmenter.Ortex)
     assert :sys.get_state(pid).models == %{}
 
@@ -54,7 +54,7 @@ defmodule Camerex.Segmenter.OrtexTest do
       end
 
     assert [{:ok, m1}, {:ok, m2}] = Task.await_many(tasks, :infinity)
-    # determinístico: a fila do GenServer serializa e o resultado é idêntico
+    # mesma session, processos diferentes: resultado determinístico e idêntico
     assert Nx.to_binary(m1) == Nx.to_binary(m2)
 
     # um único load, reusado nas duas chamadas

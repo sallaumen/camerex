@@ -1,7 +1,9 @@
 defmodule Camerex.Segmenter.Ortex do
   @moduledoc """
-  Adapter Ortex do `Camerex.Segmenter` (contrato §4): GenServer que carrega
-  cada modelo ONNX uma única vez (lazy, por id) e serializa as inferências.
+  Adapter Ortex do `Camerex.Segmenter`. O GenServer é apenas um **registry**
+  de modelos (load lazy, um por id); a inferência roda no processo
+  **chamador** — sessions do ONNX Runtime são thread-safe, então jobs do
+  pool processam segmentações de verdade em paralelo.
   """
 
   @behaviour Camerex.Segmenter
@@ -23,7 +25,9 @@ defmodule Camerex.Segmenter.Ortex do
     model_id = Keyword.get(opts, :model, "u2net")
 
     if model_id in @valid_models do
-      GenServer.call(__MODULE__, {:segment, rgb, model_id}, :infinity)
+      with {:ok, model} <- GenServer.call(__MODULE__, {:fetch_model, model_id}, :infinity) do
+        run_inference(model, rgb)
+      end
     else
       {:error, {:unknown_model, model_id}}
     end
@@ -37,9 +41,9 @@ defmodule Camerex.Segmenter.Ortex do
   end
 
   @impl GenServer
-  def handle_call({:segment, rgb, model_id}, _from, state) do
+  def handle_call({:fetch_model, model_id}, _from, state) do
     case fetch_model(state, model_id) do
-      {:ok, model, state} -> {:reply, do_segment(model, rgb), state}
+      {:ok, model, state} -> {:reply, {:ok, model}, state}
       {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
@@ -64,7 +68,8 @@ defmodule Camerex.Segmenter.Ortex do
     end
   end
 
-  defp do_segment(model, rgb) do
+  # roda fora do GenServer: inferências concorrentes entre jobs do pool
+  defp run_inference(model, rgb) do
     {h, w, 3} = Nx.shape(rgb)
 
     d0 =
