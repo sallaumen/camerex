@@ -17,8 +17,9 @@ defmodule CamerexWeb.Router do
   scope "/", CamerexWeb do
     pipe_through :browser
 
-    live "/", GalleryLive
-    live "/item/:id", ItemLive
+    live "/", LibraryLive
+    # deep-links da v1 continuam funcionando
+    get "/item/:id", RedirectController, :legacy_item
   end
 
   # Other scopes may use custom stacks.
