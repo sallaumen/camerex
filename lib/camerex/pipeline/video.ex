@@ -92,37 +92,36 @@ defmodule Camerex.Pipeline.Video do
   # miolo compartilhado: probe → decode → loop por frame → encode.
   # Devolve stats para o run/2 preencher manifest e thumbs.
   defp do_render(in_path, out_path, opts, progress_cb) do
-    with {:ok, info} <- Probe.probe(in_path) do
-      fps = min(info.fps, @max_fps)
-      height = Decoder.target_height(info.width, info.height, @work_width)
+    with {:ok, info} <- Probe.probe(in_path),
+         fps = min(info.fps, @max_fps),
+         height = Decoder.target_height(info.width, info.height, @work_width),
+         {:ok, enc} <- Encoder.open(out_path, @work_width, height, fps) do
       total_estimate = max(round(info.duration_s * fps), 1)
+      reduced = encode_frames(in_path, enc, fps, height, total_estimate, opts, progress_cb)
 
-      with {:ok, enc} <- Encoder.open(out_path, @work_width, height, fps) do
-        initial = %{mask_f: nil, trail: nil, split_ema: nil, count: 0, first: nil}
-
-        reduced =
-          in_path
-          |> Decoder.stream!(%{width: @work_width, height: height, fps: fps})
-          |> Enum.reduce_while(initial, fn frame, state ->
-            case process_frame(frame, state, opts, enc) do
-              {:ok, new_state} ->
-                progress_cb.(new_state.count, max(total_estimate, new_state.count))
-                {:cont, new_state}
-
-              {:error, reason} ->
-                {:halt, {:error, reason}}
-            end
-          end)
-
-        case finish_render(reduced, enc, fps, height) do
-          {:ok, stats} ->
-            progress_cb.(stats.count, stats.count)
-            {:ok, stats}
-
-          {:error, _} = err ->
-            err
-        end
+      with {:ok, stats} <- finish_render(reduced, enc, fps, height) do
+        progress_cb.(stats.count, stats.count)
+        {:ok, stats}
       end
+    end
+  end
+
+  defp encode_frames(in_path, enc, fps, height, total_estimate, opts, progress_cb) do
+    initial = %{mask_f: nil, trail: nil, split_ema: nil, count: 0, first: nil}
+
+    in_path
+    |> Decoder.stream!(%{width: @work_width, height: height, fps: fps})
+    |> Enum.reduce_while(initial, &encode_step(&1, &2, opts, enc, total_estimate, progress_cb))
+  end
+
+  defp encode_step(frame, state, opts, enc, total_estimate, progress_cb) do
+    case process_frame(frame, state, opts, enc) do
+      {:ok, new_state} ->
+        progress_cb.(new_state.count, max(total_estimate, new_state.count))
+        {:cont, new_state}
+
+      {:error, reason} ->
+        {:halt, {:error, reason}}
     end
   end
 

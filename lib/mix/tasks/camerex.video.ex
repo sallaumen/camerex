@@ -10,11 +10,14 @@ defmodule Mix.Tasks.Camerex.Video do
 
   use Mix.Task
 
+  alias Camerex.CLI
+  alias Camerex.Pipeline
+
   @requirements ["app.start"]
 
   @impl Mix.Task
   def run(argv) do
-    case Camerex.CLI.parse_video(argv) do
+    case CLI.parse_video(argv) do
       {:error, msg} ->
         Mix.raise(msg)
 
@@ -22,7 +25,7 @@ defmodule Mix.Tasks.Camerex.Video do
         opts = Keyword.put_new(opts, :preset, "forro-teal")
         progress_cb = fn done, total -> IO.write("\rframe #{done}/#{total}") end
 
-        case Camerex.Pipeline.Video.render_file(input, output, opts, progress_cb) do
+        case Pipeline.Video.render_file(input, output, opts, progress_cb) do
           :ok ->
             IO.write("\n")
             Mix.shell().info("ok: #{output}")

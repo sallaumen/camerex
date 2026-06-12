@@ -3,6 +3,8 @@ defmodule CamerexWeb.GalleryLive do
 
   alias Camerex.Jobs
   alias Camerex.Neon.Palette
+  alias Camerex.Pipeline.Photo
+  alias Camerex.Video.Probe
   alias Camerex.Workspace
 
   @video_exts ~w(.mp4 .mov .m4v .webm)
@@ -317,13 +319,13 @@ defmodule CamerexWeb.GalleryLive do
   defp generate_preview(video_path, opts) do
     tmp_png =
       Path.join(
-        Camerex.Workspace.tmp_dir(),
+        Workspace.tmp_dir(),
         "preview-#{System.unique_integer([:positive])}.png"
       )
 
     File.mkdir_p!(Path.dirname(tmp_png))
 
-    with {:ok, info} <- Camerex.Video.Probe.probe(video_path),
+    with {:ok, info} <- Probe.probe(video_path),
          :ok <- extract_middle_frame(video_path, info.duration_s / 2, tmp_png),
          {:ok, data_url} <- render_preview_frame(tmp_png, opts) do
       File.rm(tmp_png)
@@ -347,7 +349,7 @@ defmodule CamerexWeb.GalleryLive do
       |> Evision.cvtColor(Evision.Constant.cv_COLOR_BGR2RGB())
       |> Evision.Mat.to_nx(Nx.BinaryBackend)
 
-    with {:ok, neon} <- Camerex.Pipeline.Photo.render(rgb, opts) do
+    with {:ok, neon} <- Photo.render(rgb, opts) do
       mat =
         neon
         |> Evision.Mat.from_nx_2d()

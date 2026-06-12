@@ -3,6 +3,9 @@ defmodule Camerex.Pipeline.VideoRenderFileTest do
 
   @moduletag :tmp_dir
 
+  alias Camerex.Pipeline
+  alias Camerex.Video.Probe
+
   setup %{tmp_dir: tmp} do
     in_path = Path.join(tmp, "in.mp4")
 
@@ -22,7 +25,7 @@ defmodule Camerex.Pipeline.VideoRenderFileTest do
     progress_cb = fn done, total -> send(parent, {:progress, done, total}) end
 
     assert :ok =
-             Camerex.Pipeline.Video.render_file(
+             Pipeline.Video.render_file(
                in_path,
                out_path,
                [preset: "forro-teal", trail: 0.6],
@@ -31,7 +34,7 @@ defmodule Camerex.Pipeline.VideoRenderFileTest do
 
     assert File.exists?(out_path)
 
-    {:ok, info} = Camerex.Video.Probe.probe(out_path)
+    {:ok, info} = Probe.probe(out_path)
     assert info.width == 640
     assert rem(info.width, 2) == 0 and rem(info.height, 2) == 0
     # origem 10 fps < 15 → fps alvo preserva os 10 fps e a duração de ~1 s

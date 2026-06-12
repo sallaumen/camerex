@@ -108,16 +108,18 @@ defmodule Camerex.Workspace do
     case File.ls(items_dir()) do
       {:ok, entries} ->
         entries
-        |> Enum.flat_map(fn entry ->
-          case manifest(entry) do
-            {:ok, m} -> [m]
-            {:error, :not_found} -> []
-          end
-        end)
+        |> Enum.flat_map(&manifest_or_skip/1)
         |> Enum.sort_by(& &1["created_at"], :desc)
 
       {:error, _} ->
         []
+    end
+  end
+
+  defp manifest_or_skip(entry) do
+    case manifest(entry) do
+      {:ok, m} -> [m]
+      {:error, :not_found} -> []
     end
   end
 

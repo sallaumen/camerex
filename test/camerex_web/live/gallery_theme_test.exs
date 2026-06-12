@@ -3,6 +3,8 @@ defmodule CamerexWeb.GalleryThemeTest do
 
   import Phoenix.LiveViewTest
 
+  alias Camerex.Neon.Palette
+
   @moduletag :tmp_dir
 
   setup %{tmp_dir: tmp} do
@@ -22,9 +24,9 @@ defmodule CamerexWeb.GalleryThemeTest do
   test "swatches dos 6 presets com data-swatch e cor exata da Palette", %{conn: conn} do
     {:ok, _view, html} = live(conn, "/")
 
-    for preset <- Camerex.Neon.Palette.all() do
+    for preset <- Palette.all() do
       assert html =~ ~s(data-swatch="#{preset.id}")
-      assert html =~ Camerex.Neon.Palette.hex(hd(preset.colors))
+      assert html =~ Palette.hex(hd(preset.colors))
     end
   end
 end

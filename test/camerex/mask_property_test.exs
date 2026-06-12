@@ -58,11 +58,12 @@ defmodule Camerex.MaskPropertyTest do
         if MapSet.member?(acc, p), do: MapSet.delete(acc, p), else: MapSet.put(acc, p)
       end)
 
-    for y <- 0..(@side - 1) do
-      for x <- 0..(@side - 1) do
-        if MapSet.member?(on, {x, y}), do: 255, else: 0
-      end
-    end
+    0..(@side - 1)
+    |> Enum.map(&mask_row(on, &1))
     |> Nx.tensor(type: :u8)
+  end
+
+  defp mask_row(on, y) do
+    for x <- 0..(@side - 1), do: if(MapSet.member?(on, {x, y}), do: 255, else: 0)
   end
 end

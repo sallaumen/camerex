@@ -72,7 +72,11 @@ defmodule Camerex.MixProject do
       {:nx, "~> 0.12"},
       {:exla, "~> 0.12"},
       {:exile, "~> 0.14"},
-      {:stream_data, "~> 1.1", only: [:dev, :test]}
+      {:stream_data, "~> 1.1", only: [:dev, :test]},
+      # qualidade (mix check roda compile -Werror, format, credo, dialyzer, test)
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:ex_check, "~> 0.16", only: [:dev, :test], runtime: false}
       # jason já vem com o Phoenix
     ]
   end

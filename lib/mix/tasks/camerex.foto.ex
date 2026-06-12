@@ -10,11 +10,14 @@ defmodule Mix.Tasks.Camerex.Foto do
 
   use Mix.Task
 
+  alias Camerex.CLI
+  alias Camerex.Pipeline
+
   @requirements ["app.start"]
 
   @impl Mix.Task
   def run(argv) do
-    case Camerex.CLI.parse_photo(argv) do
+    case CLI.parse_photo(argv) do
       {:error, msg} ->
         Mix.raise(msg)
 
@@ -23,7 +26,7 @@ defmodule Mix.Tasks.Camerex.Foto do
         rgb = read_image!(input)
         Mix.shell().info("processando #{input}…")
 
-        case Camerex.Pipeline.Photo.render(rgb, opts) do
+        case Pipeline.Photo.render(rgb, opts) do
           {:ok, neon} ->
             write_image!(output, neon)
             Mix.shell().info("ok: #{output}")
