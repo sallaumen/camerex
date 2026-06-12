@@ -9,6 +9,8 @@ import Config
 
 config :nx, default_backend: EXLA.Backend
 
+config :elixir, :time_zone_database, TimeZoneInfo.TimeZoneDatabase
+
 config :camerex,
   workspace_root: Path.expand("workspace"),
   models_dir: Path.expand("priv/models"),

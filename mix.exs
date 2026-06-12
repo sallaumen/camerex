@@ -64,6 +64,9 @@ defmodule Camerex.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       # pipeline neon (contrato §1)
+      # tzdata exigiria hackney (conflita com idna 7 do stack Phoenix);
+      # time_zone_info é puro Elixir e cobre o mesmo America/Sao_Paulo
+      {:time_zone_info, "~> 0.7"},
       {:ortex, "~> 0.1.10"},
       {:evision, "~> 0.2.17"},
       {:nx, "~> 0.12"},
