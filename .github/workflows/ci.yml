@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  MIX_ENV: test
+
+jobs:
+  check:
+    name: mix check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.19"
+
+      # rust: o NIF do ortex compila no primeiro mix compile
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache deps e build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+          restore-keys: mix-${{ runner.os }}-
+
+      - name: Cache PLT do dialyzer
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: plt-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+          restore-keys: plt-${{ runner.os }}-
+
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - run: mix deps.get
+
+      # testes :model ficam fora do CI (modelos ONNX de 176 MB);
+      # a suíte rápida usa o Segmenter.Fixture
+      - run: mix check

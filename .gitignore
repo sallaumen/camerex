@@ -31,3 +31,6 @@ __pycache__/
 # macOS
 .DS_Store
 /tmp/
+
+# PLTs do dialyzer
+/priv/plts/
