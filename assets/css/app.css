@@ -9,6 +9,18 @@
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
 @source "../../_build/dev/phoenix-colocated/camerex/*/";
 
+/* Tokens do tema camerex (contrato §8): geram as utilities bg-cx-*,
+   text-cx-* e border-cx-* usadas nos LiveViews */
+@theme {
+  --color-cx-bg: #10201a;
+  --color-cx-surface: #16281f;
+  --color-cx-border: #2a4a3c;
+  --color-cx-text: #c9e5d8;
+  --color-cx-text-dim: #7fa293;
+  --color-cx-teal: #2bc4b2;
+  --color-cx-orange: #ff8a5c;
+}
+
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
