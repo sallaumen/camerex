@@ -7,6 +7,13 @@
 # General application configuration
 import Config
 
+config :nx, default_backend: EXLA.Backend
+
+config :camerex,
+  workspace_root: Path.expand("workspace"),
+  models_dir: Path.expand("priv/models"),
+  segmenter: Camerex.Segmenter.Ortex
+
 config :camerex,
   generators: [timestamp_type: :utc_datetime]
 

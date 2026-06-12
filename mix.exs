@@ -62,7 +62,15 @@ defmodule Camerex.MixProject do
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      # pipeline neon (contrato §1)
+      {:ortex, "~> 0.1.10"},
+      {:evision, "~> 0.2.17"},
+      {:nx, "~> 0.12"},
+      {:exla, "~> 0.12"},
+      {:exile, "~> 0.14"},
+      {:stream_data, "~> 1.1", only: [:dev, :test]}
+      # jason já vem com o Phoenix
     ]
   end
 
