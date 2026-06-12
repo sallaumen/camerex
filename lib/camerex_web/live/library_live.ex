@@ -29,6 +29,9 @@ defmodule CamerexWeb.LibraryLive do
       |> assign(
         folder: "",
         items: [],
+        visible_items: [],
+        query: "",
+        status_filter: "",
         tree: [],
         root_count: 0,
         selected: MapSet.new(),
@@ -118,8 +121,18 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   def handle_event("select_all", _params, socket) do
-    ids = socket.assigns.items |> Enum.map(& &1["id"]) |> MapSet.new()
+    ids = socket.assigns.visible_items |> Enum.map(& &1["id"]) |> MapSet.new()
     {:noreply, assign(socket, :selected, ids)}
+  end
+
+  ## Busca e filtro
+
+  def handle_event("filter", %{"q" => query, "status" => status}, socket) do
+    {:noreply, socket |> assign(query: query, status_filter: status) |> assign_visible()}
+  end
+
+  def handle_event("clear_filters", _params, socket) do
+    {:noreply, socket |> assign(query: "", status_filter: "") |> assign_visible()}
   end
 
   def handle_event("clear_selection", _params, socket) do
@@ -426,6 +439,7 @@ defmodule CamerexWeb.LibraryLive do
                 importar pasta do disco
               </button>
               <button
+                :if={@visible_items != []}
                 type="button"
                 phx-click="select_all"
                 class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim"
@@ -434,6 +448,14 @@ defmodule CamerexWeb.LibraryLive do
               </button>
             </div>
           </div>
+
+          <.filter_bar
+            :if={@items != []}
+            query={@query}
+            status={@status_filter}
+            count={length(@visible_items)}
+            total={length(@items)}
+          />
 
           <.selection_bar
             :if={MapSet.size(@selected) > 0}
@@ -447,7 +469,7 @@ defmodule CamerexWeb.LibraryLive do
             class="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3"
           >
             <.item_card
-              :for={item <- @items}
+              :for={item <- @visible_items}
               item={item}
               selected={MapSet.member?(@selected, item["id"])}
               progress={@progress[item["id"]]}
@@ -460,6 +482,13 @@ defmodule CamerexWeb.LibraryLive do
             <p>solte uma mídia no painel ao lado ou importe uma pasta inteira do disco.</p>
             <button type="button" phx-click="open_modal" phx-value-modal="import" class="neon-cta">
               importar pasta do disco
+            </button>
+          </div>
+
+          <div :if={@items != [] and @visible_items == []} id="filter-empty" class="neon-empty">
+            <p class="neon-empty-title">nada bate com os filtros</p>
+            <button type="button" phx-click="clear_filters" class="neon-cta">
+              limpar filtros
             </button>
           </div>
         </main>
@@ -587,7 +616,27 @@ defmodule CamerexWeb.LibraryLive do
       root_count: root_count,
       selected: MapSet.intersection(socket.assigns.selected, MapSet.new(items, & &1["id"]))
     )
+    |> assign_visible()
     |> subscribe_processing(items)
+  end
+
+  defp assign_visible(socket) do
+    %{items: items, query: query, status_filter: status} = socket.assigns
+    assign(socket, :visible_items, filter_items(items, query, status))
+  end
+
+  defp filter_items(items, query, status) do
+    needle = fold(query)
+
+    Enum.filter(items, fn item ->
+      (status == "" or item["status"] == status) and
+        (needle == "" or String.contains?(fold(item["original_filename"] || ""), needle))
+    end)
+  end
+
+  # busca insensível a acento: "forro" encontra "Forró-Show.png"
+  defp fold(text) do
+    text |> String.downcase() |> String.normalize(:nfd) |> String.replace(~r/\p{Mn}/u, "")
   end
 
   defp assign_current_item(socket, nil), do: assign(socket, :current_item, nil)

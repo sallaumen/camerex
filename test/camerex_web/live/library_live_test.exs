@@ -234,6 +234,56 @@ defmodule CamerexWeb.LibraryLiveTest do
     end
   end
 
+  describe "busca e filtro de status" do
+    test "busca por nome ignora acentos e mostra a contagem", %{conn: conn, tmp: tmp} do
+      forro = create_photo_item!(tmp)
+
+      {:ok, _} =
+        Workspace.update_manifest(forro, &Map.put(&1, "original_filename", "Forró-Show.png"))
+
+      tango = create_photo_item!(tmp)
+
+      {:ok, lv, _} = live(conn, "/")
+
+      lv |> form("#filter-form", %{"q" => "forro", "status" => ""}) |> render_change()
+
+      assert has_element?(lv, "#item-#{forro}")
+      refute has_element?(lv, "#item-#{tango}")
+      assert lv |> element("[data-role=filter-count]") |> render() =~ "1 de 2"
+    end
+
+    test "filtro de status + estado vazio com limpar filtros", %{conn: conn, tmp: tmp} do
+      done = create_photo_item!(tmp, %{status: "done"})
+      failed = create_photo_item!(tmp, %{status: "failed"})
+
+      {:ok, lv, _} = live(conn, "/")
+
+      lv |> form("#filter-form", %{"q" => "", "status" => "failed"}) |> render_change()
+      assert has_element?(lv, "#item-#{failed}")
+      refute has_element?(lv, "#item-#{done}")
+
+      lv |> form("#filter-form", %{"q" => "não-existe", "status" => "failed"}) |> render_change()
+      assert has_element?(lv, "#filter-empty")
+
+      lv |> element("#filter-empty button") |> render_click()
+      assert has_element?(lv, "#item-#{done}")
+      assert has_element?(lv, "#item-#{failed}")
+      refute has_element?(lv, "#filter-empty")
+    end
+
+    test "selecionar tudo respeita o filtro ativo", %{conn: conn, tmp: tmp} do
+      _done = create_photo_item!(tmp, %{status: "done"})
+      _failed = create_photo_item!(tmp, %{status: "failed"})
+
+      {:ok, lv, _} = live(conn, "/")
+
+      lv |> form("#filter-form", %{"q" => "", "status" => "done"}) |> render_change()
+      lv |> element("button[phx-click=select_all]") |> render_click()
+
+      assert render(lv) =~ "1 selecionado(s)"
+    end
+  end
+
   describe "presets do usuário na UI" do
     test "salvar ajustes atuais e aplicar de volta", %{conn: conn} do
       {:ok, lv, _} = live(conn, "/")

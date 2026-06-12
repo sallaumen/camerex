@@ -152,6 +152,56 @@ defmodule CamerexWeb.LibraryComponents do
     """
   end
 
+  attr :query, :string, required: true
+  attr :status, :string, required: true, doc: "\"\" = todos"
+  attr :count, :integer, required: true, doc: "itens visíveis após o filtro"
+  attr :total, :integer, required: true, doc: "itens na pasta"
+
+  def filter_bar(assigns) do
+    ~H"""
+    <form id="filter-form" phx-change="filter" class="flex flex-wrap items-center gap-2 text-sm">
+      <input
+        type="search"
+        name="q"
+        value={@query}
+        placeholder="buscar por nome…"
+        phx-debounce="250"
+        autocomplete="off"
+        aria-label="buscar itens por nome"
+        class="w-56 rounded border border-cx-border bg-cx-bg px-2 py-1.5"
+      />
+      <select
+        name="status"
+        aria-label="filtrar por status"
+        class="rounded border border-cx-border bg-cx-bg px-2 py-1.5"
+      >
+        <option value="" selected={@status == ""}>todos os status</option>
+        <option :for={{value, label} <- status_options()} value={value} selected={@status == value}>
+          {label}
+        </option>
+      </select>
+      <span
+        :if={@query != "" or @status != ""}
+        data-role="filter-count"
+        class="text-xs text-cx-text-dim"
+      >
+        {@count} de {@total}
+      </span>
+    </form>
+    """
+  end
+
+  defp status_options do
+    [
+      {"new", "novo"},
+      {"queued", "na fila"},
+      {"processing", "processando"},
+      {"done", "pronto"},
+      {"failed", "falhou"},
+      {"interrupted", "interrompido"}
+    ]
+  end
+
   attr :count, :integer, required: true
   attr :user_presets, :list, required: true
   attr :folders, :list, required: true, doc: "paths para o mover ▾"
