@@ -14,8 +14,7 @@ defmodule CamerexWeb.LibraryLive do
   alias Camerex.{Jobs, Library, Settings, UserPresets, Workspace}
   alias Camerex.Library.Import, as: LibraryImport
   alias Camerex.Neon.Palette
-  alias Camerex.Pipeline.Photo
-  alias Camerex.Video.Probe
+  alias Camerex.Pipeline.FramePreview
 
   @video_exts ~w(.mp4 .mov .m4v .webm)
 
@@ -675,7 +674,7 @@ defmodule CamerexWeb.LibraryLive do
   defp do_preview_frame(socket) do
     results =
       consume_uploaded_entries(socket, :media, fn %{path: path}, _entry ->
-        {:postpone, generate_preview(path, preview_opts(socket))}
+        {:postpone, FramePreview.data_url(path, preview_opts(socket))}
       end)
 
     case results do
@@ -757,7 +756,7 @@ defmodule CamerexWeb.LibraryLive do
 
   defp duotone?(preset_id), do: match?(%{mode: :duotone}, Palette.get(preset_id))
 
-  ## Internas — prévia (idênticas à v1)
+  ## Internas — prévia
 
   defp preview_opts(socket) do
     [
@@ -767,45 +766,6 @@ defmodule CamerexWeb.LibraryLive do
       swap_sides: socket.assigns.swap_sides,
       model: "u2netp"
     ]
-  end
-
-  defp generate_preview(video_path, opts) do
-    tmp_png = Path.join(Workspace.tmp_dir(), "preview-#{System.unique_integer([:positive])}.png")
-    File.mkdir_p!(Path.dirname(tmp_png))
-
-    with {:ok, info} <- Probe.probe(video_path),
-         :ok <- extract_middle_frame(video_path, info.duration_s / 2, tmp_png),
-         {:ok, data_url} <- render_preview_frame(tmp_png, opts) do
-      File.rm(tmp_png)
-      {:ok, data_url}
-    end
-  end
-
-  defp extract_middle_frame(video_path, ss, out_png) do
-    args = ["-y", "-v", "error", "-ss", "#{ss}", "-i", video_path, "-frames:v", "1", out_png]
-
-    case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
-      {_, 0} -> :ok
-      {out, status} -> {:error, "ffmpeg falhou (status #{status}): #{String.trim(out)}"}
-    end
-  end
-
-  defp render_preview_frame(png_path, opts) do
-    rgb =
-      png_path
-      |> Evision.imread()
-      |> Evision.cvtColor(Evision.Constant.cv_COLOR_BGR2RGB())
-      |> Evision.Mat.to_nx(Nx.BinaryBackend)
-
-    with {:ok, neon} <- Photo.render(rgb, opts) do
-      mat =
-        neon |> Evision.Mat.from_nx_2d() |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2BGR())
-
-      case Evision.imencode(".png", mat) do
-        bin when is_binary(bin) -> {:ok, "data:image/png;base64," <> Base.encode64(bin)}
-        {:error, reason} -> {:error, reason}
-      end
-    end
   end
 
   defp error_message(reason) when is_binary(reason), do: reason
