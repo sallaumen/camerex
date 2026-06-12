@@ -18,3 +18,25 @@ export PATH="$(brew --prefix rustup)/bin:$HOME/.cargo/bin:$PATH"
 
 Os comandos de build deste repositório que precisam do cargo exportam esse
 PATH inline.
+
+## Spike golden_mask (Task 0.7) — descoberta de campo
+
+FAIL inicial: 3,6% dos pixels divergiam da máscara da rembg, concentrados na
+cabeça do condutor (região ambígua: cabelo claro em fundo claro). Debug
+sistemático (scripts golden_mask_debug.exs, dump_input_d0.exs, cross_check.py,
+resampler_test.py):
+
+- `largest_component` e troca de canais RGB/BGR descartados (máscara tem 1
+  componente; canais corretos).
+- Runtime descartado: o MESMO input no Ortex (ORT 1.19) e no onnxruntime
+  1.26 difere no máximo 3,6e-5 — runtimes são equivalentes.
+- **Causa raiz:** o resize por interpolação do OpenCV (`INTER_LANCZOS4`,
+  `INTER_LINEAR`) **não faz anti-aliasing no downscale** (kernel fixo); o
+  PIL escala o filtro pelo fator (anti-aliased). O aliasing do input
+  320×320 desloca a predição do U²-Net na região ambígua.
+- **Fix:** `INTER_AREA` no downscale do input → PASS (diff médio 0,254/255;
+  0,1% dos pixels > 5/255). Upscale da máscara permanece `LANCZOS4`
+  (caminho validado pelo experimento).
+
+Consequência normativa: `U2Net.preprocess` (Fase 1) usa `INTER_AREA`;
+contrato §4 e plano atualizados.
