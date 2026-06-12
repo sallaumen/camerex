@@ -31,4 +31,13 @@ defmodule Camerex.Neon.Palette do
 
   @spec get(String.t()) :: preset() | nil
   def get(id), do: Enum.find(@presets, &(&1.id == id))
+
+  @doc "Cor RGB → string hex CSS (#RRGGBB) para estilos inline dos swatches."
+  @spec hex(color()) :: String.t()
+  def hex({r, g, b}) do
+    "#" <>
+      Enum.map_join([r, g, b], fn channel ->
+        channel |> Integer.to_string(16) |> String.pad_leading(2, "0")
+      end)
+  end
 end

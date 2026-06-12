@@ -86,6 +86,7 @@ defmodule CamerexWeb do
       import Phoenix.HTML
       # Core UI components
       import CamerexWeb.CoreComponents
+      import CamerexWeb.NeonComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

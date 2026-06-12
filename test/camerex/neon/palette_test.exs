@@ -29,4 +29,12 @@ defmodule Camerex.Neon.PaletteTest do
   test "get/1 com id desconhecido devolve nil" do
     assert Palette.get("vaporwave") == nil
   end
+
+  describe "hex/1" do
+    test "converte cor RGB para hex CSS" do
+      assert Palette.hex({255, 138, 92}) == "#FF8A5C"
+      assert Palette.hex({0, 194, 255}) == "#00C2FF"
+      assert Palette.hex({43, 196, 178}) == "#2BC4B2"
+    end
+  end
 end

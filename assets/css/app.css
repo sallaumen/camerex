@@ -25,6 +25,83 @@
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
 
+/* ── tema neon (Fase 5) ─────────────────────────────────────────── */
+
+.neon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid;
+  border-radius: 9999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  background: #10201a;
+}
+
+.badge-queued { color: #7fa293; border-color: #2a4a3c; }
+.badge-processing { color: #ffd166; border-color: #ffd166; animation: neon-pulse 1.2s ease-in-out infinite; }
+.badge-done { color: #2bc4b2; border-color: #2bc4b2; }
+.badge-failed { color: #ff5c5c; border-color: #ff5c5c; }
+.badge-interrupted { color: #ff8a5c; border-color: #ff8a5c; }
+
+@keyframes neon-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.neon-swatch {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 2px solid #2a4a3c;
+  box-shadow: 0 0 12px 2px var(--glow);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.neon-swatch:hover { transform: scale(1.08); box-shadow: 0 0 18px 4px var(--glow); }
+.neon-swatch-selected { border-color: #c9e5d8; box-shadow: 0 0 18px 5px var(--glow); }
+
+.neon-card {
+  border: 1px solid #2a4a3c;
+  border-radius: 0.75rem;
+  background: #16281f;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.neon-card:hover {
+  transform: translateY(-2px);
+  border-color: #2bc4b2;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+}
+
+.neon-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 4rem 1rem;
+  border: 1px dashed #2a4a3c;
+  border-radius: 0.75rem;
+  color: #7fa293;
+  text-align: center;
+}
+
+.neon-empty-title { font-size: 1.125rem; color: #c9e5d8; }
+
+.neon-cta {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 9999px;
+  border: 1px solid #2bc4b2;
+  color: #2bc4b2;
+  box-shadow: 0 0 12px rgb(43 196 178 / 0.35);
+  transition: box-shadow 150ms ease;
+}
+
+.neon-cta:hover { box-shadow: 0 0 20px rgb(43 196 178 / 0.6); }
+
 /* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
    curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
    Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */

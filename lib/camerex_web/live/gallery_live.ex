@@ -135,26 +135,6 @@ defmodule CamerexWeb.GalleryLive do
     end
   end
 
-  defp do_preview_frame(socket) do
-    results =
-      consume_uploaded_entries(socket, :media, fn %{path: path}, _entry ->
-        # :postpone lê o tmp do upload SEM consumi-lo — o arquivo continua
-        # disponível para o submit de conversão de verdade
-        {:postpone, generate_preview(path, current_params(socket))}
-      end)
-
-    case results do
-      [{:ok, data_url} | _] ->
-        {:noreply, assign(socket, preview_data_url: data_url, preview_error: nil)}
-
-      [{:error, reason} | _] ->
-        {:noreply, assign(socket, preview_data_url: nil, preview_error: error_message(reason))}
-
-      [] ->
-        {:noreply, socket}
-    end
-  end
-
   def handle_event("reconvert_cancel", _params, socket) do
     {:noreply, assign(socket, :reconvert_source, nil)}
   end
@@ -173,7 +153,9 @@ defmodule CamerexWeb.GalleryLive do
          ) do
       {:ok, id} ->
         :ok = Jobs.enqueue(id)
-        {:noreply, socket |> assign(:reconvert_source, nil) |> load_items() |> push_patch(to: ~p"/")}
+
+        {:noreply,
+         socket |> assign(:reconvert_source, nil) |> load_items() |> push_patch(to: ~p"/")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "falha ao re-converter: #{inspect(reason)}")}
@@ -214,6 +196,26 @@ defmodule CamerexWeb.GalleryLive do
       ids ->
         Enum.each(ids, &Jobs.enqueue/1)
         {:noreply, socket |> load_items() |> push_patch(to: ~p"/")}
+    end
+  end
+
+  defp do_preview_frame(socket) do
+    results =
+      consume_uploaded_entries(socket, :media, fn %{path: path}, _entry ->
+        # :postpone lê o tmp do upload SEM consumi-lo — o arquivo continua
+        # disponível para o submit de conversão de verdade
+        {:postpone, generate_preview(path, current_params(socket))}
+      end)
+
+    case results do
+      [{:ok, data_url} | _] ->
+        {:noreply, assign(socket, preview_data_url: data_url, preview_error: nil)}
+
+      [{:error, reason} | _] ->
+        {:noreply, assign(socket, preview_data_url: nil, preview_error: error_message(reason))}
+
+      [] ->
+        {:noreply, socket}
     end
   end
 
@@ -408,8 +410,7 @@ defmodule CamerexWeb.GalleryLive do
           class="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-cx-teal bg-cx-surface p-3 text-sm"
         >
           <span>
-            re-convertendo <strong>{@reconvert_source["original_filename"]}</strong>
-            com novos ajustes
+            re-convertendo <strong>{@reconvert_source["original_filename"]}</strong> com novos ajustes
           </span>
           <button
             type="button"
@@ -431,6 +432,7 @@ defmodule CamerexWeb.GalleryLive do
           class="mt-6 rounded-lg border border-cx-border bg-cx-surface p-4"
         >
           <div
+            id="dropzone"
             phx-drop-target={@uploads.media.ref}
             class="rounded border border-dashed border-cx-border p-4"
           >
@@ -472,26 +474,17 @@ defmodule CamerexWeb.GalleryLive do
             </p>
           </div>
 
-          <fieldset id="preset-swatches" class="mt-4 flex flex-wrap gap-2">
-            <button
+          <fieldset id="preset-swatches" class="mt-4 flex flex-wrap items-center gap-3">
+            <.preset_swatch
               :for={preset <- @presets}
-              type="button"
+              preset={preset}
+              selected={preset.id == @preset_id}
               phx-click="select_preset"
               phx-value-id={preset.id}
-              data-selected={to_string(preset.id == @preset_id)}
-              title={preset.name}
-              class={[
-                "flex h-9 items-center rounded-full border px-3 text-xs",
-                (preset.id == @preset_id && "border-cx-text") || "border-cx-border"
-              ]}
-            >
-              <span
-                :for={{r, g, b} <- preset.colors}
-                class="mr-1 inline-block h-4 w-4 rounded-full"
-                style={"background-color: rgb(#{r}, #{g}, #{b})"}
-              ></span>
-              {preset.name}
-            </button>
+            />
+            <span class="text-xs text-cx-text-dim">
+              {(Palette.get(@preset_id) || %{name: @preset_id}).name}
+            </span>
           </fieldset>
 
           <div class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
@@ -552,7 +545,7 @@ defmodule CamerexWeb.GalleryLive do
           <article
             :for={item <- @items}
             id={"item-#{item["id"]}"}
-            class="rounded-lg border border-cx-border bg-cx-surface p-3"
+            class="neon-card p-3"
           >
             <.link navigate={"/item/#{item["id"]}"} class="block">
               <div :if={item["status"] == "done"} class="flex gap-2">
@@ -580,12 +573,7 @@ defmodule CamerexWeb.GalleryLive do
               <span data-role="type-chip" class="rounded-full border border-cx-border px-2 py-0.5">
                 {type_label(item["type"])}
               </span>
-              <span
-                data-role="status-chip"
-                class={["rounded-full px-2 py-0.5", status_class(item["status"])]}
-              >
-                {status_label(item["status"])}
-              </span>
+              <.status_badge status={item["status"]} />
             </div>
 
             <div
@@ -615,9 +603,11 @@ defmodule CamerexWeb.GalleryLive do
           </article>
         </section>
 
-        <p :if={@items == []} id="gallery-empty" class="mt-8 text-cx-text-dim">
-          Nenhuma conversão ainda — envie uma foto para começar.
-        </p>
+        <div :if={@items == []} id="gallery-empty" class="neon-empty mt-8">
+          <p class="neon-empty-title">nenhuma conversão ainda</p>
+          <p>solte uma foto ou um vídeo de dança na área acima e veja o neon acontecer.</p>
+          <a href="#dropzone" class="neon-cta">converter minha primeira mídia</a>
+        </div>
       </div>
     </Layouts.app>
     """
@@ -625,17 +615,4 @@ defmodule CamerexWeb.GalleryLive do
 
   defp type_label("video"), do: "vídeo"
   defp type_label(_), do: "foto"
-
-  defp status_label("queued"), do: "na fila"
-  defp status_label("processing"), do: "processando"
-  defp status_label("done"), do: "pronto"
-  defp status_label("failed"), do: "falhou"
-  defp status_label("interrupted"), do: "interrompido"
-  defp status_label(other), do: other
-
-  defp status_class("done"), do: "bg-cx-teal/20 text-cx-teal"
-  defp status_class("processing"), do: "bg-cx-orange/20 text-cx-orange"
-  defp status_class("failed"), do: "bg-red-500/20 text-red-300"
-  defp status_class("interrupted"), do: "bg-yellow-500/20 text-yellow-200"
-  defp status_class(_), do: "bg-cx-bg text-cx-text-dim"
 end
