@@ -11,6 +11,8 @@ defmodule Camerex.WorkspaceTest do
     "model" => "u2net"
   }
 
+  @casal Path.expand("exemplos/entrada/casal.jpg")
+
   defp fake_source!(name, content \\ "fake") do
     path = Path.join(Workspace.tmp_dir(), name)
     File.write!(path, content)
@@ -239,6 +241,49 @@ defmodule Camerex.WorkspaceTest do
 
     test "media_url/2 monta a URL servida pelo Plug.Static" do
       assert Workspace.media_url("abc", "thumb.jpg") == "/media/items/abc/thumb.jpg"
+    end
+  end
+
+  describe "write_thumbs/1" do
+    test "gera thumb.jpg do original com lado maior 480 e proporção preservada" do
+      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, "ouro", @params)
+
+      assert :ok = Workspace.write_thumbs(id)
+
+      thumb = Evision.imread(Workspace.item_path(id, "thumb.jpg"))
+      {th, tw, 3} = Evision.Mat.shape(thumb)
+      assert max(th, tw) == 480
+
+      original = Evision.imread(Workspace.item_path(id, "original.jpg"))
+      {oh, ow, 3} = Evision.Mat.shape(original)
+      assert_in_delta tw / th, ow / oh, 0.02
+    end
+
+    test "gera thumb_neon.jpg quando o resultado existe" do
+      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, "ouro", @params)
+      # qualquer imagem serve de resultado: imread detecta o formato pelos
+      # bytes, não pela extensão
+      File.cp!(@casal, Workspace.item_path(id, "neon.png"))
+
+      assert :ok = Workspace.write_thumbs(id)
+      assert %Evision.Mat{} = Evision.imread(Workspace.item_path(id, "thumb_neon.jpg"))
+    end
+
+    test "sem resultado ainda, só thumb.jpg é gerado" do
+      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, "ouro", @params)
+
+      assert :ok = Workspace.write_thumbs(id)
+      assert File.exists?(Workspace.item_path(id, "thumb.jpg"))
+      refute File.exists?(Workspace.item_path(id, "thumb_neon.jpg"))
+    end
+
+    test "item de vídeo não gera thumbs nesta fase (frame vem na Fase 4)" do
+      src = fake_source!("clip.mp4", "nao é um mp4 de verdade")
+      {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, "ouro", @params)
+
+      assert :ok = Workspace.write_thumbs(id)
+      refute File.exists?(Workspace.item_path(id, "thumb.jpg"))
+      refute File.exists?(Workspace.item_path(id, "thumb_neon.jpg"))
     end
   end
 end

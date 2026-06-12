@@ -138,6 +138,48 @@ defmodule Camerex.Workspace do
   @spec media_url(String.t(), String.t()) :: String.t()
   def media_url(id, file), do: "/media/items/#{id}/#{file}"
 
+  @thumb_max_px 480
+  @thumb_image_exts ~w(.jpg .jpeg .png .webp)
+
+  @doc """
+  Gera `thumb.jpg` (original) e `thumb_neon.jpg` (resultado), lado maior
+  até 480px. Fontes inexistentes ou que não são imagem são puladas.
+  """
+  @spec write_thumbs(String.t()) :: :ok
+  def write_thumbs(id) do
+    case manifest(id) do
+      {:ok, m} ->
+        write_thumb(item_path(id, m["original_file"]), item_path(id, "thumb.jpg"))
+        write_thumb(item_path(id, m["output_file"]), item_path(id, "thumb_neon.jpg"))
+        :ok
+
+      {:error, :not_found} ->
+        :ok
+    end
+  end
+
+  defp write_thumb(src, dest) do
+    ext = src |> Path.extname() |> String.downcase()
+
+    with true <- ext in @thumb_image_exts,
+         true <- File.exists?(src),
+         %Evision.Mat{} = mat <- Evision.imread(src) do
+      {h, w, _channels} = Evision.Mat.shape(mat)
+      scale = min(1.0, @thumb_max_px / max(w, h))
+
+      thumb =
+        Evision.resize(mat, {max(round(w * scale), 1), max(round(h * scale), 1)},
+          interpolation: Evision.Constant.cv_INTER_AREA()
+        )
+
+      Evision.imwrite(dest, thumb)
+      :ok
+    else
+      # fonte ausente, não-imagem ou ilegível: thumb é cosmético, não falha
+      _ -> :ok
+    end
+  end
+
   defp manifest_path(id), do: item_path(id, "manifest.json")
 
   defp write_manifest!(id, manifest) do
