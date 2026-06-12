@@ -16,18 +16,18 @@ msgstr ""
 msgid "Actions"
 msgstr ""
 
-#: lib/camerex_web/components/layouts.ex:102
-#: lib/camerex_web/components/layouts.ex:117
+#: lib/camerex_web/components/layouts.ex:75
+#: lib/camerex_web/components/layouts.ex:90
 #, elixir-autogen, elixir-format
 msgid "Attempting to reconnect"
 msgstr ""
 
-#: lib/camerex_web/components/layouts.ex:109
+#: lib/camerex_web/components/layouts.ex:82
 #, elixir-autogen, elixir-format
 msgid "Something went wrong!"
 msgstr ""
 
-#: lib/camerex_web/components/layouts.ex:94
+#: lib/camerex_web/components/layouts.ex:67
 #, elixir-autogen, elixir-format
 msgid "We can't find the internet"
 msgstr ""

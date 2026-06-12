@@ -39,12 +39,29 @@ mix camerex.setup    # baixa u2net.onnx (176 MB) e u2netp.onnx (4,7 MB), com MD5
 mix phx.server       # http://localhost:4000 (escuta só em 127.0.0.1)
 ```
 
-Na interface: solte uma foto ou vídeo na dropzone, escolha um dos 6 presets
-de cor (mono ou duotone), ajuste **halo**, **rastro** e **detalhe**, e
-acompanhe o progresso na galeria (para vídeo há "prévia de 1 frame" antes de
-converter). Cada item tem página própria com antes/depois, download,
-"re-converter com ajustes" (cria um item novo) e exclusão. Se faltar ffmpeg
-ou modelo, um banner na galeria mostra o comando de correção.
+A interface é uma **biblioteca single-page** pensada para telas largas:
+árvore de pastas no rail esquerdo, grade de mídia no centro e painel de
+conversão/detalhe à direita — nada navega para outra página.
+
+- **Converter**: solte uma foto ou vídeo na dropzone, escolha um dos 6
+  presets de cor (mono ou duotone), ajuste **halo**, **rastro** e
+  **detalhe** (para vídeo há "prévia de 1 frame" antes de converter).
+- **Presets salvos**: qualquer combinação cor + sliders pode ser salva com
+  nome e reaplicada depois — inclusive em processamento em massa.
+- **Importar do disco**: aponte um caminho de pasta e o Camerex copia todas
+  as mídias para a biblioteca, espelhando as subpastas como pastas virtuais.
+- **Pastas virtuais**: organize os itens em pastas/subpastas (metadado, sem
+  mover arquivo); breadcrumb e contagens na árvore.
+- **Seleção em massa**: marque vários itens e processe com os ajustes
+  atuais ou com um preset salvo, mova de pasta, duplique ou apague.
+- **Jobs paralelos**: pool configurável de 1 a 6 conversões simultâneas
+  (seletor no rail), com barra de progresso e ETA por item.
+- **Detalhe in-place**: clicar num card abre antes/depois no painel direito
+  (com players para vídeo), download, "reprocessar com ajustes" (sobrescreve
+  o item; duplicar é ação explícita) e exclusão. A URL acompanha
+  (`?folder=…&item=…`), então deep-link e F5 restauram o estado.
+
+Se faltar ffmpeg ou modelo, um banner no rail mostra o comando de correção.
 
 ## Como funciona
 
@@ -66,11 +83,15 @@ Cada conversão é uma pasta autocontida — apagar o item é apagar a pasta:
 ```
 workspace/
 ├── items/<id>/        # manifest.json, original.*, neon.*, thumb*.jpg
+├── folders.json       # pastas virtuais ainda vazias
+├── user_presets.json  # presets salvos pelo usuário
+├── settings.json      # preferências (ex.: concorrência do pool)
 └── tmp/               # uploads em trânsito e prévias (limpo no boot)
 ```
 
-A galeria escaneia o disco; jobs interrompidos por restart viram
-`interrupted` e podem ser reprocessados pela UI.
+A pasta de um item no disco nunca muda: a organização em pastas é um campo
+`folder` no manifest. A biblioteca escaneia o disco; jobs interrompidos por
+restart viram `interrupted` e podem ser reprocessados pela UI.
 
 ## CLI
 
@@ -88,7 +109,11 @@ Presets: `forro-laranja`, `forro-teal`, `forro-duotone`, `pulp`, `miami`, `ouro`
 ```sh
 mix test                  # suíte rápida (segmentação via fixtures)
 mix test --include model  # + paridade golden com o modelo ONNX real
+mix check                 # formatter + credo --strict + dialyzer + testes
 ```
+
+O CI (GitHub Actions) roda `mix check` em cada push; o PLT do dialyzer fica
+cacheado em `priv/plts/`.
 
 - `exemplos/golden/` — golden files canônicos dos testes de paridade
   (gerados uma única vez pelo protótipo Python original, hoje aposentado;
