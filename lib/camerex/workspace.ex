@@ -102,7 +102,43 @@ defmodule Camerex.Workspace do
     end
   end
 
-  defp manifest_path(id), do: Path.join([items_dir(), id, "manifest.json"])
+  @doc "Manifests de todos os itens válidos, mais recentes primeiro."
+  @spec list_items() :: [map()]
+  def list_items do
+    case File.ls(items_dir()) do
+      {:ok, entries} ->
+        entries
+        |> Enum.flat_map(fn entry ->
+          case manifest(entry) do
+            {:ok, m} -> [m]
+            {:error, :not_found} -> []
+          end
+        end)
+        |> Enum.sort_by(& &1["created_at"], :desc)
+
+      {:error, _} ->
+        []
+    end
+  end
+
+  @doc "Apaga a pasta do item. Idempotente."
+  @spec delete_item(String.t()) :: :ok
+  def delete_item(id) do
+    if id in ["", ".", ".."] or Path.basename(id) != id do
+      raise ArgumentError, "id de item inválido: #{inspect(id)}"
+    end
+
+    File.rm_rf!(Path.join(items_dir(), id))
+    :ok
+  end
+
+  @spec item_path(String.t(), String.t()) :: Path.t()
+  def item_path(id, file), do: Path.join([items_dir(), id, file])
+
+  @spec media_url(String.t(), String.t()) :: String.t()
+  def media_url(id, file), do: "/media/items/#{id}/#{file}"
+
+  defp manifest_path(id), do: item_path(id, "manifest.json")
 
   defp write_manifest!(id, manifest) do
     File.write!(manifest_path(id), Jason.encode!(manifest, pretty: true))

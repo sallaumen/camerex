@@ -177,4 +177,68 @@ defmodule Camerex.WorkspaceTest do
       assert Workspace.update_manifest("nope", & &1) == {:error, :not_found}
     end
   end
+
+  describe "list_items/0" do
+    test "workspace vazio devolve lista vazia" do
+      assert Workspace.list_items() == []
+    end
+
+    test "ordena por created_at desc" do
+      src = fake_source!("upload.jpg")
+      {:ok, a} = Workspace.create_item(src, "a.jpg", :photo, "ouro", @params)
+      {:ok, b} = Workspace.create_item(src, "b.jpg", :photo, "ouro", @params)
+      {:ok, c} = Workspace.create_item(src, "c.jpg", :photo, "ouro", @params)
+
+      # created_at fixado via update_manifest: os 3 creates caem no mesmo
+      # segundo, então a ordem precisa ser controlada pelo teste
+      for {id, ts} <- [
+            {a, "2026-06-12T10:00:00-03:00"},
+            {c, "2026-06-12T12:00:00-03:00"},
+            {b, "2026-06-12T11:00:00-03:00"}
+          ] do
+        {:ok, _} = Workspace.update_manifest(id, &Map.put(&1, "created_at", ts))
+      end
+
+      assert Enum.map(Workspace.list_items(), & &1["id"]) == [c, b, a]
+    end
+
+    test "ignora pastas sem manifest válido sem quebrar" do
+      src = fake_source!("upload.jpg")
+      {:ok, id} = Workspace.create_item(src, "ok.jpg", :photo, "ouro", @params)
+
+      File.mkdir_p!(Path.join(Workspace.items_dir(), "pasta-intrusa"))
+
+      corrompido = Path.join(Workspace.items_dir(), "manifest-quebrado")
+      File.mkdir_p!(corrompido)
+      File.write!(Path.join(corrompido, "manifest.json"), "{nao é json")
+
+      assert Enum.map(Workspace.list_items(), & &1["id"]) == [id]
+    end
+  end
+
+  describe "delete_item/1, item_path/2, media_url/2" do
+    test "delete_item remove a pasta inteira e é idempotente" do
+      src = fake_source!("upload.jpg")
+      {:ok, id} = Workspace.create_item(src, "x.jpg", :photo, "ouro", @params)
+
+      assert :ok = Workspace.delete_item(id)
+      refute File.exists?(Path.join(Workspace.items_dir(), id))
+      assert :ok = Workspace.delete_item(id)
+    end
+
+    test "delete_item rejeita id que escapa de items/" do
+      for invalido <- ["../fora", "a/b", "", ".", ".."] do
+        assert_raise ArgumentError, fn -> Workspace.delete_item(invalido) end
+      end
+    end
+
+    test "item_path/2 monta items/<id>/<file>" do
+      assert Workspace.item_path("abc", "neon.png") ==
+               Path.join([Workspace.items_dir(), "abc", "neon.png"])
+    end
+
+    test "media_url/2 monta a URL servida pelo Plug.Static" do
+      assert Workspace.media_url("abc", "thumb.jpg") == "/media/items/abc/thumb.jpg"
+    end
+  end
 end
