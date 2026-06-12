@@ -1,11 +1,11 @@
 [
-  parallel: true,
+  # sequencial: os testes despejam saída de ffmpeg/logs de crash esperados
+  # e o relay paralelo do ex_check engasga com IO intercalado
+  parallel: false,
   skipped: false,
   tools: [
-    {:compiler, command: "mix compile --warnings-as-errors", detect: [{:package, :elixir}]},
-    {:formatter, command: "mix format --check-formatted", detect: [{:package, :elixir}]},
-    {:credo, command: "mix credo --strict", detect: [{:package, :credo}]},
-    {:dialyzer, command: "mix dialyzer", detect: [{:package, :dialyxir}]},
-    {:ex_unit, command: "mix test", detect: [{:package, :ex_unit}]}
+    # defaults do ex_check cobrem compiler (-Werror), formatter, ex_unit,
+    # dialyzer e unused_deps; só endurecemos o credo
+    {:credo, "mix credo --strict"}
   ]
 ]
