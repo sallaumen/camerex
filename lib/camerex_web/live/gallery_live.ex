@@ -21,7 +21,9 @@ defmodule CamerexWeb.GalleryLive do
         detail: 0.5,
         swap_sides: false,
         preview_data_url: nil,
-        preview_error: nil
+        preview_error: nil,
+        progress: %{},
+        subscribed_jobs: MapSet.new()
       )
       # params exatos do contrato §8
       |> allow_upload(:media,
@@ -41,6 +43,10 @@ defmodule CamerexWeb.GalleryLive do
 
   @impl true
   def handle_info({:jobs_changed}, socket), do: {:noreply, load_items(socket)}
+
+  def handle_info({:job_progress, id, prog}, socket) do
+    {:noreply, assign(socket, progress: Map.put(socket.assigns.progress, id, prog))}
+  end
 
   @impl true
   def handle_event("select_preset", %{"id" => id}, socket) do
@@ -112,7 +118,32 @@ defmodule CamerexWeb.GalleryLive do
     end
   end
 
-  defp load_items(socket), do: assign(socket, :items, Workspace.list_items())
+  defp load_items(socket) do
+    items = Workspace.list_items()
+
+    socket
+    |> assign(:items, items)
+    |> subscribe_processing(items)
+  end
+
+  # assina o tópico job:<id> de cada item processing; o MapSet evita
+  # assinatura duplicada quando {:jobs_changed} recarrega a lista
+  defp subscribe_processing(socket, items) do
+    subscribed = socket.assigns[:subscribed_jobs] || MapSet.new()
+
+    new_ids =
+      items
+      |> Enum.filter(&(&1["status"] == "processing"))
+      |> Enum.map(& &1["id"])
+      |> MapSet.new()
+      |> MapSet.difference(subscribed)
+
+    Enum.each(new_ids, &Jobs.subscribe/1)
+    assign(socket, subscribed_jobs: MapSet.union(subscribed, new_ids))
+  end
+
+  defp progress_pct(%{done: d, total: t}) when t > 0, do: Float.round(d / t * 100, 1)
+  defp progress_pct(_), do: 0.0
 
   defp duotone?(preset_id) do
     case Palette.get(preset_id) do
@@ -379,6 +410,25 @@ defmodule CamerexWeb.GalleryLive do
               >
                 {status_label(item["status"])}
               </span>
+            </div>
+
+            <div
+              :if={item["status"] == "processing"}
+              data-role="job-progress"
+              data-item-id={item["id"]}
+              class="mt-2"
+            >
+              <%= if prog = @progress[item["id"]] do %>
+                <div class="h-1.5 rounded bg-cx-border">
+                  <div class="h-1.5 rounded bg-cx-teal" style={"width: #{progress_pct(prog)}%"}>
+                  </div>
+                </div>
+                <span class="text-xs text-cx-text-dim">
+                  {prog.done}/{prog.total}{if prog.eta_s, do: " · ~#{round(prog.eta_s)}s"}
+                </span>
+              <% else %>
+                <span class="text-xs text-cx-text-dim">processando…</span>
+              <% end %>
             </div>
             <p :if={item["error"]} class="mt-1 truncate text-xs text-cx-text-dim" title={item["error"]}>
               {item["error"]}
