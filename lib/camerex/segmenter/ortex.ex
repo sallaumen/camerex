@@ -1,0 +1,80 @@
+defmodule Camerex.Segmenter.Ortex do
+  @moduledoc """
+  Adapter Ortex do `Camerex.Segmenter` (contrato §4): GenServer que carrega
+  cada modelo ONNX uma única vez (lazy, por id) e serializa as inferências.
+  """
+
+  @behaviour Camerex.Segmenter
+
+  use GenServer
+
+  alias Camerex.Segmenter.U2Net
+
+  @valid_models ~w(u2net u2netp)
+
+  @spec start_link(keyword()) :: GenServer.on_start()
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+  end
+
+  @impl Camerex.Segmenter
+  @spec segment(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
+  def segment(rgb, opts \\ []) do
+    model_id = Keyword.get(opts, :model, "u2net")
+
+    if model_id in @valid_models do
+      GenServer.call(__MODULE__, {:segment, rgb, model_id}, :infinity)
+    else
+      {:error, {:unknown_model, model_id}}
+    end
+  end
+
+  @impl GenServer
+  def init(_opts) do
+    # lazy: nenhum modelo no boot (u2net tem 176 MB); o primeiro
+    # segment/2 de cada id paga o load
+    {:ok, %{models: %{}}}
+  end
+
+  @impl GenServer
+  def handle_call({:segment, rgb, model_id}, _from, state) do
+    case fetch_model(state, model_id) do
+      {:ok, model, state} -> {:reply, do_segment(model, rgb), state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  defp fetch_model(%{models: models} = state, model_id) do
+    case models do
+      %{^model_id => model} ->
+        {:ok, model, state}
+
+      _ ->
+        path =
+          :camerex
+          |> Application.fetch_env!(:models_dir)
+          |> Path.join("#{model_id}.onnx")
+
+        if File.exists?(path) do
+          model = Ortex.load(path)
+          {:ok, model, put_in(state.models[model_id], model)}
+        else
+          {:error, {:model_not_found, path}}
+        end
+    end
+  end
+
+  defp do_segment(model, rgb) do
+    {h, w, 3} = Nx.shape(rgb)
+
+    d0 =
+      model
+      |> Ortex.run(U2Net.preprocess(rgb))
+      |> elem(0)
+      |> Nx.backend_transfer()
+
+    {:ok, d0 |> U2Net.postprocess({h, w}) |> U2Net.binarize()}
+  rescue
+    e -> {:error, e}
+  end
+end
