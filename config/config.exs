@@ -11,6 +11,9 @@ config :nx, default_backend: EXLA.Backend
 
 config :elixir, :time_zone_database, TimeZoneInfo.TimeZoneDatabase
 
+# .m4v não está no banco MIME padrão; o allow_upload exige tipo conhecido
+config :mime, :types, %{"video/x-m4v" => ["m4v"]}
+
 config :camerex,
   workspace_root: Path.expand("workspace"),
   models_dir: Path.expand("priv/models"),
