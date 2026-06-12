@@ -23,15 +23,40 @@ defmodule Camerex.Pipeline.Video do
   @spec run(String.t(), (non_neg_integer(), non_neg_integer() -> any())) ::
           :ok | {:error, term()}
   def run(item_id, progress_cb) do
+    started = System.monotonic_time(:millisecond)
+
     result =
-      with {:ok, manifest} <- Workspace.manifest(item_id),
-           in_path = Workspace.item_path(item_id, manifest["original_file"]),
-           {:ok, info} <- Probe.probe(in_path) do
-        convert(item_id, manifest, in_path, info, progress_cb)
+      with {:ok, manifest} <- Workspace.manifest(item_id) do
+        in_path = Workspace.item_path(item_id, manifest["original_file"])
+        out_path = Workspace.item_path(item_id, @output_file)
+        do_render(in_path, out_path, build_opts(manifest), progress_cb)
       end
 
     case result do
-      :ok ->
+      {:ok, stats} ->
+        write_video_thumbs(item_id, stats.first)
+        total_ms = System.monotonic_time(:millisecond) - started
+
+        {:ok, _} =
+          Workspace.update_manifest(item_id, fn m ->
+            Map.merge(m, %{
+              "status" => "done",
+              "output_file" => @output_file,
+              "completed_at" => DateTime.to_iso8601(DateTime.now!("America/Sao_Paulo")),
+              "media" => %{
+                "width" => @work_width,
+                "height" => stats.height,
+                "frames" => stats.count,
+                "fps" => stats.fps,
+                "duration_s" => stats.count / stats.fps
+              },
+              "timings_ms" => %{
+                "total" => total_ms,
+                "per_frame_avg" => Float.round(total_ms / stats.count, 1)
+              }
+            })
+          end)
+
         :ok
 
       {:error, reason} ->
@@ -43,72 +68,77 @@ defmodule Camerex.Pipeline.Video do
     end
   end
 
-  defp convert(item_id, manifest, in_path, info, progress_cb) do
-    started = System.monotonic_time(:millisecond)
-    fps = min(info.fps, @max_fps)
-    height = Decoder.target_height(info.width, info.height, @work_width)
-    total_estimate = max(round(info.duration_s * fps), 1)
-    out_path = Workspace.item_path(item_id, @output_file)
-    opts = build_opts(manifest)
+  @doc """
+  Converte um arquivo de vídeo direto em disco, sem Workspace — usada por
+  `run/2` (via `do_render`) e pela CLI `mix camerex.video`.
 
-    with {:ok, enc} <- Encoder.open(out_path, @work_width, height, fps) do
-      initial = %{mask_f: nil, trail: nil, split_ema: nil, count: 0, first: nil}
-
-      reduced =
-        in_path
-        |> Decoder.stream!(%{width: @work_width, height: height, fps: fps})
-        |> Enum.reduce_while(initial, fn frame, state ->
-          case process_frame(frame, state, opts, enc) do
-            {:ok, new_state} ->
-              progress_cb.(new_state.count, max(total_estimate, new_state.count))
-              {:cont, new_state}
-
-            {:error, reason} ->
-              {:halt, {:error, reason}}
-          end
-        end)
-
-      finish(reduced, enc, item_id, fps, height, started, progress_cb)
+  opts (defaults do contrato): `preset:` (id da Palette, default "forro-teal"),
+  `halo:` 0.6, `detail:` 0.5, `trail:` 0.7, `swap_sides:` false,
+  `model:` "u2netp".
+  """
+  @spec render_file(
+          Path.t(),
+          Path.t(),
+          keyword(),
+          (non_neg_integer(), non_neg_integer() -> any())
+        ) :: :ok | {:error, term()}
+  def render_file(in_path, out_path, opts, progress_cb) do
+    case do_render(in_path, out_path, build_opts_kw(opts), progress_cb) do
+      {:ok, _stats} -> :ok
+      {:error, _} = err -> err
     end
   end
 
-  defp finish({:error, reason}, enc, _item_id, _fps, _height, _started, _cb) do
+  # miolo compartilhado: probe → decode → loop por frame → encode.
+  # Devolve stats para o run/2 preencher manifest e thumbs.
+  defp do_render(in_path, out_path, opts, progress_cb) do
+    with {:ok, info} <- Probe.probe(in_path) do
+      fps = min(info.fps, @max_fps)
+      height = Decoder.target_height(info.width, info.height, @work_width)
+      total_estimate = max(round(info.duration_s * fps), 1)
+
+      with {:ok, enc} <- Encoder.open(out_path, @work_width, height, fps) do
+        initial = %{mask_f: nil, trail: nil, split_ema: nil, count: 0, first: nil}
+
+        reduced =
+          in_path
+          |> Decoder.stream!(%{width: @work_width, height: height, fps: fps})
+          |> Enum.reduce_while(initial, fn frame, state ->
+            case process_frame(frame, state, opts, enc) do
+              {:ok, new_state} ->
+                progress_cb.(new_state.count, max(total_estimate, new_state.count))
+                {:cont, new_state}
+
+              {:error, reason} ->
+                {:halt, {:error, reason}}
+            end
+          end)
+
+        case finish_render(reduced, enc, fps, height) do
+          {:ok, stats} ->
+            progress_cb.(stats.count, stats.count)
+            {:ok, stats}
+
+          {:error, _} = err ->
+            err
+        end
+      end
+    end
+  end
+
+  defp finish_render({:error, reason}, enc, _fps, _height) do
     _ = Encoder.close(enc)
     {:error, reason}
   end
 
-  defp finish(%{count: 0}, enc, _item_id, _fps, _height, _started, _cb) do
+  defp finish_render(%{count: 0}, enc, _fps, _height) do
     _ = Encoder.close(enc)
     {:error, "nenhum frame decodificado"}
   end
 
-  defp finish(state, enc, item_id, fps, height, started, progress_cb) do
+  defp finish_render(state, enc, fps, height) do
     with :ok <- Encoder.close(enc) do
-      write_video_thumbs(item_id, state.first)
-      total_ms = System.monotonic_time(:millisecond) - started
-      progress_cb.(state.count, state.count)
-
-      {:ok, _} =
-        Workspace.update_manifest(item_id, fn m ->
-          Map.merge(m, %{
-            "status" => "done",
-            "output_file" => @output_file,
-            "completed_at" => DateTime.to_iso8601(DateTime.now!("America/Sao_Paulo")),
-            "media" => %{
-              "width" => @work_width,
-              "height" => height,
-              "frames" => state.count,
-              "fps" => fps,
-              "duration_s" => state.count / fps
-            },
-            "timings_ms" => %{
-              "total" => total_ms,
-              "per_frame_avg" => Float.round(total_ms / state.count, 1)
-            }
-          })
-        end)
-
-      :ok
+      {:ok, %{count: state.count, fps: fps, height: height, first: state.first}}
     end
   end
 
@@ -211,6 +241,27 @@ defmodule Camerex.Pipeline.Video do
       detail: params["detail"] || 0.5,
       halo: params["halo"] || 0.6,
       trail_decay: params["trail"] || 0.7,
+      mode: preset.mode,
+      colors: colors
+    }
+  end
+
+  # variante de build_opts para a CLI (keyword em vez de manifest)
+  defp build_opts_kw(opts) do
+    preset =
+      Palette.get(Keyword.get(opts, :preset, "forro-teal")) || Palette.get("forro-teal")
+
+    colors =
+      if preset.mode == :duotone and Keyword.get(opts, :swap_sides, false),
+        do: Enum.reverse(preset.colors),
+        else: preset.colors
+
+    %{
+      segmenter: Application.fetch_env!(:camerex, :segmenter),
+      model: Keyword.get(opts, :model, "u2netp"),
+      detail: Keyword.get(opts, :detail, 0.5),
+      halo: Keyword.get(opts, :halo, 0.6),
+      trail_decay: Keyword.get(opts, :trail, 0.7),
       mode: preset.mode,
       colors: colors
     }
