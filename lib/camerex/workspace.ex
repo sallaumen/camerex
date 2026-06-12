@@ -45,6 +45,70 @@ defmodule Camerex.Workspace do
     "#{ts}-#{slug(original_filename)}-#{preset_id}-#{rand4}"
   end
 
+  @doc """
+  Copia o arquivo de origem para `items/<id>/original.<ext>` e escreve o
+  manifest com status "queued". Devolve o id do item.
+  """
+  @spec create_item(Path.t(), String.t(), :photo | :video, String.t(), map()) ::
+          {:ok, String.t()} | {:error, term()}
+  def create_item(src_path, original_filename, type, preset_id, params)
+      when type in [:photo, :video] and is_map(params) do
+    id = generate_id(original_filename, preset_id)
+    dir = Path.join(items_dir(), id)
+    ext = original_filename |> Path.extname() |> String.downcase()
+    original_file = "original#{ext}"
+
+    with :ok <- File.mkdir_p(dir),
+         :ok <- File.cp(src_path, Path.join(dir, original_file)) do
+      manifest = %{
+        "id" => id,
+        "type" => Atom.to_string(type),
+        "original_filename" => original_filename,
+        "original_file" => original_file,
+        "output_file" => if(type == :photo, do: "neon.png", else: "neon.mp4"),
+        "preset" => preset_id,
+        "params" => params,
+        "status" => "queued",
+        "error" => nil,
+        "media" => nil,
+        "created_at" => DateTime.now!("America/Sao_Paulo") |> DateTime.to_iso8601(),
+        "completed_at" => nil,
+        "timings_ms" => %{"total" => nil, "per_frame_avg" => nil}
+      }
+
+      write_manifest!(id, manifest)
+      {:ok, id}
+    else
+      {:error, reason} ->
+        File.rm_rf(dir)
+        {:error, reason}
+    end
+  end
+
+  @spec manifest(String.t()) :: {:ok, map()} | {:error, :not_found}
+  def manifest(id) do
+    with {:ok, json} <- File.read(manifest_path(id)),
+         {:ok, map} <- Jason.decode(json) do
+      {:ok, map}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @spec update_manifest(String.t(), (map() -> map())) :: {:ok, map()} | {:error, :not_found}
+  def update_manifest(id, fun) when is_function(fun, 1) do
+    with {:ok, current} <- manifest(id) do
+      {:ok, write_manifest!(id, fun.(current))}
+    end
+  end
+
+  defp manifest_path(id), do: Path.join([items_dir(), id, "manifest.json"])
+
+  defp write_manifest!(id, manifest) do
+    File.write!(manifest_path(id), Jason.encode!(manifest, pretty: true))
+    manifest
+  end
+
   defp ensure_dir(path) do
     File.mkdir_p!(path)
     path
