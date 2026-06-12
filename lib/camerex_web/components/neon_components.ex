@@ -40,6 +40,7 @@ defmodule CamerexWeb.NeonComponents do
       data-swatch={@preset.id}
       data-selected={to_string(@selected)}
       title={@preset.name}
+      aria-label={"preset de cor #{@preset.name}"}
       {@rest}
     ></button>
     """

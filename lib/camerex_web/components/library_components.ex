@@ -95,6 +95,7 @@ defmodule CamerexWeb.LibraryComponents do
         type="button"
         phx-click="open_item"
         phx-value-id={@item["id"]}
+        aria-label={"abrir #{@item["original_filename"]}"}
         class="block w-full text-left"
       >
         <div :if={@item["status"] == "done"} class="flex gap-1">
