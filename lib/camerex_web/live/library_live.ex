@@ -487,11 +487,14 @@ defmodule CamerexWeb.LibraryLive do
         </aside>
       </div>
 
+      <%!-- sem phx-click no overlay: cliques DENTRO do painel borbulham até aqui
+            e fechariam o modal; o phx-click-away do painel já cobre o clique fora --%>
       <div
         :if={@modal}
         id="modal-overlay"
         class="fixed inset-0 z-40 flex items-center justify-center bg-black/60"
-        phx-click="close_modal"
+        phx-window-keydown="close_modal"
+        phx-key="escape"
       >
         <div
           class="w-full max-w-lg rounded-lg border border-cx-border bg-cx-surface p-5"

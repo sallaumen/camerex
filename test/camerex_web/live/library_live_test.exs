@@ -214,6 +214,17 @@ defmodule CamerexWeb.LibraryLiveTest do
       assert Enum.all?(items, &(&1["status"] == "new"))
     end
 
+    test "overlay do modal não captura cliques de dentro do painel", %{conn: conn} do
+      {:ok, lv, _} = live(conn, "/")
+      lv |> element("#import-button") |> render_click()
+
+      # regressão: phx-click no overlay fechava o modal em QUALQUER clique
+      # interno (borbulhado), inclusive no input de caminho — import inusável
+      assert has_element?(lv, "#modal-overlay")
+      refute has_element?(lv, "#modal-overlay[phx-click]")
+      assert has_element?(lv, ~s(#modal-overlay[phx-key="escape"]))
+    end
+
     test "scan de caminho inexistente mostra erro no modal", %{conn: conn} do
       {:ok, lv, _} = live(conn, "/")
       lv |> element("#import-button") |> render_click()
