@@ -119,9 +119,11 @@ defmodule Camerex.NeonTest do
 
   describe "compose/3" do
     property "mono: pixel com edges == 1.0 sai na cor exata do preset" do
-      check all bits <- list_of(integer(0..1), length: 64),
-                preset_id <- member_of(~w(forro-laranja forro-teal ouro)),
-                halo <- float(min: 0.0, max: 1.0) do
+      check all(
+              bits <- list_of(integer(0..1), length: 64),
+              preset_id <- member_of(~w(forro-laranja forro-teal ouro)),
+              halo <- float(min: 0.0, max: 1.0)
+            ) do
         edges = bits |> Nx.tensor(type: :f32) |> Nx.reshape({8, 8})
         %{colors: [{r, g, b}] = colors} = Palette.get(preset_id)
 
