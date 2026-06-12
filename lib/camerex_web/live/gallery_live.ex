@@ -25,13 +25,15 @@ defmodule CamerexWeb.GalleryLive do
         progress: %{},
         subscribed_jobs: MapSet.new()
       )
-      # params exatos do contrato §8
+      # params exatos do contrato §8; auto_upload: o arquivo sobe na seleção
+      # (progresso aparece na hora e a prévia funciona antes do submit)
       |> allow_upload(:media,
         accept: ~w(.jpg .jpeg .png .webp .mp4 .mov .m4v .webm),
         max_file_size: 600_000_000,
         chunk_size: 640_000,
         chunk_timeout: 60_000,
-        max_entries: 1
+        max_entries: 1,
+        auto_upload: true
       )
       |> load_items()
 
@@ -61,6 +63,17 @@ defmodule CamerexWeb.GalleryLive do
   end
 
   def handle_event("preview_frame", _params, socket) do
+    # consume com entry em progresso derruba o LiveView (bug pego no
+    # checkpoint 4.9): com auto_upload o done? chega sozinho, mas o clique
+    # pode vir antes — nesse caso, avisa em vez de crashar
+    if Enum.all?(socket.assigns.uploads.media.entries, & &1.done?) do
+      do_preview_frame(socket)
+    else
+      {:noreply, assign(socket, preview_error: "aguarde o upload terminar")}
+    end
+  end
+
+  defp do_preview_frame(socket) do
     results =
       consume_uploaded_entries(socket, :media, fn %{path: path}, _entry ->
         # :postpone lê o tmp do upload SEM consumi-lo — o arquivo continua
