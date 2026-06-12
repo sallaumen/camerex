@@ -29,8 +29,9 @@ defmodule CamerexWeb.GalleryLiveTest do
     assert has_element?(view, "#item-#{done} [data-role=type-chip]", "foto")
     assert has_element?(view, "#item-#{done} img[src='/media/items/#{done}/thumb.jpg']")
     assert has_element?(view, "#item-#{done} img[src='/media/items/#{done}/thumb_neon.jpg']")
-    # item não-done ainda não tem thumbs: mostra placeholder
-    assert has_element?(view, "#item-#{queued} [data-role=placeholder]")
+    # foto não-done ainda não tem thumbs: mostra o original como prévia
+    assert has_element?(view, "#item-#{queued} img[alt^=original]")
+    refute has_element?(view, "#item-#{queued} [data-role=placeholder]")
   end
 
   test "galeria vazia mostra estado vazio", %{conn: conn} do

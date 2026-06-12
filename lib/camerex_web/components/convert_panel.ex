@@ -34,7 +34,8 @@ defmodule CamerexWeb.ConvertPanel do
         class="flex flex-wrap items-center gap-2 rounded-lg border border-cx-teal bg-cx-bg p-2 text-sm"
       >
         <span>
-          reprocessando <strong>{@reconvert_item["original_filename"]}</strong>
+          {if @reconvert_item["status"] == "new", do: "processando", else: "reprocessando"}
+          <strong>{@reconvert_item["original_filename"]}</strong>
         </span>
         <button type="button" class="text-cx-text-dim underline" phx-click="reconvert_cancel">
           cancelar
@@ -141,7 +142,7 @@ defmodule CamerexWeb.ConvertPanel do
           id="convert-submit"
           class="mt-4 rounded bg-cx-teal px-4 py-2 font-medium text-cx-bg"
         >
-          {if @reconvert_item, do: "Reprocessar agora", else: "Converter"}
+          {submit_label(@reconvert_item)}
         </button>
       </form>
 
@@ -195,6 +196,10 @@ defmodule CamerexWeb.ConvertPanel do
   defp duotone?(preset_id) do
     match?(%{mode: :duotone}, Palette.get(preset_id))
   end
+
+  defp submit_label(nil), do: "Converter"
+  defp submit_label(%{"status" => "new"}), do: "Processar agora"
+  defp submit_label(_item), do: "Reprocessar agora"
 
   defp video_upload_selected?(upload) do
     Enum.any?(upload.entries, &String.starts_with?(&1.client_type || "", "video/"))

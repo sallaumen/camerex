@@ -6,6 +6,7 @@ defmodule CamerexWeb.NeonComponents do
   alias Camerex.Neon.Palette
 
   @badges %{
+    "new" => {"novo", "badge-new"},
     "queued" => {"na fila", "badge-queued"},
     "processing" => {"processando", "badge-processing"},
     "done" => {"pronto", "badge-done"},

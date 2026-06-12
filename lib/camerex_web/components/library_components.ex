@@ -112,8 +112,15 @@ defmodule CamerexWeb.LibraryComponents do
             class="h-24 w-1/2 rounded object-cover"
           />
         </div>
+        <img
+          :if={@item["status"] != "done" and @item["type"] != "video"}
+          src={Workspace.media_url(@item["id"], @item["original_file"])}
+          alt={"original de #{@item["original_filename"]}"}
+          loading="lazy"
+          class="h-24 w-full rounded object-cover"
+        />
         <div
-          :if={@item["status"] != "done"}
+          :if={@item["status"] != "done" and @item["type"] == "video"}
           data-role="placeholder"
           class="flex h-24 items-center justify-center rounded bg-cx-bg px-2 text-center text-xs text-cx-text-dim"
         >

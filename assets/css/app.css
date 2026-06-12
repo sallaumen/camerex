@@ -39,6 +39,7 @@
   background: #10201a;
 }
 
+.badge-new { color: #cfe3da; border-color: #3a5a4c; }
 .badge-queued { color: #7fa293; border-color: #2a4a3c; }
 .badge-processing { color: #ffd166; border-color: #ffd166; animation: neon-pulse 1.2s ease-in-out infinite; }
 .badge-done { color: #2bc4b2; border-color: #2bc4b2; }

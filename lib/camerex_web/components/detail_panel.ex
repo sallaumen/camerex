@@ -125,7 +125,7 @@ defmodule CamerexWeb.DetailPanel do
           phx-click="reconvert_start"
           class="rounded border border-cx-teal px-3 py-1.5 text-cx-teal"
         >
-          Reprocessar com ajustes
+          {if @item["status"] == "new", do: "Processar", else: "Reprocessar com ajustes"}
         </button>
 
         <button
