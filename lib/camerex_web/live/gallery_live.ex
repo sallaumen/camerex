@@ -19,7 +19,9 @@ defmodule CamerexWeb.GalleryLive do
         halo: 0.6,
         trail: 0.7,
         detail: 0.5,
-        swap_sides: false
+        swap_sides: false,
+        preview_data_url: nil,
+        preview_error: nil
       )
       # params exatos do contrato §8
       |> allow_upload(:media,
@@ -50,6 +52,27 @@ defmodule CamerexWeb.GalleryLive do
 
   def handle_event("validate", params, socket) do
     {:noreply, assign_controls(socket, params)}
+  end
+
+  def handle_event("preview_frame", _params, socket) do
+    results =
+      consume_uploaded_entries(socket, :media, fn %{path: path}, _entry ->
+        # :postpone lê o tmp do upload SEM consumi-lo — o arquivo continua
+        # disponível para o submit de conversão de verdade
+        {:postpone, generate_preview(path, current_params(socket))}
+      end)
+
+    case results do
+      [{:ok, data_url} | _] ->
+        {:noreply, assign(socket, preview_data_url: data_url, preview_error: nil)}
+
+      [{:error, reason} | _] ->
+        {:noreply,
+         assign(socket, preview_data_url: nil, preview_error: error_message(reason))}
+
+      [] ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("convert", params, socket) do
@@ -120,9 +143,78 @@ defmodule CamerexWeb.GalleryLive do
     if Path.extname(String.downcase(filename)) in @video_exts, do: :video, else: :photo
   end
 
-  # vídeo usa o modelo leve por default (decisão do spec §2)
+  # u2net para tudo (decisão do gate da Fase 0: 1,9x de speedup não bateu o
+  # critério de 2x); u2netp fica para o toggle "modo rápido" e para a prévia
   defp default_model(:photo), do: "u2net"
-  defp default_model(:video), do: "u2netp"
+  defp default_model(:video), do: "u2net"
+
+  # prévia usa u2netp: é descartável e a velocidade importa mais que a
+  # fidelidade absoluta ao modelo final
+  defp current_params(socket) do
+    [
+      preset: socket.assigns.preset_id,
+      halo: socket.assigns.halo,
+      detail: socket.assigns.detail,
+      swap_sides: socket.assigns.swap_sides,
+      model: "u2netp"
+    ]
+  end
+
+  defp generate_preview(video_path, opts) do
+    tmp_png =
+      Path.join(
+        Camerex.Workspace.tmp_dir(),
+        "preview-#{System.unique_integer([:positive])}.png"
+      )
+
+    File.mkdir_p!(Path.dirname(tmp_png))
+
+    with {:ok, info} <- Camerex.Video.Probe.probe(video_path),
+         :ok <- extract_middle_frame(video_path, info.duration_s / 2, tmp_png),
+         {:ok, data_url} <- render_preview_frame(tmp_png, opts) do
+      File.rm(tmp_png)
+      {:ok, data_url}
+    end
+  end
+
+  defp extract_middle_frame(video_path, ss, out_png) do
+    args = ["-y", "-v", "error", "-ss", "#{ss}", "-i", video_path, "-frames:v", "1", out_png]
+
+    case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      {out, status} -> {:error, "ffmpeg falhou (status #{status}): #{String.trim(out)}"}
+    end
+  end
+
+  defp render_preview_frame(png_path, opts) do
+    rgb =
+      png_path
+      |> Evision.imread()
+      |> Evision.cvtColor(Evision.Constant.cv_COLOR_BGR2RGB())
+      |> Evision.Mat.to_nx(Nx.BinaryBackend)
+
+    with {:ok, neon} <- Camerex.Pipeline.Photo.render(rgb, opts) do
+      mat =
+        neon
+        |> Evision.Mat.from_nx_2d()
+        |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2BGR())
+
+      case Evision.imencode(".png", mat) do
+        bin when is_binary(bin) ->
+          {:ok, "data:image/png;base64," <> Base.encode64(bin)}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  defp video_upload_selected?(upload) do
+    Enum.any?(upload.entries, &String.starts_with?(&1.client_type || "", "video/"))
+  end
+
+  defp error_message(reason) when is_binary(reason), do: reason
+  defp error_message(reason), do: inspect(reason)
 
   defp upload_error_label(:too_large), do: "arquivo grande demais (máx. 600 MB)"
   defp upload_error_label(:not_accepted), do: "formato não suportado"
@@ -160,6 +252,28 @@ defmodule CamerexWeb.GalleryLive do
                 {upload_error_label(err)}
               </p>
             </div>
+
+            <button
+              :if={video_upload_selected?(@uploads.media)}
+              type="button"
+              phx-click="preview_frame"
+              data-role="preview-button"
+              class="mt-2 rounded border border-cx-border px-3 py-1.5 text-sm hover:border-cx-teal"
+            >
+              Prévia de 1 frame
+            </button>
+
+            <img
+              :if={@preview_data_url}
+              src={@preview_data_url}
+              alt="prévia neon do frame do meio"
+              data-role="preview-img"
+              class="mt-2 max-h-64 rounded"
+            />
+
+            <p :if={@preview_error} class="mt-2 text-sm text-cx-orange">
+              Prévia falhou: {@preview_error}
+            </p>
           </div>
 
           <fieldset id="preset-swatches" class="mt-4 flex flex-wrap gap-2">
