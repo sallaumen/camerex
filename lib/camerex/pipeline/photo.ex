@@ -6,7 +6,7 @@ defmodule Camerex.Pipeline.Photo do
   thumbs, manifest) chega na Fase 3.
   """
 
-  alias Camerex.{Mask, Neon}
+  alias Camerex.{Mask, Neon, Workspace}
   alias Camerex.Neon.Palette
 
   @spec render(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
@@ -31,6 +31,92 @@ defmodule Camerex.Pipeline.Photo do
 
       opts = compose_opts(preset, mask, halo)
       {:ok, Neon.compose(edges, colors(preset, swap_sides), opts)}
+    end
+  end
+
+  @spec run(String.t(), (non_neg_integer(), non_neg_integer() -> any()) | nil) ::
+          :ok | {:error, term()}
+  def run(item_id, progress_cb) do
+    started_ms = System.monotonic_time(:millisecond)
+
+    try do
+      {:ok, manifest} = Workspace.manifest(item_id)
+      rgb = read_rgb!(Workspace.item_path(item_id, manifest["original_file"]))
+      {h, w, 3} = Nx.shape(rgb)
+
+      neon =
+        case render(rgb, render_opts(manifest)) do
+          {:ok, tensor} -> tensor
+          {:error, reason} -> raise "pipeline de foto falhou: #{inspect(reason)}"
+        end
+
+      write_png!(Workspace.item_path(item_id, "neon.png"), neon)
+      :ok = Workspace.write_thumbs(item_id)
+
+      total_ms = System.monotonic_time(:millisecond) - started_ms
+
+      {:ok, _} =
+        Workspace.update_manifest(item_id, fn m ->
+          m
+          |> Map.put("status", "done")
+          |> Map.put("output_file", "neon.png")
+          |> Map.put("error", nil)
+          |> Map.put("media", %{"width" => w, "height" => h})
+          |> Map.put("completed_at", DateTime.to_iso8601(DateTime.now!("America/Sao_Paulo")))
+          |> Map.put("timings_ms", %{"total" => total_ms, "per_frame_avg" => total_ms})
+        end)
+
+      if progress_cb, do: progress_cb.(1, 1)
+      :ok
+    rescue
+      e ->
+        # grava o erro legível e re-levanta: o Jobs vê o DOWN anormal da Task
+        _ =
+          Workspace.update_manifest(item_id, fn m ->
+            m |> Map.put("status", "failed") |> Map.put("error", Exception.message(e))
+          end)
+
+        reraise e, __STACKTRACE__
+    end
+  end
+
+  defp render_opts(manifest) do
+    p = manifest["params"] || %{}
+
+    [
+      preset: manifest["preset"],
+      halo: p["halo"] || 0.6,
+      detail: p["detail"] || 0.5,
+      swap_sides: p["swap_sides"] || false,
+      model: p["model"] || "u2net"
+    ]
+  end
+
+  # Evision.imread devolve BGR; o domínio inteiro é RGB (contrato §4),
+  # então a conversão acontece aqui, na borda.
+  defp read_rgb!(path) do
+    case Evision.imread(path) do
+      %Evision.Mat{} = bgr ->
+        if match?({h, w, _c} when h > 0 and w > 0, Evision.Mat.shape(bgr)) do
+          bgr
+          |> Evision.cvtColor(Evision.Constant.cv_COLOR_BGR2RGB())
+          |> Evision.Mat.to_nx(Nx.BinaryBackend)
+        else
+          raise "imagem original vazia ou corrompida: #{Path.basename(path)}"
+        end
+
+      _other ->
+        raise "não consegui ler a imagem original: #{Path.basename(path)}"
+    end
+  end
+
+  defp write_png!(path, rgb_tensor) do
+    bgr =
+      Evision.cvtColor(Evision.Mat.from_nx_2d(rgb_tensor), Evision.Constant.cv_COLOR_RGB2BGR())
+
+    case Evision.imwrite(path, bgr) do
+      true -> :ok
+      other -> raise "falha ao gravar #{Path.basename(path)}: #{inspect(other)}"
     end
   end
 
