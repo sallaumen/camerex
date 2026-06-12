@@ -22,8 +22,6 @@ camerex-*.tar
 /priv/static/cache_manifest.json
 
 
-# Configuração local de ferramentas
-/.claude/
 
 # macOS
 .DS_Store
