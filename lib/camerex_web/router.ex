@@ -18,6 +18,7 @@ defmodule CamerexWeb.Router do
     pipe_through :browser
 
     live "/", GalleryLive
+    live "/item/:id", ItemLive
   end
 
   # Other scopes may use custom stacks.
