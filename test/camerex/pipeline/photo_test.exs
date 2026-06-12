@@ -1,0 +1,81 @@
+defmodule Camerex.Pipeline.PhotoTest do
+  # usa Application.put_env (:fixture_mask_path)
+  use ExUnit.Case, async: false
+
+  alias Camerex.Pipeline.Photo
+
+  @moduletag :tmp_dir
+
+  @teal {43, 196, 178}
+
+  defp gray_scene(h, w), do: Nx.broadcast(Nx.u8(127), {h, w, 3})
+
+  defp count_color_pixels(out, {r, g, b}) do
+    out
+    |> Nx.equal(Nx.tensor([r, g, b], type: :u8))
+    |> Nx.all(axes: [-1])
+    |> Nx.sum()
+    |> Nx.to_number()
+  end
+
+  test "mono: devolve {h, w, 3} u8 com pixels de linha na cor exata do preset" do
+    assert {:ok, out} = Photo.render(gray_scene(32, 32), preset: "forro-teal")
+
+    assert Nx.shape(out) == {32, 32, 3}
+    assert Nx.type(out) == {:u, 8}
+    assert count_color_pixels(out, @teal) > 0
+  end
+
+  test "preset desconhecido devolve erro" do
+    assert {:error, {:unknown_preset, "vaporwave"}} =
+             Photo.render(gray_scene(8, 8), preset: "vaporwave")
+  end
+
+  test "descarta componentes menores via largest_component", %{tmp_dir: tmp} do
+    # máscara fixture 64x64: blob grande à esquerda + blob pequeno à direita
+    rows = Nx.iota({64, 64}, axis: 0)
+    cols = Nx.iota({64, 64}, axis: 1)
+
+    big =
+      Nx.logical_and(
+        Nx.logical_and(Nx.greater_equal(rows, 8), Nx.less(rows, 56)),
+        Nx.logical_and(Nx.greater_equal(cols, 4), Nx.less(cols, 28))
+      )
+
+    small =
+      Nx.logical_and(
+        Nx.logical_and(Nx.greater_equal(rows, 28), Nx.less(rows, 36)),
+        Nx.logical_and(Nx.greater_equal(cols, 48), Nx.less(cols, 56))
+      )
+
+    mask = big |> Nx.logical_or(small) |> Nx.multiply(255) |> Nx.as_type(:u8)
+
+    png = Path.join(tmp, "two_blobs.png")
+    Evision.imwrite(png, Evision.Mat.from_nx(mask))
+    Application.put_env(:camerex, :fixture_mask_path, png)
+    on_exit(fn -> Application.delete_env(:camerex, :fixture_mask_path) end)
+
+    assert {:ok, out} = Photo.render(gray_scene(64, 64), preset: "forro-teal")
+
+    # a linha (cor exata) existe na imagem, mas NÃO na região do blob
+    # pequeno — ele foi descartado; o halo que vaza para lá nunca atinge
+    # a cor cheia
+    assert count_color_pixels(out, @teal) > 0
+    assert count_color_pixels(out[[24..39, 44..59]], @teal) == 0
+  end
+
+  test "swap_sides inverte as cores do duotone" do
+    scene = gray_scene(64, 64)
+
+    {:ok, normal} = Photo.render(scene, preset: "forro-duotone")
+    {:ok, swapped} = Photo.render(scene, preset: "forro-duotone", swap_sides: true)
+
+    # sem swap, a metade esquerda pende para o laranja (R = 255); com swap,
+    # para o teal (R = 43): o canal R médio da metade esquerda cai
+    mean_left_r = fn out ->
+      out[[.., 0..31, 0]] |> Nx.as_type(:f32) |> Nx.mean() |> Nx.to_number()
+    end
+
+    assert mean_left_r.(normal) > mean_left_r.(swapped)
+  end
+end
