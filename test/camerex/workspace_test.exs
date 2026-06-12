@@ -93,6 +93,68 @@ defmodule Camerex.WorkspaceTest do
     end
   end
 
+  describe "normalize_folder/1 (v2)" do
+    test "raiz, paths válidos e slug por segmento sem rootname" do
+      assert Workspace.normalize_folder("") == {:ok, ""}
+      assert Workspace.normalize_folder("shows") == {:ok, "shows"}
+      assert Workspace.normalize_folder("Shows/2026.Junho") == {:ok, "shows/2026-junho"}
+      assert Workspace.normalize_folder("Açaí/Beats Fortes") == {:ok, "acai/beats-fortes"}
+      # barras sobrando são normalizadas
+      assert Workspace.normalize_folder("/a//b/") == {:ok, "a/b"}
+    end
+
+    test "rejeita traversal" do
+      assert Workspace.normalize_folder("..") == :error
+      assert Workspace.normalize_folder("a/../b") == :error
+      assert Workspace.normalize_folder("./a") == :error
+    end
+  end
+
+  describe "manifest v2 (folder + status new)" do
+    test "create_item com folder: normaliza e grava no manifest" do
+      src = fake_source!("upload.jpg")
+
+      {:ok, id} =
+        Workspace.create_item(src, "x.jpg", :photo, "ouro", @params, folder: "Shows/2026")
+
+      assert {:ok, %{"folder" => "shows/2026"}} = Workspace.manifest(id)
+    end
+
+    test "create_item com folder inválido devolve erro sem criar pasta órfã" do
+      src = fake_source!("upload.jpg")
+
+      assert {:error, :invalid_folder} =
+               Workspace.create_item(src, "x.jpg", :photo, "ouro", @params, folder: "../fuga")
+
+      assert {:ok, []} = File.ls(Workspace.items_dir())
+    end
+
+    test "create_item sem preset/params: item importado nasce \"new\"" do
+      src = fake_source!("clip.mp4")
+
+      {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, nil, nil)
+
+      assert {:ok, m} = Workspace.manifest(id)
+      assert m["status"] == "new"
+      assert m["preset"] == nil
+      assert m["params"] == nil
+      assert m["output_file"] == nil
+      assert m["folder"] == ""
+    end
+
+    test "manifest v1 sem a chave folder ganha default \"\" na leitura" do
+      src = fake_source!("upload.jpg")
+      {:ok, id} = Workspace.create_item(src, "v1.jpg", :photo, "ouro", @params)
+
+      # simula manifest gravado pela v1 (sem "folder")
+      path = Path.join([Workspace.items_dir(), id, "manifest.json"])
+      v1 = path |> File.read!() |> Jason.decode!() |> Map.delete("folder")
+      File.write!(path, Jason.encode!(v1))
+
+      assert {:ok, %{"folder" => ""}} = Workspace.manifest(id)
+    end
+  end
+
   describe "create_item/5 + manifest/1 + update_manifest/2" do
     test "copia o original para items/<id>/original.<ext> com extensão minúscula" do
       src = fake_source!("upload.tmp", "bytes-da-foto")
@@ -123,6 +185,7 @@ defmodule Camerex.WorkspaceTest do
                "status" => "queued",
                "error" => nil,
                "media" => nil,
+               "folder" => "",
                "created_at" => m["created_at"],
                "completed_at" => nil,
                "timings_ms" => %{"total" => nil, "per_frame_avg" => nil}

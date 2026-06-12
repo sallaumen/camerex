@@ -19,10 +19,32 @@ defmodule Camerex.Workspace do
   """
   @spec slug(String.t()) :: String.t()
   def slug(original_filename) do
+    original_filename
+    |> Path.basename()
+    |> Path.rootname()
+    |> slugify()
+  end
+
+  @doc """
+  Normaliza um path de pasta virtual: barras extras removidas, cada
+  segmento slugificado (sem perder pontos internos, ao contrário de
+  `slug/1`), traversal (`.`/`..`) rejeitado. `""` é a raiz.
+  """
+  @spec normalize_folder(String.t()) :: {:ok, String.t()} | :error
+  def normalize_folder(path) when is_binary(path) do
+    segments = path |> String.split("/") |> Enum.reject(&(&1 == ""))
+
+    if Enum.any?(segments, &(&1 in [".", ".."])) do
+      :error
+    else
+      {:ok, Enum.map_join(segments, "/", &slugify/1)}
+    end
+  end
+
+  # núcleo do slug, sem basename/rootname (pastas têm pontos legítimos)
+  defp slugify(text) do
     base =
-      original_filename
-      |> Path.basename()
-      |> Path.rootname()
+      text
       |> String.downcase()
       |> String.normalize(:nfd)
       |> String.replace(~r/[\x{0300}-\x{036F}]/u, "")
@@ -38,25 +60,45 @@ defmodule Camerex.Workspace do
   Id de item: `YYYYMMDD-HHMMSS-<slug>-<preset>-<rand4>` no fuso
   America/Sao_Paulo (contrato §4).
   """
-  @spec generate_id(String.t(), String.t()) :: String.t()
+  @spec generate_id(String.t(), String.t() | nil) :: String.t()
   def generate_id(original_filename, preset_id) do
     ts = Calendar.strftime(DateTime.now!("America/Sao_Paulo"), "%Y%m%d-%H%M%S")
     rand4 = :crypto.strong_rand_bytes(2) |> Base.encode16(case: :lower)
-    "#{ts}-#{slug(original_filename)}-#{preset_id}-#{rand4}"
+    "#{ts}-#{slug(original_filename)}-#{preset_id || "novo"}-#{rand4}"
   end
 
   @doc """
   Copia o arquivo de origem para `items/<id>/original.<ext>` e escreve o
   manifest com status "queued". Devolve o id do item.
   """
-  @spec create_item(Path.t(), String.t(), :photo | :video, String.t(), map()) ::
-          {:ok, String.t()} | {:error, term()}
-  def create_item(src_path, original_filename, type, preset_id, params)
-      when type in [:photo, :video] and is_map(params) do
+  @spec create_item(
+          Path.t(),
+          String.t(),
+          :photo | :video,
+          String.t() | nil,
+          map() | nil,
+          keyword()
+        ) :: {:ok, String.t()} | {:error, term()}
+  def create_item(src_path, original_filename, type, preset_id, params, opts \\ [])
+      when type in [:photo, :video] and (is_map(params) or is_nil(params)) do
+    with {:ok, folder} <- folder_from_opts(opts) do
+      do_create_item(src_path, original_filename, type, preset_id, params, folder)
+    end
+  end
+
+  defp folder_from_opts(opts) do
+    case normalize_folder(Keyword.get(opts, :folder, "")) do
+      {:ok, folder} -> {:ok, folder}
+      :error -> {:error, :invalid_folder}
+    end
+  end
+
+  defp do_create_item(src_path, original_filename, type, preset_id, params, folder) do
     id = generate_id(original_filename, preset_id)
     dir = Path.join(items_dir(), id)
     ext = original_filename |> Path.extname() |> String.downcase()
     original_file = "original#{ext}"
+    new? = is_nil(preset_id)
 
     with :ok <- File.mkdir_p(dir),
          :ok <- File.cp(src_path, Path.join(dir, original_file)) do
@@ -65,12 +107,13 @@ defmodule Camerex.Workspace do
         "type" => Atom.to_string(type),
         "original_filename" => original_filename,
         "original_file" => original_file,
-        "output_file" => if(type == :photo, do: "neon.png", else: "neon.mp4"),
+        "output_file" => if(new?, do: nil, else: default_output(type)),
         "preset" => preset_id,
         "params" => params,
-        "status" => "queued",
+        "status" => if(new?, do: "new", else: "queued"),
         "error" => nil,
         "media" => nil,
+        "folder" => folder,
         "created_at" => DateTime.now!("America/Sao_Paulo") |> DateTime.to_iso8601(),
         "completed_at" => nil,
         "timings_ms" => %{"total" => nil, "per_frame_avg" => nil}
@@ -85,15 +128,23 @@ defmodule Camerex.Workspace do
     end
   end
 
+  @doc "Arquivo de saída padrão por tipo de mídia."
+  @spec default_output(:photo | :video) :: String.t()
+  def default_output(:photo), do: "neon.png"
+  def default_output(:video), do: "neon.mp4"
+
   @spec manifest(String.t()) :: {:ok, map()} | {:error, :not_found}
   def manifest(id) do
     with {:ok, json} <- File.read(manifest_path(id)),
          {:ok, map} <- Jason.decode(json) do
-      {:ok, map}
+      {:ok, apply_v2_defaults(map)}
     else
       _ -> {:error, :not_found}
     end
   end
+
+  # manifests v1 não têm as chaves novas; defaults na leitura evitam migração
+  defp apply_v2_defaults(map), do: Map.put_new(map, "folder", "")
 
   @spec update_manifest(String.t(), (map() -> map())) :: {:ok, map()} | {:error, :not_found}
   def update_manifest(id, fun) when is_function(fun, 1) do
