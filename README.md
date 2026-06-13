@@ -44,8 +44,13 @@ A interface é uma **biblioteca single-page** pensada para telas largas:
 conversão/detalhe à direita — nada navega para outra página.
 
 - **Converter**: solte uma foto ou vídeo na dropzone, escolha um dos 6
-  presets de cor (mono ou duotone), ajuste **halo**, **rastro** e
-  **detalhe** (para vídeo há "prévia de 1 frame" antes de converter).
+  presets de cor (mono ou duotone) e ajuste **halo**, **rastro** e
+  **detalhe**.
+- **Calibragem ao vivo**: ao soltar uma mídia (ou reprocessar um item), uma
+  prévia re-renderiza a cada ajuste em tempo quase-real — a segmentação cara
+  roda uma vez e cada mudança só recompõe. Achou o ponto: **Aplicar nesta
+  pasta**, **Aplicar na seleção** ou salvar como preset, dali mesmo. (O
+  rastro é temporal e só aparece no vídeo final.)
 - **Presets salvos**: qualquer combinação cor + sliders pode ser salva com
   nome e reaplicada depois — inclusive em processamento em massa.
 - **Importar do disco**: aponte um caminho de pasta e o Camerex copia todas

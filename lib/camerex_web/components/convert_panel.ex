@@ -1,8 +1,9 @@
 defmodule CamerexWeb.ConvertPanel do
   @moduledoc """
-  Painel direito de conversão: dropzone, presets de cor, sliders, prévia de
-  1 frame e presets salvos do usuário. Em modo reprocesso (`reconvert_item`)
-  o submit reaplica os ajustes ao item existente em vez de criar um novo.
+  Painel direito de conversão: dropzone, presets de cor, sliders, calibragem
+  ao vivo (prévia que reage aos controles, com atalhos de aplicação em massa)
+  e presets salvos do usuário. Em modo reprocesso (`reconvert_item`) o submit
+  reaplica os ajustes ao item existente em vez de criar um novo.
   """
 
   use Phoenix.Component
