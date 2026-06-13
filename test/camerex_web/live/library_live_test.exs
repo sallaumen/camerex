@@ -17,7 +17,17 @@ defmodule CamerexWeb.LibraryLiveTest do
   end
 
   defmodule PipelineNoop do
-    def run(_item_id, _progress_cb), do: :ok
+    # honra o contrato do pipeline real: quem grava o desfecho é o pipeline
+    def run(item_id, _progress_cb) do
+      {:ok, _} =
+        Camerex.Workspace.update_manifest(item_id, fn manifest ->
+          manifest
+          |> Map.put("status", "done")
+          |> Map.put("completed_at", DateTime.to_iso8601(DateTime.utc_now()))
+        end)
+
+      :ok
+    end
   end
 
   describe "navegação por pastas (URL patchável)" do
@@ -92,6 +102,32 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       assert [%{"id" => ^id}, %{"status" => "new"}] =
                Workspace.list_items() |> Enum.sort_by(& &1["status"])
+    end
+
+    test "mídia processada leva versão na URL — reprocessar fura o cache do browser",
+         %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, lv, _} = live(conn, "/?item=#{id}")
+
+      # sem ?v= o browser reusa o neon.png antigo do cache após reprocessar
+      [src_antes] = lv |> render() |> src_de("#after")
+      assert src_antes =~ ~r{/media/items/#{id}/neon\.png\?v=\d+}
+
+      lv |> element("#reconvert-button") |> render_click()
+      lv |> form("#convert-form", %{"halo" => "0.8"}) |> render_submit()
+
+      # o noop conclui async; o completed_at novo tem que virar ?v= novo
+      src_depois =
+        Enum.find_value(1..50, fn _ ->
+          Process.sleep(20)
+
+          case lv |> render() |> src_de("#after") do
+            [s] when s != src_antes -> s
+            _ -> nil
+          end
+        end)
+
+      assert src_depois =~ ~r{\?v=\d+}
     end
 
     test "reprocessar com ajustes pré-preenche e sobrescreve o MESMO item",
@@ -347,5 +383,9 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       assert Camerex.Settings.get("concurrency", 3) == 5
     end
+  end
+
+  defp src_de(html, seletor) do
+    html |> LazyHTML.from_fragment() |> LazyHTML.query(seletor) |> LazyHTML.attribute("src")
   end
 end

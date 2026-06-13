@@ -4,6 +4,7 @@ defmodule CamerexWeb.NeonComponents do
   use Phoenix.Component
 
   alias Camerex.Neon.Palette
+  alias Camerex.Workspace
 
   @badges %{
     "new" => {"novo", "badge-new"},
@@ -45,6 +46,20 @@ defmodule CamerexWeb.NeonComponents do
       {@rest}
     ></button>
     """
+  end
+
+  @doc """
+  URL da mídia com versão de cache derivada do `completed_at`. Reprocessar
+  sobrescreve o mesmo arquivo na mesma URL — sem o `?v=`, o browser reusa
+  a saída antiga do cache e os ajustes parecem não ter efeito.
+  """
+  def versioned_media_url(item, file) do
+    base = Workspace.media_url(item["id"], file)
+
+    case item["completed_at"] do
+      nil -> base
+      stamp -> "#{base}?v=#{:erlang.phash2(stamp)}"
+    end
   end
 
   # o glow é a própria cor do preset via custom property --glow (box-shadow no CSS)

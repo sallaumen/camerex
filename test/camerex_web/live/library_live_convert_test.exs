@@ -27,8 +27,9 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
     assert has_element?(view, "#item-#{done} [data-role=status-chip]", "pronto")
     assert has_element?(view, "#item-#{queued} [data-role=status-chip]", "na fila")
     assert has_element?(view, "#item-#{done} [data-role=type-chip]", "foto")
-    assert has_element?(view, "#item-#{done} img[src='/media/items/#{done}/thumb.jpg']")
-    assert has_element?(view, "#item-#{done} img[src='/media/items/#{done}/thumb_neon.jpg']")
+    # ^= porque thumbs levam ?v= (cache-buster derivado do completed_at)
+    assert has_element?(view, "#item-#{done} img[src^='/media/items/#{done}/thumb.jpg?v=']")
+    assert has_element?(view, "#item-#{done} img[src^='/media/items/#{done}/thumb_neon.jpg?v=']")
     # foto não-done ainda não tem thumbs: mostra o original como prévia
     assert has_element?(view, "#item-#{queued} img[alt^=original]")
     refute has_element?(view, "#item-#{queued} [data-role=placeholder]")

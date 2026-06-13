@@ -57,9 +57,19 @@ defmodule Camerex.WorkspaceCase do
 
       status ->
         {:ok, _} =
-          Camerex.Workspace.update_manifest(id, &Map.put(&1, "status", status))
+          Camerex.Workspace.update_manifest(id, fn manifest ->
+            manifest
+            |> Map.put("status", status)
+            |> complete_if_done(status)
+          end)
 
         id
     end
   end
+
+  # itens done reais sempre têm completed_at (o ?v= das URLs deriva dele)
+  defp complete_if_done(manifest, "done"),
+    do: Map.put(manifest, "completed_at", DateTime.to_iso8601(DateTime.utc_now()))
+
+  defp complete_if_done(manifest, _status), do: manifest
 end
