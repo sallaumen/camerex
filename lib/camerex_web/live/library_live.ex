@@ -244,7 +244,7 @@ defmodule CamerexWeb.LibraryLive do
 
   def handle_event("retry_item", _params, socket) do
     item = socket.assigns.current_item
-    params = Map.put(item["params"] || default_panel_params(socket), "preset", item["preset"])
+    params = Map.put(item["params"] || panel_params(socket), "preset", item["preset"])
     Library.process_items([item["id"]], params)
     {:noreply, socket |> reload() |> refresh_current_item()}
   end
@@ -819,8 +819,6 @@ defmodule CamerexWeb.LibraryLive do
       "model" => default_model(type)
     }
   end
-
-  defp default_panel_params(socket), do: panel_params(socket)
 
   defp bulk_process(socket, params) do
     params = Map.put_new(params, "preset", socket.assigns.preset_id)

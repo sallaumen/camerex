@@ -1,9 +1,9 @@
-defmodule CamerexWeb.GalleryLiveTest.PipelineNoop do
+defmodule CamerexWeb.LibraryLiveConvertTest.PipelineNoop do
   @moduledoc "Pipeline inerte: o teste só verifica criação/enfileiramento."
   def run(_item_id, _progress_cb), do: :ok
 end
 
-defmodule CamerexWeb.GalleryLiveTest do
+defmodule CamerexWeb.LibraryLiveConvertTest do
   use CamerexWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -51,7 +51,12 @@ defmodule CamerexWeb.GalleryLiveTest do
 
   describe "painel de conversão" do
     setup do
-      Application.put_env(:camerex, :photo_pipeline, CamerexWeb.GalleryLiveTest.PipelineNoop)
+      Application.put_env(
+        :camerex,
+        :photo_pipeline,
+        CamerexWeb.LibraryLiveConvertTest.PipelineNoop
+      )
+
       on_exit(fn -> Application.delete_env(:camerex, :photo_pipeline) end)
       :ok
     end
