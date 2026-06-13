@@ -183,6 +183,7 @@ defmodule CamerexWeb.LibraryComponents do
       <span
         :if={@query != "" or @status != ""}
         data-role="filter-count"
+        aria-live="polite"
         class="text-xs text-cx-text-dim"
       >
         {@count} de {@total}

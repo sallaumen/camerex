@@ -52,6 +52,9 @@ conversão/detalhe à direita — nada navega para outra página.
   as mídias para a biblioteca, espelhando as subpastas como pastas virtuais.
 - **Pastas virtuais**: organize os itens em pastas/subpastas (metadado, sem
   mover arquivo); breadcrumb e contagens na árvore.
+- **Busca e filtro**: busca por nome ignorando acentos ("forro" encontra
+  "Forró-Show.png") e filtro por status, com contagem dos resultados —
+  "selecionar tudo" respeita o filtro ativo.
 - **Seleção em massa**: marque vários itens e processe com os ajustes
   atuais ou com um preset salvo, mova de pasta, duplique ou apague.
 - **Jobs paralelos**: pool configurável de 1 a 6 conversões simultâneas
@@ -59,7 +62,8 @@ conversão/detalhe à direita — nada navega para outra página.
 - **Detalhe in-place**: clicar num card abre antes/depois no painel direito
   (com players para vídeo), download, "reprocessar com ajustes" (sobrescreve
   o item; duplicar é ação explícita) e exclusão. A URL acompanha
-  (`?folder=…&item=…`), então deep-link e F5 restauram o estado.
+  (`?folder=…&item=…`), então deep-link e F5 restauram o estado. `Esc`
+  fecha em camadas: modal → reprocesso → painel de detalhe.
 
 Se faltar ffmpeg ou modelo, um banner no rail mostra o comando de correção.
 
