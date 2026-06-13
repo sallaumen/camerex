@@ -82,8 +82,9 @@ Se faltar ffmpeg ou modelo, um banner no rail mostra o comando de correção.
    linha é exatamente a cor do preset, nunca estoura.
 4. **Vídeo**: máscara suavizada por EMA (anti-flicker), subject-lock por
    sobreposição temporal, rastro de luz decaindo só no halo, duotone com
-   split estabilizado. Fps alvo = `min(fps de origem, 15)` com duração
-   preservada; largura de trabalho 640 px.
+   split estabilizado. Cadência **"shot on twos"** da animação desenhada à
+   mão: até 12 desenhos/s, cada um segurado por 2 frames num container de
+   2× (24 fps), com duração preservada; largura de trabalho 640 px.
 
 ## Workspace (sem banco de dados)
 
