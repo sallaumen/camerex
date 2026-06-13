@@ -222,7 +222,10 @@ defmodule CamerexWeb.LibraryLiveTest do
       # interno (borbulhado), inclusive no input de caminho — import inusável
       assert has_element?(lv, "#modal-overlay")
       refute has_element?(lv, "#modal-overlay[phx-click]")
-      assert has_element?(lv, ~s(#modal-overlay[phx-key="escape"]))
+
+      # Esc fecha via handler global da página
+      lv |> element("#library-root") |> render_keydown()
+      refute has_element?(lv, "#modal-overlay")
     end
 
     test "scan de caminho inexistente mostra erro no modal", %{conn: conn} do
@@ -231,6 +234,36 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       lv |> form("#import-form", %{"path" => "/nao/existe"}) |> render_submit()
       assert render(lv) =~ "não encontrado"
+    end
+  end
+
+  describe "tecla Esc (camadas)" do
+    test "fecha o modal sem mexer no painel de detalhe", %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, lv, _} = live(conn, "/?item=#{id}")
+
+      lv |> element("#import-button") |> render_click()
+      assert has_element?(lv, "#modal-overlay")
+
+      lv |> element("#library-root") |> render_keydown()
+      refute has_element?(lv, "#modal-overlay")
+      assert render(lv) =~ "detail-panel"
+    end
+
+    test "cancela o reprocesso antes de fechar o detalhe", %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, lv, _} = live(conn, "/?item=#{id}")
+
+      lv |> element("#reconvert-button") |> render_click()
+      assert render(lv) =~ "reconvert-chip"
+
+      lv |> element("#library-root") |> render_keydown()
+      refute render(lv) =~ "reconvert-chip"
+      assert render(lv) =~ "detail-panel"
+
+      lv |> element("#library-root") |> render_keydown()
+      assert_patch(lv)
+      assert render(lv) =~ "convert-panel"
     end
   end
 

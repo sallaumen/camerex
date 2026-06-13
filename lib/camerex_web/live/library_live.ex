@@ -355,13 +355,35 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply, assign(socket, :concurrency, concurrency)}
   end
 
+  # Esc fecha a camada mais ao topo: modal > reprocesso > painel de detalhe
+  def handle_event("escape_pressed", _params, socket) do
+    cond do
+      socket.assigns.modal != nil ->
+        {:noreply, assign(socket, :modal, nil)}
+
+      socket.assigns.reconvert_item != nil ->
+        {:noreply, assign(socket, :reconvert_item, nil)}
+
+      socket.assigns.current_item != nil ->
+        {:noreply, patch_to(socket, item: nil)}
+
+      true ->
+        {:noreply, socket}
+    end
+  end
+
   ## Render
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <div class="flex min-h-screen w-full gap-4 p-4">
+      <div
+        id="library-root"
+        class="flex min-h-screen w-full gap-4 p-4"
+        phx-window-keydown="escape_pressed"
+        phx-key="escape"
+      >
         <aside class="w-64 shrink-0 space-y-5">
           <h1 class="text-xl font-semibold tracking-wide">
             camerex<span class="text-cx-orange">_</span>
@@ -516,20 +538,26 @@ defmodule CamerexWeb.LibraryLive do
       </div>
 
       <%!-- sem phx-click no overlay: cliques DENTRO do painel borbulham até aqui
-            e fechariam o modal; o phx-click-away do painel já cobre o clique fora --%>
+            e fechariam o modal; o phx-click-away do painel já cobre o clique fora.
+            Esc é tratado no handler global do #library-root (modal tem prioridade) --%>
       <div
         :if={@modal}
         id="modal-overlay"
         class="fixed inset-0 z-40 flex items-center justify-center bg-black/60"
-        phx-window-keydown="close_modal"
-        phx-key="escape"
       >
         <div
           class="w-full max-w-lg rounded-lg border border-cx-border bg-cx-surface p-5"
           phx-click-away="close_modal"
         >
-          <div :if={@modal == :import} id="import-modal" class="space-y-3">
-            <h2 class="text-lg font-semibold">importar pasta do disco</h2>
+          <div
+            :if={@modal == :import}
+            id="import-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-modal-title"
+            class="space-y-3"
+          >
+            <h2 id="import-modal-title" class="text-lg font-semibold">importar pasta do disco</h2>
             <p class="text-sm text-cx-text-dim">
               as mídias são copiadas para a biblioteca em <strong>/{if @folder == "", do: "biblioteca", else: @folder}</strong>,
               espelhando as subpastas.
@@ -540,6 +568,8 @@ defmodule CamerexWeb.LibraryLive do
                 name="path"
                 value={@import_path}
                 placeholder="/Users/voce/Videos/forro"
+                autocomplete="off"
+                phx-mounted={JS.focus()}
                 class="w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5 text-sm"
               />
               <button
@@ -572,8 +602,15 @@ defmodule CamerexWeb.LibraryLive do
             </div>
           </div>
 
-          <div :if={@modal == :new_folder} id="new-folder-modal" class="space-y-3">
-            <h2 class="text-lg font-semibold">nova pasta</h2>
+          <div
+            :if={@modal == :new_folder}
+            id="new-folder-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-folder-modal-title"
+            class="space-y-3"
+          >
+            <h2 id="new-folder-modal-title" class="text-lg font-semibold">nova pasta</h2>
             <p :if={@folder != ""} class="text-sm text-cx-text-dim">
               dentro de /{@folder}
             </p>
@@ -583,6 +620,8 @@ defmodule CamerexWeb.LibraryLive do
                 name="name"
                 value={@new_folder_name}
                 placeholder="nome da pasta…"
+                autocomplete="off"
+                phx-mounted={JS.focus()}
                 class="w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5 text-sm"
               />
               <button
