@@ -222,6 +222,32 @@ defmodule Camerex.NeonTest do
       assert Nx.to_flat_list(outh[0][0]) == [149, 167, 135]
     end
 
+    test "bloom: default 0.0 é idêntico a não passar bloom" do
+      edges =
+        Nx.broadcast(Nx.tensor(0.0, type: :f32), {16, 16})
+        |> Nx.put_slice([8, 8], Nx.tensor([[1.0]], type: :f32))
+
+      sem = Neon.compose(edges, [{43, 196, 178}], halo: 0.6)
+      com_zero = Neon.compose(edges, [{43, 196, 178}], halo: 0.6, bloom: 0.0)
+
+      assert Nx.to_binary(sem) == Nx.to_binary(com_zero)
+    end
+
+    test "bloom: adiciona brilho longe da linha sem estourar a cor" do
+      edges =
+        Nx.broadcast(Nx.tensor(0.0, type: :f32), {32, 32})
+        |> Nx.put_slice([16, 0], Nx.broadcast(Nx.tensor(1.0, type: :f32), {1, 32}))
+
+      sem = Neon.compose(edges, [{43, 196, 178}], halo: 0.3, bloom: 0.0)
+      com = Neon.compose(edges, [{43, 196, 178}], halo: 0.3, bloom: 0.9)
+
+      # bem longe da linha (10 px acima), o bloom acende o que estava apagado
+      assert Nx.to_number(com[6][16][1]) > Nx.to_number(sem[6][16][1])
+      # a linha continua exatamente na cor (máximo nunca estoura)
+      assert Nx.to_number(com[16][16][1]) == 196
+      assert com[[.., .., 1]] |> Nx.reduce_max() |> Nx.to_number() == 196
+    end
+
     test "current_edges substitui o input na camada de linha nítida (vídeo)" do
       trail = Nx.broadcast(Nx.tensor(0.0, type: :f32), {8, 8})
       current = Nx.put_slice(trail, [4, 4], Nx.tensor([[1.0]], type: :f32))

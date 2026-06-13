@@ -43,21 +43,27 @@ defmodule Camerex.Neon do
   e os halos só preenchem ao redor. `input` é edges (foto) ou trail
   (vídeo), f32 `{h, w}` em [0, 1]; devolve RGB u8 `{h, w, 3}`.
 
-  opts: `halo:` 0..1 (default 0.6) · `duotone_weights:` nil | f32 `{h, w}` ·
-  `current_edges:` nil | f32 `{h, w}` (vídeo: linha nítida do frame atual).
+  opts: `halo:` 0..1 (default 0.6) · `bloom:` 0..1 (default 0.0; camada de
+  brilho atmosférico sigma ~22, neutra em 0) · `duotone_weights:` nil | f32
+  `{h, w}` (2 ou 3 cores) · `current_edges:` nil | f32 `{h, w}` (vídeo).
   """
   @spec compose(Nx.Tensor.t(), [Camerex.Neon.Palette.color()], keyword()) :: Nx.Tensor.t()
   def compose(input, colors, opts \\ []) do
     halo = Keyword.get(opts, :halo, 0.6)
+    bloom = Keyword.get(opts, :bloom, 0.0)
     weights = Keyword.get(opts, :duotone_weights)
     current_edges = Keyword.get(opts, :current_edges) || input
 
     w_big = min(0.92 * halo, 1.0)
     w_mid = min(1.33 * halo, 1.0)
+    w_atmo = min(0.6 * bloom, 1.0)
 
     halo_big = input |> gaussian_blur(8.0) |> Nx.multiply(w_big)
     halo_mid = input |> gaussian_blur(3.0) |> Nx.multiply(w_mid)
-    intens = halo_big |> Nx.max(halo_mid) |> Nx.max(current_edges)
+    halo_atmo = input |> gaussian_blur(22.0) |> Nx.multiply(w_atmo)
+
+    intens =
+      halo_big |> Nx.max(halo_mid) |> Nx.max(halo_atmo) |> Nx.max(current_edges)
 
     intens
     |> Nx.new_axis(-1)
