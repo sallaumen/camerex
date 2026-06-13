@@ -42,6 +42,15 @@ defmodule Camerex.CalibrationTest do
     assert ouro != halo_fraco
   end
 
+  test "bloom muda a prévia renderizada" do
+    {:ok, session} = Calibration.prepare(scene(64, 64))
+
+    {:ok, sem} = Calibration.render(session, params())
+    {:ok, com} = Calibration.render(session, params(%{"bloom" => 0.9}))
+
+    assert sem != com
+  end
+
   test "preset desconhecido devolve erro" do
     {:ok, session} = Calibration.prepare(scene(32, 32))
 

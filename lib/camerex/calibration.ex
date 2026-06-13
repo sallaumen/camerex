@@ -48,6 +48,7 @@ defmodule Camerex.Calibration do
     opts = [
       preset: params["preset"],
       halo: params["halo"],
+      bloom: params["bloom"] || 0.0,
       detail: params["detail"],
       swap_sides: params["swap_sides"] || false
     ]
