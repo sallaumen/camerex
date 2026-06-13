@@ -77,6 +77,27 @@ defmodule Camerex.Pipeline.PhotoTest do
     assert count_color_pixels(out[[24..39, 44..59]], @teal) == 0
   end
 
+  describe "gradiente e bloom" do
+    test "preset gradiente: base puxa mais para o vermelho que o topo" do
+      {:ok, out} = Photo.render(gray_scene(40, 40), preset: "aurora")
+
+      # fixture = retângulo central (rows 10..29); topo → teal (R 43),
+      # base → coral (R 255), via vertical_weights sobre a bbox da máscara
+      topo = out[[6..14, .., 0]] |> Nx.reduce_max() |> Nx.to_number()
+      base = out[[25..33, .., 0]] |> Nx.reduce_max() |> Nx.to_number()
+      assert base > topo
+    end
+
+    test "bloom muda o resultado; ausência de bloom é o padrão de hoje" do
+      scene = gray_scene(40, 40)
+
+      {:ok, sem} = Photo.render(scene, preset: "forro-teal")
+      {:ok, com} = Photo.render(scene, preset: "forro-teal", bloom: 0.9)
+
+      refute Nx.to_binary(sem) == Nx.to_binary(com)
+    end
+  end
+
   test "swap_sides inverte as cores do duotone" do
     scene = gray_scene(64, 64)
 

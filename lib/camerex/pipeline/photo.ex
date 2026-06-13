@@ -28,6 +28,7 @@ defmodule Camerex.Pipeline.Photo do
   def render_with_mask(rgb, mask, opts \\ []) do
     preset_id = Keyword.get(opts, :preset, "forro-teal")
     halo = Keyword.get(opts, :halo, 0.6)
+    bloom = Keyword.get(opts, :bloom, 0.0)
     detail = Keyword.get(opts, :detail, 0.5)
     swap_sides = Keyword.get(opts, :swap_sides, false)
 
@@ -38,7 +39,8 @@ defmodule Camerex.Pipeline.Photo do
         |> Nx.as_type(:f32)
         |> Nx.divide(255.0)
 
-      {:ok, Neon.compose(edges, colors(preset, swap_sides), compose_opts(preset, mask, halo))}
+      {:ok,
+       Neon.compose(edges, colors(preset, swap_sides), compose_opts(preset, mask, halo, bloom))}
     end
   end
 
@@ -94,6 +96,7 @@ defmodule Camerex.Pipeline.Photo do
     [
       preset: manifest["preset"],
       halo: p["halo"] || 0.6,
+      bloom: p["bloom"] || 0.0,
       detail: p["detail"] || 0.5,
       swap_sides: p["swap_sides"] || false,
       model: p["model"] || "u2net"
@@ -139,11 +142,18 @@ defmodule Camerex.Pipeline.Photo do
   defp colors(%{colors: [left, right]}, true), do: [right, left]
   defp colors(%{colors: colors}, _swap), do: colors
 
-  defp compose_opts(%{mode: :duotone}, mask, halo) do
+  defp compose_opts(%{mode: :gradient}, mask, halo, bloom) do
     {h, w} = Nx.shape(mask)
-    weights = Neon.duotone_weights(h, w, Neon.mask_median_x(mask), 24)
-    [halo: halo, duotone_weights: weights]
+    {y_top, y_bottom} = Neon.mask_y_bounds(mask)
+    weights = Neon.vertical_weights(h, w, y_top, y_bottom)
+    [halo: halo, bloom: bloom, duotone_weights: weights]
   end
 
-  defp compose_opts(%{mode: :mono}, _mask, halo), do: [halo: halo]
+  defp compose_opts(%{mode: :duotone}, mask, halo, bloom) do
+    {h, w} = Nx.shape(mask)
+    weights = Neon.duotone_weights(h, w, Neon.mask_median_x(mask), 24)
+    [halo: halo, bloom: bloom, duotone_weights: weights]
+  end
+
+  defp compose_opts(%{mode: :mono}, _mask, halo, bloom), do: [halo: halo, bloom: bloom]
 end
