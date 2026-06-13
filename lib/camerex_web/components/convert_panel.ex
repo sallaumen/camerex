@@ -17,6 +17,7 @@ defmodule CamerexWeb.ConvertPanel do
   attr :presets, :list, required: true
   attr :preset_id, :string, required: true
   attr :halo, :float, required: true
+  attr :bloom, :float, required: true
   attr :trail, :float, required: true
   attr :detail, :float, required: true
   attr :swap_sides, :boolean, required: true
@@ -111,6 +112,19 @@ defmodule CamerexWeb.ConvertPanel do
               max="1"
               step="0.05"
               value={@halo}
+              phx-debounce="150"
+              class="w-full"
+            />
+          </label>
+          <label class="block">
+            brilho atmosférico ({@bloom})
+            <input
+              type="range"
+              name="bloom"
+              min="0"
+              max="1"
+              step="0.05"
+              value={@bloom}
               phx-debounce="150"
               class="w-full"
             />

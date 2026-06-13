@@ -427,6 +427,21 @@ defmodule CamerexWeb.LibraryLiveTest do
     end
   end
 
+  describe "controle de bloom e presets de gradiente" do
+    test "slider de bloom existe e atualiza o valor exibido", %{conn: conn} do
+      {:ok, lv, html} = live(conn, "/")
+      assert html =~ ~s(name="bloom")
+
+      lv |> form("#convert-form", %{"bloom" => "0.85"}) |> render_change()
+      assert render(lv) =~ "0.85"
+    end
+
+    test "preset de gradiente aparece na faixa de swatches", %{conn: conn} do
+      {:ok, lv, _} = live(conn, "/")
+      assert has_element?(lv, "#preset-swatches button[phx-value-id=aurora]")
+    end
+  end
+
   describe "presets do usuário na UI" do
     test "salvar ajustes atuais e aplicar de volta", %{conn: conn} do
       {:ok, lv, _} = live(conn, "/")
