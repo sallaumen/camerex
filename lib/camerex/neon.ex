@@ -114,6 +114,40 @@ defmodule Camerex.Neon do
     end
   end
 
+  @doc """
+  Linhas extremas com pixel aceso (`{y_top, y_bottom}`); máscara vazia
+  devolve `{0, h - 1}`. Fonte da extensão vertical do degradê.
+  """
+  @spec mask_y_bounds(Nx.Tensor.t()) :: {non_neg_integer(), non_neg_integer()}
+  def mask_y_bounds(mask) do
+    {h, _w} = Nx.shape(mask)
+    on_rows = mask |> Nx.greater(0) |> Nx.any(axes: [1])
+
+    if on_rows |> Nx.sum() |> Nx.to_number() == 0 do
+      {0, h - 1}
+    else
+      rows = Nx.iota({h})
+      y_top = on_rows |> Nx.select(rows, h) |> Nx.reduce_min() |> Nx.to_number()
+      y_bottom = on_rows |> Nx.select(rows, -1) |> Nx.reduce_max() |> Nx.to_number()
+      {y_top, y_bottom}
+    end
+  end
+
+  @doc """
+  Rampa f32 `{h, w}`: 0 em `y_top`, 1 em `y_bottom`, clampada fora do
+  intervalo e constante por coluna (pesos do modo gradiente).
+  """
+  @spec vertical_weights(pos_integer(), pos_integer(), number(), number()) :: Nx.Tensor.t()
+  def vertical_weights(h, w, y_top, y_bottom) do
+    span = max(y_bottom - y_top, 1)
+
+    {h, w}
+    |> Nx.iota(axis: 0, type: :f32)
+    |> Nx.subtract(y_top)
+    |> Nx.divide(span)
+    |> Nx.clip(0.0, 1.0)
+  end
+
   defp gaussian_blur(t, sigma) do
     t
     |> Evision.Mat.from_nx()

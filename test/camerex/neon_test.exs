@@ -100,6 +100,41 @@ defmodule Camerex.NeonTest do
     end
   end
 
+  describe "mask_y_bounds/1" do
+    test "linhas acesas 2..5 numa máscara 8x8" do
+      mask =
+        Nx.broadcast(Nx.u8(0), {8, 8})
+        |> Nx.put_slice([2, 0], Nx.broadcast(Nx.u8(255), {4, 8}))
+
+      assert Neon.mask_y_bounds(mask) == {2, 5}
+    end
+
+    test "máscara vazia devolve a moldura inteira" do
+      assert Neon.mask_y_bounds(Nx.broadcast(Nx.u8(0), {10, 4})) == {0, 9}
+    end
+  end
+
+  describe "vertical_weights/4" do
+    test "rampa: 0 no topo, 1 na base, constante por coluna" do
+      w = Neon.vertical_weights(10, 3, 0, 9)
+
+      assert Nx.shape(w) == {10, 3}
+      assert Nx.type(w) == {:f, 32}
+      assert Nx.to_number(w[0][0]) == 0.0
+      assert Nx.to_number(w[9][2]) == 1.0
+      assert Nx.to_number(w[0][0]) == Nx.to_number(w[0][2])
+    end
+
+    test "monotônica nas linhas e fora do intervalo é clampada" do
+      w = Neon.vertical_weights(6, 1, 2, 4)
+      col = w[[.., 0]] |> Nx.to_flat_list()
+
+      assert col == Enum.sort(col)
+      assert List.first(col) == 0.0
+      assert List.last(col) == 1.0
+    end
+  end
+
   describe "duotone_weights/4" do
     test "sigmoide: 0.5 no split, ~0 bem à esquerda, ~1 bem à direita" do
       w = Neon.duotone_weights(2, 200, 100.0, 24)
