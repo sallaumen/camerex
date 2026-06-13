@@ -19,8 +19,6 @@ defmodule CamerexWeb.ConvertPanel do
   attr :trail, :float, required: true
   attr :detail, :float, required: true
   attr :swap_sides, :boolean, required: true
-  attr :preview_data_url, :string, default: nil
-  attr :preview_error, :string, default: nil
   attr :calib, :any, default: nil, doc: ":preparing | sessão da calibragem ao vivo"
   attr :calib_url, :string, default: nil
   attr :calib_error, :string, default: nil
@@ -86,27 +84,6 @@ defmodule CamerexWeb.ConvertPanel do
             </p>
           </div>
 
-          <button
-            :if={video_upload_selected?(@uploads.media)}
-            type="button"
-            phx-click="preview_frame"
-            data-role="preview-button"
-            class="mt-2 rounded border border-cx-border px-3 py-1.5 text-sm hover:border-cx-teal"
-          >
-            Prévia de 1 frame
-          </button>
-
-          <img
-            :if={@preview_data_url}
-            src={@preview_data_url}
-            alt="prévia neon do frame do meio"
-            data-role="preview-img"
-            class="mt-2 max-h-56 rounded"
-          />
-
-          <p :if={@preview_error} class="mt-2 text-sm text-cx-orange">
-            Prévia falhou: {@preview_error}
-          </p>
         </div>
 
         <fieldset id="preset-swatches" class="mt-4 flex flex-wrap items-center gap-3">
@@ -233,10 +210,6 @@ defmodule CamerexWeb.ConvertPanel do
   defp submit_label(nil), do: "Converter"
   defp submit_label(%{"status" => "new"}), do: "Processar agora"
   defp submit_label(_item), do: "Reprocessar agora"
-
-  defp video_upload_selected?(upload) do
-    Enum.any?(upload.entries, &String.starts_with?(&1.client_type || "", "video/"))
-  end
 
   defp upload_error_label(:too_large), do: "arquivo grande demais (máx. 600 MB)"
   defp upload_error_label(:not_accepted), do: "formato não suportado"

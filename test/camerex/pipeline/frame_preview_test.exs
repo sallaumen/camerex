@@ -5,17 +5,17 @@ defmodule Camerex.Pipeline.FramePreviewTest do
   alias Camerex.Workspace
 
   @clip "exemplos/entrada/clip.mp4"
-  @opts [preset: "forro-teal", halo: 0.6, detail: 0.5, swap_sides: false, model: "u2netp"]
 
-  test "gera data URL de PNG do frame central e limpa o tmp" do
-    assert {:ok, "data:image/png;base64," <> b64} = FramePreview.data_url(@clip, @opts)
+  test "middle_frame_rgb devolve o frame central como tensor RGB e limpa o tmp" do
+    assert {:ok, rgb} = FramePreview.middle_frame_rgb(@clip)
 
-    assert <<137, "PNG", _::binary>> = Base.decode64!(b64)
+    assert {_h, _w, 3} = Nx.shape(rgb)
+    assert Nx.type(rgb) == {:u, 8}
     assert {:ok, []} = File.ls(Workspace.tmp_dir())
   end
 
   test "vídeo inexistente devolve erro sem deixar lixo no tmp" do
-    assert {:error, _} = FramePreview.data_url("/nao/existe.mp4", @opts)
+    assert {:error, _} = FramePreview.middle_frame_rgb("/nao/existe.mp4")
     assert {:ok, []} = File.ls(Workspace.tmp_dir())
   end
 end

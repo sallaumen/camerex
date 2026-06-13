@@ -14,7 +14,6 @@ defmodule CamerexWeb.LibraryLive do
   alias Camerex.{Calibration, Jobs, Library, Settings, UserPresets, Workspace}
   alias Camerex.Library.Import, as: LibraryImport
   alias Camerex.Neon.Palette
-  alias Camerex.Pipeline.FramePreview
 
   @video_exts ~w(.mp4 .mov .m4v .webm)
 
@@ -50,8 +49,6 @@ defmodule CamerexWeb.LibraryLive do
         preset_name: "",
         user_presets: UserPresets.all(),
         concurrency: Settings.get("concurrency", 3),
-        preview_data_url: nil,
-        preview_error: nil,
         calib: nil,
         calib_url: nil,
         calib_error: nil,
@@ -66,7 +63,8 @@ defmodule CamerexWeb.LibraryLive do
         chunk_size: 640_000,
         chunk_timeout: 60_000,
         max_entries: 1,
-        auto_upload: true
+        auto_upload: true,
+        progress: &handle_progress/3
       )
 
     {:ok, socket}
@@ -239,14 +237,6 @@ defmodule CamerexWeb.LibraryLive do
     case socket.assigns.reconvert_item do
       nil -> convert_upload(socket)
       item -> reprocess_item(socket, item)
-    end
-  end
-
-  def handle_event("preview_frame", _params, socket) do
-    if Enum.all?(socket.assigns.uploads.media.entries, & &1.done?) do
-      do_preview_frame(socket)
-    else
-      {:noreply, assign(socket, preview_error: "aguarde o upload terminar")}
     end
   end
 
@@ -555,8 +545,6 @@ defmodule CamerexWeb.LibraryLive do
               trail={@trail}
               detail={@detail}
               swap_sides={@swap_sides}
-              preview_data_url={@preview_data_url}
-              preview_error={@preview_error}
               calib={@calib}
               calib_url={@calib_url}
               calib_error={@calib_error}
@@ -775,7 +763,7 @@ defmodule CamerexWeb.LibraryLive do
 
       ids ->
         Enum.each(ids, &Jobs.enqueue/1)
-        {:noreply, socket |> assign(preview_data_url: nil) |> reload()}
+        {:noreply, socket |> clear_calibration() |> reload()}
     end
   end
 
@@ -833,21 +821,31 @@ defmodule CamerexWeb.LibraryLive do
     assign(socket, calib: nil, calib_url: nil, calib_error: nil, calib_ref: nil)
   end
 
-  defp do_preview_frame(socket) do
-    results =
-      consume_uploaded_entries(socket, :media, fn %{path: path}, _entry ->
-        {:postpone, FramePreview.data_url(path, preview_opts(socket))}
+  # upload concluído (auto_upload) → abre a calibragem ao vivo sem consumir
+  # a entry: {:postpone, _} espia o tmp do upload e o deixa vivo para o submit
+  defp handle_progress(:media, entry, socket) do
+    if entry.done? do
+      {:noreply, begin_upload_calibration(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp begin_upload_calibration(socket) do
+    sources =
+      consume_uploaded_entries(socket, :media, fn %{path: path}, entry ->
+        {:postpone, {path, media_type(entry.client_name)}}
       end)
 
-    case results do
-      [{:ok, data_url} | _] ->
-        {:noreply, assign(socket, preview_data_url: data_url, preview_error: nil)}
+    case sources do
+      [{path, type}] ->
+        lv = self()
+        kind = if type == :video, do: "video", else: "photo"
+        {:ok, _pid} = Task.start(fn -> send(lv, {:calib_ready, safe_prepare(path, kind)}) end)
+        assign(socket, calib: :preparing, calib_url: nil, calib_error: nil, calib_ref: nil)
 
-      [{:error, reason} | _] ->
-        {:noreply, assign(socket, preview_data_url: nil, preview_error: error_message(reason))}
-
-      [] ->
-        {:noreply, socket}
+      _none ->
+        socket
     end
   end
 
@@ -915,18 +913,6 @@ defmodule CamerexWeb.LibraryLive do
   defp default_model(_type), do: "u2net"
 
   defp duotone?(preset_id), do: match?(%{mode: :duotone}, Palette.get(preset_id))
-
-  ## Internas — prévia
-
-  defp preview_opts(socket) do
-    [
-      preset: socket.assigns.preset_id,
-      halo: socket.assigns.halo,
-      detail: socket.assigns.detail,
-      swap_sides: socket.assigns.swap_sides,
-      model: "u2netp"
-    ]
-  end
 
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(reason), do: inspect(reason)
