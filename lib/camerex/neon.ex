@@ -161,17 +161,28 @@ defmodule Camerex.Neon do
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
   end
 
-  # mono: cor constante {3}; duotone: campo {h, w, 3} interpolado por pixel
+  # mono: cor constante {3}; gradiente: campo {h, w, 3} interpolado por pixel
   defp color_field([{r, g, b}], _weights), do: Nx.tensor([r, g, b], type: :f32)
 
-  defp color_field([{r0, g0, b0}, {r1, g1, b1}], %Nx.Tensor{} = weights) do
+  defp color_field([c0, c1], %Nx.Tensor{} = weights) do
+    lerp(c0, c1, Nx.new_axis(weights, -1))
+  end
+
+  defp color_field([c0, c1, c2], %Nx.Tensor{} = weights) do
+    w = Nx.new_axis(weights, -1)
+    t = Nx.multiply(w, 2.0)
+    seg1 = lerp(c0, c1, Nx.clip(t, 0.0, 1.0))
+    seg2 = lerp(c1, c2, Nx.clip(Nx.subtract(t, 1.0), 0.0, 1.0))
+    # blend aritmético (gate 0/1) evita o broadcast estrito do Nx.select
+    gate = w |> Nx.greater(0.5) |> Nx.as_type(:f32)
+    seg1 |> Nx.multiply(Nx.subtract(1.0, gate)) |> Nx.add(Nx.multiply(seg2, gate))
+  end
+
+  defp lerp({r0, g0, b0}, {r1, g1, b1}, w) do
     left = Nx.tensor([r0, g0, b0], type: :f32)
     right = Nx.tensor([r1, g1, b1], type: :f32)
-    w = Nx.new_axis(weights, -1)
 
-    left
-    |> Nx.multiply(Nx.subtract(1.0, w))
-    |> Nx.add(Nx.multiply(right, w))
+    left |> Nx.multiply(Nx.subtract(1.0, w)) |> Nx.add(Nx.multiply(right, w))
   end
 
   # equivalente do np.ones((k, k), np.uint8) do protótipo (contrato §7)

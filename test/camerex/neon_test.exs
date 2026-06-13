@@ -248,6 +248,23 @@ defmodule Camerex.NeonTest do
       assert com[[.., .., 1]] |> Nx.reduce_max() |> Nx.to_number() == 196
     end
 
+    test "gradiente 3 paradas: pesos 0 / 0.5 / 1 interpolam por segmento" do
+      edges = Nx.broadcast(Nx.tensor(1.0, type: :f32), {4, 4})
+      colors = [{0, 0, 0}, {100, 100, 100}, {200, 200, 200}]
+
+      out = fn wv ->
+        Neon.compose(edges, colors,
+          duotone_weights: Nx.broadcast(Nx.tensor(wv, type: :f32), {4, 4})
+        )
+      end
+
+      assert Nx.to_flat_list(out.(0.0)[0][0]) == [0, 0, 0]
+      assert Nx.to_flat_list(out.(0.5)[0][0]) == [100, 100, 100]
+      assert Nx.to_flat_list(out.(1.0)[0][0]) == [200, 200, 200]
+      # 0.25 cai no meio do 1º segmento → meio de preto..cinza-médio = 50
+      assert Nx.to_flat_list(out.(0.25)[0][0]) == [50, 50, 50]
+    end
+
     test "current_edges substitui o input na camada de linha nítida (vídeo)" do
       trail = Nx.broadcast(Nx.tensor(0.0, type: :f32), {8, 8})
       current = Nx.put_slice(trail, [4, 4], Nx.tensor([[1.0]], type: :f32))
