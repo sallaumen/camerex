@@ -22,6 +22,8 @@ defmodule CamerexWeb.ConvertPanel do
   attr :calib, :any, default: nil, doc: ":preparing | sessão da calibragem ao vivo"
   attr :calib_url, :string, default: nil
   attr :calib_error, :string, default: nil
+  attr :folder_count, :integer, default: 0, doc: "itens na pasta atual"
+  attr :selected_count, :integer, default: 0
   attr :reconvert_item, :map, default: nil, doc: "manifest quando em modo reprocesso"
   attr :user_presets, :list, default: []
   attr :preset_name, :string, default: ""
@@ -83,7 +85,6 @@ defmodule CamerexWeb.ConvertPanel do
               {upload_error_label(err)}
             </p>
           </div>
-
         </div>
 
         <fieldset id="preset-swatches" class="mt-4 flex flex-wrap items-center gap-3">
@@ -155,6 +156,28 @@ defmodule CamerexWeb.ConvertPanel do
           {submit_label(@reconvert_item)}
         </button>
       </form>
+
+      <div :if={@calib} id="calib-apply" class="mt-3 flex flex-wrap gap-2 text-sm">
+        <button
+          :if={@folder_count > 0}
+          type="button"
+          id="apply-folder"
+          phx-click="apply_folder"
+          data-confirm={"Aplicar estes ajustes em #{@folder_count} item(ns) desta pasta?"}
+          class="rounded border border-cx-border px-3 py-1.5 hover:border-cx-teal"
+        >
+          Aplicar nesta pasta ({@folder_count})
+        </button>
+        <button
+          :if={@selected_count > 0}
+          type="button"
+          id="apply-selection"
+          phx-click="apply_selection"
+          class="rounded border border-cx-border px-3 py-1.5 hover:border-cx-teal"
+        >
+          Aplicar na seleção ({@selected_count})
+        </button>
+      </div>
 
       <div id="user-presets" class="border-t border-cx-border pt-3">
         <p class="mb-2 text-xs uppercase tracking-wide text-cx-text-dim">meus presets</p>

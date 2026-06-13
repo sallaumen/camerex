@@ -175,6 +175,42 @@ defmodule CamerexWeb.LibraryLiveTest do
       assert poll_calib_img(lv, url_inicial) != url_inicial
     end
 
+    test "aplicar nesta pasta leva a calibragem a todos os itens dela", %{conn: conn, tmp: tmp} do
+      a = create_photo_item!(tmp, %{status: "done"})
+      b = create_photo_item!(tmp, %{status: "done"})
+      {:ok, lv, _} = live(conn, "/?item=#{a}")
+
+      lv |> element("#reconvert-button") |> render_click()
+      lv |> form("#convert-form", %{"halo" => "0.85"}) |> render_change()
+      lv |> element("#apply-folder") |> render_click()
+
+      for id <- [a, b] do
+        assert {:ok, %{"params" => %{"halo" => 0.85}}} = Workspace.manifest(id)
+      end
+
+      assert render(lv) =~ "na fila"
+    end
+
+    test "aplicar na seleção só processa os selecionados", %{conn: conn, tmp: tmp} do
+      alvo = create_photo_item!(tmp, %{status: "done"})
+      selecionado = create_photo_item!(tmp, %{status: "done"})
+      fora = create_photo_item!(tmp, %{status: "done"})
+
+      {:ok, lv, _} = live(conn, "/?item=#{alvo}")
+      lv |> element("#reconvert-button") |> render_click()
+
+      # sem seleção o botão nem aparece
+      refute render(lv) =~ "apply-selection"
+
+      lv |> element("#item-#{selecionado} input[type=checkbox]") |> render_click()
+      lv |> form("#convert-form", %{"halo" => "0.9"}) |> render_change()
+      lv |> element("#apply-selection") |> render_click()
+
+      assert {:ok, %{"params" => %{"halo" => 0.9}}} = Workspace.manifest(selecionado)
+      assert {:ok, %{"params" => %{"halo" => halo_fora}}} = Workspace.manifest(fora)
+      assert halo_fora != 0.9
+    end
+
     test "cancelar o reprocesso desliga a prévia", %{conn: conn, tmp: tmp} do
       id = create_photo_item!(tmp, %{status: "done"})
       {:ok, lv, _} = live(conn, "/?item=#{id}")

@@ -323,6 +323,16 @@ defmodule CamerexWeb.LibraryLive do
      socket |> assign(:selected, MapSet.new()) |> put_flash(:info, "itens apagados") |> reload()}
   end
 
+  ## Aplicação direta da calibragem (atalhos do modo ao vivo)
+
+  def handle_event("apply_folder", _params, socket) do
+    apply_calibration_to(socket, Enum.map(socket.assigns.items, & &1["id"]))
+  end
+
+  def handle_event("apply_selection", _params, socket) do
+    apply_calibration_to(socket, MapSet.to_list(socket.assigns.selected))
+  end
+
   ## Presets do usuário e concorrência
 
   def handle_event("save_preset", %{"name" => name}, socket) do
@@ -548,6 +558,8 @@ defmodule CamerexWeb.LibraryLive do
               calib={@calib}
               calib_url={@calib_url}
               calib_error={@calib_error}
+              folder_count={length(@items)}
+              selected_count={MapSet.size(@selected)}
               reconvert_item={@reconvert_item}
               user_presets={@user_presets}
               preset_name={@preset_name}
@@ -893,17 +905,27 @@ defmodule CamerexWeb.LibraryLive do
 
   defp bulk_process(socket, params) do
     params = Map.put_new(params, "preset", socket.assigns.preset_id)
+    result = Library.process_items(MapSet.to_list(socket.assigns.selected), params)
 
-    %{enqueued: n, skipped: skipped} =
-      Library.process_items(MapSet.to_list(socket.assigns.selected), params)
-
-    flash =
-      if skipped > 0,
-        do: "#{n} item(ns) na fila (#{skipped} pulado(s) — já em processamento)",
-        else: "#{n} item(ns) na fila"
-
-    {:noreply, socket |> assign(:selected, MapSet.new()) |> put_flash(:info, flash) |> reload()}
+    {:noreply,
+     socket
+     |> assign(:selected, MapSet.new())
+     |> put_flash(:info, queue_flash(result))
+     |> reload()}
   end
+
+  defp apply_calibration_to(socket, ids) do
+    params = Map.put(panel_params(socket), "preset", socket.assigns.preset_id)
+    result = Library.process_items(ids, params)
+
+    {:noreply,
+     socket |> put_flash(:info, queue_flash(result)) |> reload() |> refresh_current_item()}
+  end
+
+  defp queue_flash(%{enqueued: n, skipped: 0}), do: "#{n} item(ns) na fila"
+
+  defp queue_flash(%{enqueued: n, skipped: skipped}),
+    do: "#{n} item(ns) na fila (#{skipped} pulado(s) — já em processamento)"
 
   defp media_type(filename) do
     if Path.extname(String.downcase(filename)) in @video_exts, do: :video, else: :photo

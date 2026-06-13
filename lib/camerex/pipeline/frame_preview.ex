@@ -41,5 +41,4 @@ defmodule Camerex.Pipeline.FramePreview do
       {out, status} -> {:error, "ffmpeg falhou (status #{status}): #{String.trim(out)}"}
     end
   end
-
 end

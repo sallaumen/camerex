@@ -35,7 +35,10 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
     Enum.find_value(1..100, fn _ ->
       Process.sleep(10)
 
-      case lv |> render() |> LazyHTML.from_fragment() |> LazyHTML.query("[data-role=calib-img]")
+      case lv
+           |> render()
+           |> LazyHTML.from_fragment()
+           |> LazyHTML.query("[data-role=calib-img]")
            |> LazyHTML.attribute("src") do
         [src] -> src
         _ -> nil
