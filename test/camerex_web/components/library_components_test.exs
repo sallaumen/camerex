@@ -93,6 +93,24 @@ defmodule CamerexWeb.LibraryComponentsTest do
     end
   end
 
+  describe "preset_swatch/1 — gradiente" do
+    test "preset de 3 cores vira linear-gradient de 3 paradas (hex maiúsculo)" do
+      preset = %{
+        id: "aurora",
+        name: "Aurora",
+        mode: :gradient,
+        colors: [{43, 196, 178}, {127, 119, 240}, {255, 138, 92}]
+      }
+
+      html = render_component(&CamerexWeb.NeonComponents.preset_swatch/1, preset: preset)
+
+      assert html =~ "linear-gradient"
+      assert html =~ "#2BC4B2"
+      assert html =~ "#7F77F0"
+      assert html =~ "#FF8A5C"
+    end
+  end
+
   describe "detail_panel/1 (botões SEMPRE com texto — fix do bug v1)" do
     test "foto done: antes/depois, params e ações rotuladas" do
       html = render_component(&detail_panel/1, item: item())

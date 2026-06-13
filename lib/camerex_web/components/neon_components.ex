@@ -70,4 +70,9 @@ defmodule CamerexWeb.NeonComponents do
   defp swatch_style(%{colors: [left, right]}) do
     "background:linear-gradient(90deg,#{Palette.hex(left)},#{Palette.hex(right)});--glow:#{Palette.hex(left)}"
   end
+
+  defp swatch_style(%{colors: [a, b, c]}) do
+    "background:linear-gradient(160deg,#{Palette.hex(a)},#{Palette.hex(b)},#{Palette.hex(c)});" <>
+      "--glow:#{Palette.hex(b)}"
+  end
 end
