@@ -6,8 +6,15 @@ defmodule Camerex.Video.Encoder do
 
   @opaque t :: %{proc: Exile.Process.t(), width: pos_integer(), height: pos_integer()}
 
-  @spec open(Path.t(), pos_integer(), pos_integer(), number()) :: {:ok, t()} | {:error, term()}
-  def open(path, width, height, fps) do
+  @doc """
+  Abre o encoder na cadência de animação: os frames escritos chegam a
+  `drawing_fps` (desenhos/s) e o container sai a `playback_fps` — com
+  playback = 2 × drawing, o ffmpeg segura cada desenho por 2 frames
+  ("shot on twos", o padrão da animação desenhada à mão).
+  """
+  @spec open(Path.t(), pos_integer(), pos_integer(), number(), number()) ::
+          {:ok, t()} | {:error, term()}
+  def open(path, width, height, drawing_fps, playback_fps) do
     cmd = [
       "ffmpeg",
       "-y",
@@ -20,7 +27,7 @@ defmodule Camerex.Video.Encoder do
       "-s",
       "#{width}x#{height}",
       "-r",
-      "#{fps}",
+      "#{drawing_fps}",
       "-i",
       "-",
       "-c:v",
@@ -29,6 +36,8 @@ defmodule Camerex.Video.Encoder do
       "yuv420p",
       "-crf",
       "18",
+      "-r",
+      "#{playback_fps}",
       "-movflags",
       "+faststart",
       path
