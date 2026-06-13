@@ -21,6 +21,9 @@ defmodule CamerexWeb.ConvertPanel do
   attr :swap_sides, :boolean, required: true
   attr :preview_data_url, :string, default: nil
   attr :preview_error, :string, default: nil
+  attr :calib, :any, default: nil, doc: ":preparing | sessão da calibragem ao vivo"
+  attr :calib_url, :string, default: nil
+  attr :calib_error, :string, default: nil
   attr :reconvert_item, :map, default: nil, doc: "manifest quando em modo reprocesso"
   attr :user_presets, :list, default: []
   attr :preset_name, :string, default: ""
@@ -40,6 +43,25 @@ defmodule CamerexWeb.ConvertPanel do
         <button type="button" class="text-cx-text-dim underline" phx-click="reconvert_cancel">
           cancelar
         </button>
+      </div>
+
+      <div :if={@calib} id="calib-preview" class="rounded-lg border border-cx-border bg-cx-bg p-2">
+        <p :if={@calib == :preparing and @calib_url == nil} class="text-sm text-cx-text-dim">
+          preparando prévia…
+        </p>
+        <img
+          :if={@calib_url}
+          src={@calib_url}
+          data-role="calib-img"
+          alt="prévia ao vivo da calibragem"
+          class="w-full rounded"
+        />
+        <p :if={@calib_error} class="mt-1 text-sm text-cx-orange">
+          prévia falhou: {@calib_error}
+        </p>
+        <p class="mt-1 text-xs text-cx-text-dim">
+          prévia ao vivo · o rastro só aparece no vídeo final
+        </p>
       </div>
 
       <form id="convert-form" phx-submit="convert" phx-change="validate">
@@ -103,7 +125,16 @@ defmodule CamerexWeb.ConvertPanel do
         <div class="mt-4 space-y-3 text-sm">
           <label class="block">
             halo ({@halo})
-            <input type="range" name="halo" min="0" max="1" step="0.05" value={@halo} class="w-full" />
+            <input
+              type="range"
+              name="halo"
+              min="0"
+              max="1"
+              step="0.05"
+              value={@halo}
+              phx-debounce="150"
+              class="w-full"
+            />
           </label>
           <label class="block">
             rastro ({@trail})
@@ -114,6 +145,7 @@ defmodule CamerexWeb.ConvertPanel do
               max="0.95"
               step="0.05"
               value={@trail}
+              phx-debounce="150"
               class="w-full"
             />
           </label>
@@ -126,6 +158,7 @@ defmodule CamerexWeb.ConvertPanel do
               max="1"
               step="0.05"
               value={@detail}
+              phx-debounce="150"
               class="w-full"
             />
           </label>

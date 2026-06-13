@@ -11,7 +11,7 @@ defmodule CamerexWeb.LibraryLive do
   import CamerexWeb.DetailPanel
   import CamerexWeb.LibraryComponents
 
-  alias Camerex.{Jobs, Library, Settings, UserPresets, Workspace}
+  alias Camerex.{Calibration, Jobs, Library, Settings, UserPresets, Workspace}
   alias Camerex.Library.Import, as: LibraryImport
   alias Camerex.Neon.Palette
   alias Camerex.Pipeline.FramePreview
@@ -52,6 +52,10 @@ defmodule CamerexWeb.LibraryLive do
         concurrency: Settings.get("concurrency", 3),
         preview_data_url: nil,
         preview_error: nil,
+        calib: nil,
+        calib_url: nil,
+        calib_error: nil,
+        calib_ref: nil,
         progress: %{},
         subscribed_jobs: MapSet.new(),
         doctor_problems: doctor_problems(doctor_module().check())
@@ -94,6 +98,26 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply, assign(socket, progress: Map.put(socket.assigns.progress, id, prog))}
   end
 
+  ## Calibragem ao vivo (Tasks async → estas mensagens)
+
+  def handle_info({:calib_ready, {:ok, session}}, socket) do
+    {:noreply, socket |> assign(:calib, session) |> rerender_calibration()}
+  end
+
+  def handle_info({:calib_ready, {:error, reason}}, socket) do
+    {:noreply, assign(socket, calib: nil, calib_error: error_message(reason))}
+  end
+
+  # só o render mais recente vale; refs antigas são descartadas em silêncio
+  def handle_info({:calib_render, ref, result}, %{assigns: %{calib_ref: ref}} = socket) do
+    case result do
+      {:ok, data_url} -> {:noreply, assign(socket, calib_url: data_url, calib_error: nil)}
+      {:error, reason} -> {:noreply, assign(socket, :calib_error, error_message(reason))}
+    end
+  end
+
+  def handle_info({:calib_render, _stale_ref, _result}, socket), do: {:noreply, socket}
+
   ## Navegação e seleção
 
   @impl true
@@ -106,7 +130,8 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   def handle_event("close_detail", _params, socket) do
-    {:noreply, socket |> assign(:reconvert_item, nil) |> patch_to(item: nil)}
+    {:noreply,
+     socket |> assign(:reconvert_item, nil) |> clear_calibration() |> patch_to(item: nil)}
   end
 
   def handle_event("toggle_select", %{"id" => id}, socket) do
@@ -201,11 +226,11 @@ defmodule CamerexWeb.LibraryLive do
 
   def handle_event("select_preset", %{"id" => id}, socket) do
     swap = if duotone?(id), do: socket.assigns.swap_sides, else: false
-    {:noreply, assign(socket, preset_id: id, swap_sides: swap)}
+    {:noreply, socket |> assign(preset_id: id, swap_sides: swap) |> rerender_calibration()}
   end
 
   def handle_event("validate", params, socket) do
-    {:noreply, assign_controls(socket, params)}
+    {:noreply, socket |> assign_controls(params) |> rerender_calibration()}
   end
 
   def handle_event("convert", params, socket) do
@@ -234,12 +259,13 @@ defmodule CamerexWeb.LibraryLive do
       socket
       |> assign(:reconvert_item, item)
       |> apply_item_params(item)
+      |> begin_calibration(item)
 
     {:noreply, socket}
   end
 
   def handle_event("reconvert_cancel", _params, socket) do
-    {:noreply, assign(socket, :reconvert_item, nil)}
+    {:noreply, socket |> assign(:reconvert_item, nil) |> clear_calibration()}
   end
 
   def handle_event("retry_item", _params, socket) do
@@ -334,13 +360,15 @@ defmodule CamerexWeb.LibraryLive do
 
       p ->
         {:noreply,
-         assign(socket,
+         socket
+         |> assign(
            preset_id: p["preset"],
            halo: p["halo"],
            trail: p["trail"],
            detail: p["detail"],
            swap_sides: p["swap_sides"]
-         )}
+         )
+         |> rerender_calibration()}
     end
   end
 
@@ -362,7 +390,7 @@ defmodule CamerexWeb.LibraryLive do
         {:noreply, assign(socket, :modal, nil)}
 
       socket.assigns.reconvert_item != nil ->
-        {:noreply, assign(socket, :reconvert_item, nil)}
+        {:noreply, socket |> assign(:reconvert_item, nil) |> clear_calibration()}
 
       socket.assigns.current_item != nil ->
         {:noreply, patch_to(socket, item: nil)}
@@ -529,6 +557,9 @@ defmodule CamerexWeb.LibraryLive do
               swap_sides={@swap_sides}
               preview_data_url={@preview_data_url}
               preview_error={@preview_error}
+              calib={@calib}
+              calib_url={@calib_url}
+              calib_error={@calib_error}
               reconvert_item={@reconvert_item}
               user_presets={@user_presets}
               preset_name={@preset_name}
@@ -755,9 +786,51 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply,
      socket
      |> assign(:reconvert_item, nil)
+     |> clear_calibration()
      |> put_flash(:info, "reprocessando #{item["original_filename"]}")
      |> reload()
      |> refresh_current_item()}
+  end
+
+  ## Internas — calibragem ao vivo
+
+  defp begin_calibration(socket, item) do
+    lv = self()
+    path = Workspace.item_path(item["id"], item["original_file"])
+    type = item["type"]
+
+    {:ok, _pid} = Task.start(fn -> send(lv, {:calib_ready, safe_prepare(path, type)}) end)
+    assign(socket, calib: :preparing, calib_url: nil, calib_error: nil, calib_ref: nil)
+  end
+
+  # roda dentro da Task desvinculada: erro vira mensagem, nunca silêncio
+  defp safe_prepare(path, type) do
+    Calibration.prepare_file(path, type)
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  defp rerender_calibration(%{assigns: %{calib: %{} = session}} = socket) do
+    lv = self()
+    ref = make_ref()
+    params = Map.put(panel_params(socket), "preset", socket.assigns.preset_id)
+
+    {:ok, _pid} =
+      Task.start(fn -> send(lv, {:calib_render, ref, safe_render(session, params)}) end)
+
+    assign(socket, :calib_ref, ref)
+  end
+
+  defp rerender_calibration(socket), do: socket
+
+  defp safe_render(session, params) do
+    Calibration.render(session, params)
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  defp clear_calibration(socket) do
+    assign(socket, calib: nil, calib_url: nil, calib_error: nil, calib_ref: nil)
   end
 
   defp do_preview_frame(socket) do

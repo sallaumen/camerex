@@ -149,6 +149,44 @@ defmodule CamerexWeb.LibraryLiveTest do
     end
   end
 
+  describe "calibragem ao vivo" do
+    test "reprocessar abre prévia ao vivo e o slider re-renderiza", %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, lv, _} = live(conn, "/?item=#{id}")
+
+      lv |> element("#reconvert-button") |> render_click()
+      assert render(lv) =~ "calib-preview"
+
+      url_inicial = poll_calib_img(lv)
+      assert url_inicial =~ "data:image/png;base64,"
+
+      lv |> form("#convert-form", %{"halo" => "0.95"}) |> render_change()
+      assert poll_calib_img(lv, url_inicial) != url_inicial
+    end
+
+    test "trocar o preset de cor re-renderiza a prévia", %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, lv, _} = live(conn, "/?item=#{id}")
+
+      lv |> element("#reconvert-button") |> render_click()
+      url_inicial = poll_calib_img(lv)
+
+      lv |> element(~s(button[phx-click=select_preset][phx-value-id="ouro"])) |> render_click()
+      assert poll_calib_img(lv, url_inicial) != url_inicial
+    end
+
+    test "cancelar o reprocesso desliga a prévia", %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, lv, _} = live(conn, "/?item=#{id}")
+
+      lv |> element("#reconvert-button") |> render_click()
+      assert poll_calib_img(lv)
+
+      lv |> element("button[phx-click=reconvert_cancel]") |> render_click()
+      refute render(lv) =~ "calib-preview"
+    end
+  end
+
   describe "seleção múltipla e massa" do
     test "checkboxes acumulam e a barra aparece com contagem", %{conn: conn, tmp: tmp} do
       a = create_photo_item!(tmp)
@@ -387,5 +425,18 @@ defmodule CamerexWeb.LibraryLiveTest do
 
   defp src_de(html, seletor) do
     html |> LazyHTML.from_fragment() |> LazyHTML.query(seletor) |> LazyHTML.attribute("src")
+  end
+
+  # a prévia chega por Task async → handle_info; poll curto até aparecer
+  # (ou até diferir de `diferente_de`, para esperar um re-render)
+  defp poll_calib_img(lv, diferente_de \\ nil) do
+    Enum.find_value(1..100, fn _ ->
+      Process.sleep(10)
+
+      case lv |> render() |> src_de("[data-role=calib-img]") do
+        [src] when src != diferente_de -> src
+        _ -> nil
+      end
+    end)
   end
 end

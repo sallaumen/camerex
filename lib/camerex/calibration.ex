@@ -8,11 +8,24 @@ defmodule Camerex.Calibration do
   """
 
   alias Camerex.Mask
-  alias Camerex.Pipeline.Photo
+  alias Camerex.Pipeline.{FramePreview, Photo}
 
   @preview_width 480
 
   @type session :: %{rgb: Nx.Tensor.t(), mask: Nx.Tensor.t()}
+
+  @doc """
+  Prepara a sessão direto de um arquivo de mídia: foto é lida inteira;
+  vídeo usa o frame central (mesma fonte da prévia de 1 frame).
+  """
+  @spec prepare_file(Path.t(), String.t()) :: {:ok, session()} | {:error, term()}
+  def prepare_file(path, "video") do
+    with {:ok, rgb} <- FramePreview.middle_frame_rgb(path), do: prepare(rgb)
+  end
+
+  def prepare_file(path, _photo_type) do
+    with {:ok, rgb} <- read_rgb(path), do: prepare(rgb)
+  end
 
   @doc "Reduz a imagem e roda a segmentação única da sessão."
   @spec prepare(Nx.Tensor.t(), String.t()) :: {:ok, session()} | {:error, term()}
@@ -60,6 +73,19 @@ defmodule Camerex.Calibration do
         interpolation: Evision.Constant.cv_INTER_AREA()
       )
       |> Evision.Mat.to_nx(Nx.BinaryBackend)
+    end
+  end
+
+  defp read_rgb(path) do
+    case Evision.imread(path) do
+      %Evision.Mat{} = bgr ->
+        {:ok,
+         bgr
+         |> Evision.cvtColor(Evision.Constant.cv_COLOR_BGR2RGB())
+         |> Evision.Mat.to_nx(Nx.BinaryBackend)}
+
+      _other ->
+        {:error, "não consegui ler #{Path.basename(path)}"}
     end
   end
 
