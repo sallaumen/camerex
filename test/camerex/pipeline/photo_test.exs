@@ -26,6 +26,19 @@ defmodule Camerex.Pipeline.PhotoTest do
     assert count_color_pixels(out, @teal) > 0
   end
 
+  test "render_with_mask reproduz render/2 dada a mesma máscara" do
+    scene = gray_scene(48, 48)
+    segmenter = Application.fetch_env!(:camerex, :segmenter)
+    {:ok, raw} = segmenter.segment(scene, model: "u2net")
+    mask = Camerex.Mask.largest_component(raw)
+
+    opts = [preset: "miami", halo: 0.8, detail: 0.3]
+    {:ok, integrado} = Photo.render(scene, opts)
+    {:ok, separado} = Photo.render_with_mask(scene, mask, opts)
+
+    assert Nx.equal(integrado, separado) |> Nx.all() |> Nx.to_number() == 1
+  end
+
   test "preset desconhecido devolve erro" do
     assert {:error, {:unknown_preset, "vaporwave"}} =
              Photo.render(gray_scene(8, 8), preset: "vaporwave")

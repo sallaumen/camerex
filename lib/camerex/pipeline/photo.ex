@@ -11,26 +11,34 @@ defmodule Camerex.Pipeline.Photo do
 
   @spec render(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
   def render(rgb, opts \\ []) do
+    model = Keyword.get(opts, :model, "u2net")
+    segmenter = Application.fetch_env!(:camerex, :segmenter)
+
+    with {:ok, raw_mask} <- segmenter.segment(rgb, model: model) do
+      render_with_mask(rgb, Mask.largest_component(raw_mask), opts)
+    end
+  end
+
+  @doc """
+  Composição pós-máscara (bordas + halos + cor): a parte barata do pipeline.
+  A calibragem ao vivo segmenta uma vez e chama isto a cada ajuste.
+  """
+  @spec render_with_mask(Nx.Tensor.t(), Nx.Tensor.t(), keyword()) ::
+          {:ok, Nx.Tensor.t()} | {:error, term()}
+  def render_with_mask(rgb, mask, opts \\ []) do
     preset_id = Keyword.get(opts, :preset, "forro-teal")
     halo = Keyword.get(opts, :halo, 0.6)
     detail = Keyword.get(opts, :detail, 0.5)
     swap_sides = Keyword.get(opts, :swap_sides, false)
-    model = Keyword.get(opts, :model, "u2net")
 
-    segmenter = Application.fetch_env!(:camerex, :segmenter)
-
-    with {:ok, preset} <- fetch_preset(preset_id),
-         {:ok, raw_mask} <- segmenter.segment(rgb, model: model) do
-      mask = Mask.largest_component(raw_mask)
-
+    with {:ok, preset} <- fetch_preset(preset_id) do
       edges =
         rgb
         |> Neon.trace_edges(mask, detail: detail)
         |> Nx.as_type(:f32)
         |> Nx.divide(255.0)
 
-      opts = compose_opts(preset, mask, halo)
-      {:ok, Neon.compose(edges, colors(preset, swap_sides), opts)}
+      {:ok, Neon.compose(edges, colors(preset, swap_sides), compose_opts(preset, mask, halo))}
     end
   end
 
