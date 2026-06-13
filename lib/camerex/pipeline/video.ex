@@ -11,7 +11,9 @@ defmodule Camerex.Pipeline.Video do
   alias Camerex.Video.{Decoder, Encoder, Probe}
 
   @work_width 640
-  @max_fps 15.0
+  # cadência "shot on twos" da animação à mão: até 12 desenhos/s, cada um
+  # segurado por 2 frames no container (playback = 2 × desenhos)
+  @drawing_fps 12.0
   @mask_ema_alpha 0.45
   @mask_bin_threshold 0.45
   @split_ema_prev 0.9
@@ -93,9 +95,9 @@ defmodule Camerex.Pipeline.Video do
   # Devolve stats para o run/2 preencher manifest e thumbs.
   defp do_render(in_path, out_path, opts, progress_cb) do
     with {:ok, info} <- Probe.probe(in_path),
-         fps = min(info.fps, @max_fps),
+         fps = min(info.fps, @drawing_fps),
          height = Decoder.target_height(info.width, info.height, @work_width),
-         {:ok, enc} <- Encoder.open(out_path, @work_width, height, fps) do
+         {:ok, enc} <- Encoder.open(out_path, @work_width, height, fps, fps * 2) do
       total_estimate = max(round(info.duration_s * fps), 1)
       reduced = encode_frames(in_path, enc, fps, height, total_estimate, opts, progress_cb)
 

@@ -54,15 +54,16 @@ defmodule Camerex.Pipeline.VideoTest do
     assert is_number(manifest["timings_ms"]["per_frame_avg"])
     assert is_binary(manifest["completed_at"])
 
-    # arquivo final válido, dimensões pares, fps alvo preservado
+    # arquivo final válido, dimensões pares e cadência on twos: 8 desenhos/s
+    # da origem viram um container 16fps com cada desenho segurado 2 frames
     out_path = Workspace.item_path(id, "neon.mp4")
     assert File.exists?(out_path)
     assert {:ok, out_info} = Probe.probe(out_path)
     assert out_info.width == 640
     assert out_info.height == 480
     assert rem(out_info.height, 2) == 0
-    assert out_info.fps == 8.0
-    assert out_info.nb_frames == 8
+    assert out_info.fps == 16.0
+    assert_in_delta out_info.nb_frames, 16, 1
 
     # thumbs do primeiro frame (original + neon)
     assert File.exists?(Workspace.item_path(id, "thumb.jpg"))
