@@ -3,9 +3,9 @@ defmodule Camerex.Neon.PaletteTest do
 
   alias Camerex.Neon.Palette
 
-  test "all/0 devolve os 6 presets na ordem, com os ids do contrato" do
+  test "all/0 devolve os presets na ordem, com os ids do contrato + gradientes" do
     assert Enum.map(Palette.all(), & &1.id) ==
-             ~w(forro-laranja forro-teal forro-duotone pulp miami ouro)
+             ~w(forro-laranja forro-teal forro-duotone pulp miami ouro aurora brasa)
   end
 
   test "cores RGB exatas do contrato §4" do
@@ -17,12 +17,24 @@ defmodule Camerex.Neon.PaletteTest do
     assert Palette.get("ouro").colors == [{255, 209, 102}]
   end
 
-  test "mono tem 1 cor; duotone tem 2 (esquerda, direita)" do
+  test "mono tem 1 cor; duotone tem 2; gradiente tem 2 ou 3" do
     for preset <- Palette.all() do
       case preset.mode do
         :mono -> assert length(preset.colors) == 1
         :duotone -> assert length(preset.colors) == 2
+        :gradient -> assert length(preset.colors) in 2..3
       end
+    end
+  end
+
+  describe "presets de gradiente" do
+    test "aurora é gradiente de 3 paradas" do
+      assert %{mode: :gradient, colors: colors} = Palette.get("aurora")
+      assert length(colors) == 3
+    end
+
+    test "brasa é gradiente de 2 paradas" do
+      assert %{mode: :gradient, colors: [_, _]} = Palette.get("brasa")
     end
   end
 

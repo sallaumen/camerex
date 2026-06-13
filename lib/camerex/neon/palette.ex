@@ -1,14 +1,15 @@
 defmodule Camerex.Neon.Palette do
   @moduledoc """
   Presets de cor do neon (contrato §4). Cores em RGB; nos duotones a lista
-  é `[cor_esquerda, cor_direita]` e a UI oferece `swap_sides`.
+  é `[cor_esquerda, cor_direita]` e a UI oferece `swap_sides`. Nos gradientes
+  (`:gradient`) a lista tem 2–3 paradas interpoladas verticalmente pelo corpo.
   """
 
   @type color :: {0..255, 0..255, 0..255}
   @type preset :: %{
           id: String.t(),
           name: String.t(),
-          mode: :mono | :duotone,
+          mode: :mono | :duotone | :gradient,
           colors: [color()]
         }
 
@@ -23,7 +24,14 @@ defmodule Camerex.Neon.Palette do
     },
     %{id: "pulp", name: "Pulp", mode: :duotone, colors: [{177, 74, 237}, {74, 155, 237}]},
     %{id: "miami", name: "Miami", mode: :duotone, colors: [{255, 46, 151}, {0, 194, 255}]},
-    %{id: "ouro", name: "Ouro", mode: :mono, colors: [{255, 209, 102}]}
+    %{id: "ouro", name: "Ouro", mode: :mono, colors: [{255, 209, 102}]},
+    %{
+      id: "aurora",
+      name: "Aurora",
+      mode: :gradient,
+      colors: [{43, 196, 178}, {127, 119, 240}, {255, 138, 92}]
+    },
+    %{id: "brasa", name: "Brasa", mode: :gradient, colors: [{255, 209, 102}, {255, 77, 64}]}
   ]
 
   @spec all() :: [preset()]
