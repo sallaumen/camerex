@@ -18,6 +18,7 @@ defmodule Camerex.Neon.Layered do
   (rastro na arte-de-linha, EMA no campo de cor).
   """
 
+  alias Camerex.Neon
   alias Camerex.Neon.Palette
   alias Camerex.Parser.Layers
 
@@ -26,24 +27,80 @@ defmodule Camerex.Neon.Layered do
   # de virar contorno, senão pingam bolhinhas soltas na arte.
   @island_area_frac 0.0004
 
+  # detalhe interno: o slider [0,1] vira o `detail` do trace_edges nesta banda
+  # CONSERVADORA (limiar alto → só gradiente forte: rosto, vincos, mãos; a
+  # textura fraca do tecido nem vira borda). Depois a supressão por densidade
+  # tira a textura densa que sobrou (renda, paetê) sem tocar nas linhas esparsas.
+  @detail_trace_scale 0.35
+  @density_sigma_div 120.0
+  @density_threshold 0.28
+
   @doc """
-  Arte-de-linha `{h, w}` f32 em [0, 1]: contorno de cada rótulo presente (limpo
-  de ilhas e suavizado) somado por máximo à silhueta externa (contorno da união
-  de todas as partes). Sem nenhuma parte → tudo zero.
+  Arte-de-linha `{h, w}` f32 em [0, 1]: combina por máximo duas camadas —
+
+    * **contornos semânticos** (sempre): silhueta + fronteiras entre partes, das
+      máscaras suaves. Espinha dorsal limpa, zero textura.
+    * **detalhe interno** (opt-in via `detail:` > 0): rosto, mãos, vincos do
+      Canny, mas só onde o gradiente é forte (limiar alto) e com a textura densa
+      suprimida — traz definição sem os "quadrados" do tecido.
+
+  opts: `detail:` 0..1 (quanto detalhe interno; 0 = só contornos, default 0.5).
   """
-  @spec line_art(Nx.Tensor.t(), pos_integer()) :: Nx.Tensor.t()
-  def line_art(labels, w) do
+  @spec line_art(Nx.Tensor.t(), Nx.Tensor.t(), keyword()) :: Nx.Tensor.t()
+  def line_art(rgb, labels, opts \\ []) do
+    detail = Keyword.get(opts, :detail, 0.5)
+    {_h, w, _} = Nx.shape(rgb)
+
+    labels
+    |> semantic_contours(w)
+    |> Nx.max(internal_detail(rgb, labels, detail))
+    |> to_unit_f32()
+  end
+
+  # contorno de cada rótulo presente (limpo de ilhas e suavizado) somado por
+  # máximo à silhueta externa (contorno da união). u8 {h,w}. Sem parte → zeros.
+  defp semantic_contours(labels, w) do
     {h, _w} = Nx.shape(labels)
 
     case present_label_masks(labels, w) do
       [] ->
-        Nx.broadcast(0.0, {h, w})
+        Nx.broadcast(Nx.u8(0), {h, w})
 
       masks ->
         per_label = masks |> Enum.map(&contour/1) |> Enum.reduce(&Nx.max/2)
         silhouette = masks |> Enum.reduce(&Nx.max/2) |> contour()
-        Nx.max(per_label, silhouette) |> to_unit_f32()
+        Nx.max(per_label, silhouette)
     end
+  end
+
+  # detalhe interno (u8 {h,w}): Canny de limiar alto confinado à figura, com a
+  # textura densa suprimida. detail <= 0 → sem detalhe (só contornos).
+  defp internal_detail(rgb, labels, detail) do
+    {h, w, _} = Nx.shape(rgb)
+
+    if detail <= 0.0 do
+      Nx.broadcast(Nx.u8(0), {h, w})
+    else
+      union = labels |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
+
+      rgb
+      |> Neon.trace_edges(union, detail: detail * @detail_trace_scale, chroma: 0.0)
+      |> suppress_dense(w)
+    end
+  end
+
+  # textura densa (renda, paetê) faz uma região de borda DENSA; vinco/feição é
+  # esparso. Borra o mapa, apaga onde a densidade local passa do limiar.
+  defp suppress_dense(edges, w) do
+    density =
+      edges
+      |> Nx.as_type(:f32)
+      |> Nx.divide(255.0)
+      |> Evision.Mat.from_nx()
+      |> Evision.gaussianBlur({0, 0}, max(w / @density_sigma_div, 5.0))
+      |> Evision.Mat.to_nx(Nx.BinaryBackend)
+
+    Nx.multiply(edges, density |> Nx.less(@density_threshold) |> Nx.as_type(:u8))
   end
 
   @doc """

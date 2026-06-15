@@ -153,7 +153,7 @@ defmodule Camerex.Pipeline.Video do
   defp process_frame(frame, state, %{layered: true} = opts, enc) do
     with {:ok, labels} <- Parser.parse(frame) do
       {_h, w, _} = Nx.shape(frame)
-      line = Layered.line_art(labels, w)
+      line = Layered.line_art(frame, labels, detail: opts.detail)
 
       field =
         Mask.ema(Layered.color_field(labels, opts.layer_colors, w), state.field, @field_ema_alpha)

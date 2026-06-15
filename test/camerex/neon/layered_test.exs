@@ -18,11 +18,14 @@ defmodule Camerex.Neon.LayeredTest do
     Nx.select(inside, id, 0) |> Nx.as_type(:u8)
   end
 
-  describe "line_art/2" do
+  defp flat(h, w), do: Nx.broadcast(Nx.u8(127), {h, w, 3})
+
+  describe "line_art/3" do
     test "traça o CONTORNO da parte: borda acesa, interior apagado" do
-      # bloco de roupa (4) rows 15..44, cols 15..44 num 60x60
+      # bloco de roupa (4) rows 15..44, cols 15..44 num 60x60; rgb liso → sem
+      # detalhe interno, só o contorno
       labels = block_labels(60, 60, 4, {15, 45, 15, 45})
-      line = Layered.line_art(labels, 60)
+      line = Layered.line_art(flat(60, 60), labels, detail: 0.5)
 
       assert Nx.shape(line) == {60, 60}
       assert Nx.type(line) == {:f, 32}
@@ -35,8 +38,24 @@ defmodule Camerex.Neon.LayeredTest do
       assert Nx.to_number(Nx.reduce_max(line)) <= 1.0
     end
 
+    test "detail > 0 traz detalhe interno que detail: 0 (só contornos) não tem" do
+      labels = block_labels(60, 60, 4, {10, 50, 10, 50})
+
+      # borda de luminância forte DENTRO da parte (metade escura, metade clara)
+      cols = Nx.iota({60, 60}, axis: 1)
+      half = Nx.select(Nx.less(cols, 30), 40, 210) |> Nx.as_type(:u8)
+      rgb = half |> Nx.new_axis(-1) |> Nx.broadcast({60, 60, 3})
+
+      so_contorno = Layered.line_art(rgb, labels, detail: 0.0) |> Nx.sum() |> Nx.to_number()
+      com_detalhe = Layered.line_art(rgb, labels, detail: 0.6) |> Nx.sum() |> Nx.to_number()
+
+      assert com_detalhe > so_contorno
+    end
+
     test "sem nenhuma parte (labels só fundo) → tudo zero" do
-      assert Layered.line_art(Nx.broadcast(Nx.u8(0), {40, 40}), 40)
+      empty = Nx.broadcast(Nx.u8(0), {40, 40})
+
+      assert Layered.line_art(flat(40, 40), empty, detail: 0.5)
              |> Nx.sum()
              |> Nx.to_number() == 0.0
     end
@@ -47,7 +66,7 @@ defmodule Camerex.Neon.LayeredTest do
       speck = block_labels(200, 200, 4, {10, 13, 10, 13})
       labels = Nx.max(big, speck)
 
-      line = Layered.line_art(labels, 200)
+      line = Layered.line_art(flat(200, 200), labels, detail: 0.0)
 
       # ao redor do speck não há contorno (área < min_area → descartado)
       assert line[[4..18, 4..18]] |> Nx.sum() |> Nx.to_number() == 0.0

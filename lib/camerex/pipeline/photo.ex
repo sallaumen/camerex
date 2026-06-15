@@ -70,10 +70,11 @@ defmodule Camerex.Pipeline.Photo do
   def render_with_labels(rgb, labels, opts \\ []) do
     halo = Keyword.get(opts, :halo, 0.6)
     bloom = Keyword.get(opts, :bloom, 0.0)
+    detail = Keyword.get(opts, :detail, 0.5)
     colors = Keyword.get(opts, :layer_colors, Layers.default_colors())
     {_h, w, _} = Nx.shape(rgb)
 
-    line = Layered.line_art(labels, w)
+    line = Layered.line_art(rgb, labels, detail: detail)
     field = Layered.color_field(labels, colors, w)
 
     Neon.compose(line, [{0, 0, 0}], halo: halo, bloom: bloom, color_field: field)
