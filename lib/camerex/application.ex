@@ -15,6 +15,7 @@ defmodule Camerex.Application do
       {DNSCluster, query: Application.get_env(:camerex, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Camerex.PubSub},
       Camerex.Segmenter.Ortex,
+      Camerex.Parser.Segformer,
       {Task.Supervisor, name: Camerex.TaskSupervisor},
       Camerex.Jobs,
       CamerexWeb.Endpoint
