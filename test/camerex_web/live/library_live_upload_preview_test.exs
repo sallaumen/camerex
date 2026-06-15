@@ -48,6 +48,7 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
 
   test "upload de foto abre a prévia ao vivo automaticamente", %{conn: conn, jpg: jpg} do
     {:ok, lv, _html} = live(conn, "/")
+    lv |> element("#new-conversion") |> render_click()
 
     lv
     |> file_input("#convert-form", :media, [
@@ -61,6 +62,7 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
 
   test "upload de vídeo abre a prévia ao vivo do frame central", %{conn: conn, mp4: mp4} do
     {:ok, lv, _html} = live(conn, "/")
+    lv |> element("#new-conversion") |> render_click()
 
     lv
     |> file_input("#convert-form", :media, [
@@ -75,6 +77,7 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
 
   test "Converter consome o upload e desliga a prévia", %{conn: conn, jpg: jpg} do
     {:ok, lv, _html} = live(conn, "/")
+    lv |> element("#new-conversion") |> render_click()
 
     lv
     |> file_input("#convert-form", :media, [

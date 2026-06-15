@@ -64,6 +64,7 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
 
     test "mostra os 6 swatches; seleção controla o 'inverter lados'", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
 
       for id <- ~w(forro-laranja forro-teal forro-duotone pulp miami ouro) do
         assert has_element?(view, "#preset-swatches button[phx-value-id=#{id}]")
@@ -82,6 +83,7 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
 
     test "upload de foto cria item queued com params e enfileira o job", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
 
       view |> element("button[phx-value-id=forro-teal]") |> render_click()
 
@@ -113,6 +115,31 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
 
       # o card novo aparece na grade sem refresh
       assert has_element?(view, "#item-#{item["id"]}")
+    end
+
+    test "'Só importar' cria item 'new' sem enfileirar job", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      photo =
+        file_input(view, "#convert-form", :media, [
+          %{
+            name: "casal.jpg",
+            content: File.read!("exemplos/entrada/casal.jpg"),
+            type: "image/jpeg"
+          }
+        ])
+
+      assert render_upload(photo, "casal.jpg") =~ "100%"
+
+      view |> element("#import-only") |> render_click()
+
+      assert [item] = Workspace.list_items()
+      assert item["status"] == "new"
+      assert item["output_file"] == nil
+      # importado, painel volta ao placeholder e o card aparece
+      assert has_element?(view, "#item-#{item["id"]}")
+      assert render(view) =~ "right-placeholder"
     end
   end
 end

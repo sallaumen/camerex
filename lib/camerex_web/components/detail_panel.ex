@@ -37,8 +37,10 @@ defmodule CamerexWeb.DetailPanel do
         </button>
       </header>
 
-      <div :if={@item["type"] == "video"} class="space-y-3">
-        <figure>
+      <%!-- antes | depois lado a lado quando há resultado; só "antes" (cheio)
+            enquanto não processou. flex-1 + min-w-0 = metades que truncam. --%>
+      <div :if={@item["type"] == "video"} class="flex gap-3">
+        <figure class="min-w-0 flex-1">
           <figcaption class="mb-1 text-xs text-cx-text-dim">antes</figcaption>
           <video
             controls
@@ -48,7 +50,7 @@ defmodule CamerexWeb.DetailPanel do
             src={Workspace.media_url(@item["id"], @item["original_file"])}
           ></video>
         </figure>
-        <figure :if={@item["status"] == "done"}>
+        <figure :if={@item["status"] == "done"} class="min-w-0 flex-1">
           <figcaption class="mb-1 text-xs text-cx-text-dim">depois (neon)</figcaption>
           <video
             controls
@@ -60,8 +62,8 @@ defmodule CamerexWeb.DetailPanel do
         </figure>
       </div>
 
-      <div :if={@item["type"] != "video"} class="space-y-3">
-        <figure>
+      <div :if={@item["type"] != "video"} class="flex gap-3">
+        <figure class="min-w-0 flex-1">
           <img
             id="before"
             src={Workspace.media_url(@item["id"], @item["original_file"])}
@@ -70,7 +72,7 @@ defmodule CamerexWeb.DetailPanel do
           />
           <figcaption class="mt-1 text-xs text-cx-text-dim">antes</figcaption>
         </figure>
-        <figure :if={@item["status"] == "done"}>
+        <figure :if={@item["status"] == "done"} class="min-w-0 flex-1">
           <img
             id="after"
             src={versioned_media_url(@item, @item["output_file"])}

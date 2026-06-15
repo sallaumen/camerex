@@ -37,6 +37,7 @@ defmodule CamerexWeb.LibraryLive do
         selected: MapSet.new(),
         current_item: nil,
         reconvert_item: nil,
+        convert_open: false,
         modal: nil,
         import_path: "",
         import_scan: nil,
@@ -133,12 +134,34 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   def handle_event("open_item", %{"id" => id}, socket) do
-    {:noreply, patch_to(socket, item: id)}
+    # abrir um item sempre mostra o detalhe DELE: sai de qualquer modo de
+    # conversão/reprocesso/calibragem (senão o painel direito fica preso no
+    # item anterior enquanto se importa/reprocessa)
+    {:noreply,
+     socket
+     |> assign(reconvert_item: nil, convert_open: false)
+     |> clear_calibration()
+     |> patch_to(item: id)}
   end
 
   def handle_event("close_detail", _params, socket) do
     {:noreply,
      socket |> assign(:reconvert_item, nil) |> clear_calibration() |> patch_to(item: nil)}
+  end
+
+  # abre o painel de nova conversão (sai do detalhe e de qualquer reprocesso)
+  def handle_event("open_convert", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(convert_open: true, reconvert_item: nil)
+     |> clear_calibration()
+     |> patch_to(item: nil)}
+  end
+
+  # fecha o painel de conversão/reprocesso → volta ao placeholder (ou ao detalhe
+  # do item, se houver um selecionado)
+  def handle_event("close_convert", _params, socket) do
+    {:noreply, socket |> assign(convert_open: false, reconvert_item: nil) |> clear_calibration()}
   end
 
   def handle_event("toggle_select", %{"id" => id}, socket) do
@@ -246,6 +269,23 @@ defmodule CamerexWeb.LibraryLive do
     case socket.assigns.reconvert_item do
       nil -> convert_upload(socket)
       item -> reprocess_item(socket, item)
+    end
+  end
+
+  # importa sem processar: cria o item (status "new") e NÃO enfileira job —
+  # a pessoa clica "Processar" no detalhe quando quiser
+  def handle_event("import_only", _params, socket) do
+    case import_uploads(socket, nil) do
+      [] ->
+        {:noreply, put_flash(socket, :error, "Escolha uma foto ou vídeo para importar.")}
+
+      _ids ->
+        {:noreply,
+         socket
+         |> assign(:convert_open, false)
+         |> clear_calibration()
+         |> put_flash(:info, "importado sem processar — use “Processar” quando quiser")
+         |> reload()}
     end
   end
 
@@ -401,6 +441,9 @@ defmodule CamerexWeb.LibraryLive do
       socket.assigns.reconvert_item != nil ->
         {:noreply, socket |> assign(:reconvert_item, nil) |> clear_calibration()}
 
+      socket.assigns.convert_open ->
+        {:noreply, socket |> assign(:convert_open, false) |> clear_calibration()}
+
       socket.assigns.current_item != nil ->
         {:noreply, patch_to(socket, item: nil)}
 
@@ -490,18 +533,26 @@ defmodule CamerexWeb.LibraryLive do
             <div class="flex items-center gap-2 text-sm">
               <button
                 type="button"
+                id="new-conversion"
+                phx-click="open_convert"
+                class="neon-cta !mt-0"
+              >
+                + nova conversão
+              </button>
+              <button
+                type="button"
                 id="import-button"
                 phx-click="open_modal"
                 phx-value-modal="import"
-                class="neon-cta !mt-0"
+                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
               >
-                importar pasta do disco
+                importar pasta
               </button>
               <button
                 :if={@visible_items != []}
                 type="button"
                 phx-click="select_all"
-                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim"
+                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
               >
                 selecionar tudo
               </button>
@@ -538,10 +589,20 @@ defmodule CamerexWeb.LibraryLive do
 
           <div :if={@items == []} id="gallery-empty" class="neon-empty">
             <p class="neon-empty-title">nenhuma conversão nesta pasta</p>
-            <p>solte uma mídia no painel ao lado ou importe uma pasta inteira do disco.</p>
-            <button type="button" phx-click="open_modal" phx-value-modal="import" class="neon-cta">
-              importar pasta do disco
-            </button>
+            <p>comece uma nova conversão ou importe uma pasta inteira do disco.</p>
+            <div class="mt-2 flex flex-wrap items-center justify-center gap-2">
+              <button type="button" phx-click="open_convert" class="neon-cta">
+                + nova conversão
+              </button>
+              <button
+                type="button"
+                phx-click="open_modal"
+                phx-value-modal="import"
+                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
+              >
+                importar pasta
+              </button>
+            </div>
           </div>
 
           <div :if={@items != [] and @visible_items == []} id="filter-empty" class="neon-empty">
@@ -553,33 +614,46 @@ defmodule CamerexWeb.LibraryLive do
         </main>
 
         <aside class="w-[400px] shrink-0 rounded-lg border border-cx-border bg-cx-surface p-4">
-          <%= if @current_item && @reconvert_item == nil do %>
-            <.detail_panel item={@current_item} progress={@progress[@current_item["id"]]} />
-          <% else %>
-            <.convert_panel
-              uploads={@uploads}
-              presets={@presets}
-              preset_id={@preset_id}
-              halo={@halo}
-              bloom={@bloom}
-              chroma={@chroma}
-              layered={@layered}
-              layer_colors={@layer_colors}
-              floor={@floor}
-              glow={@glow}
-              spread={@spread}
-              trail={@trail}
-              detail={@detail}
-              swap_sides={@swap_sides}
-              calib={@calib}
-              calib_url={@calib_url}
-              calib_error={@calib_error}
-              folder_count={length(@items)}
-              selected_count={MapSet.size(@selected)}
-              reconvert_item={@reconvert_item}
-              user_presets={@user_presets}
-              preset_name={@preset_name}
-            />
+          <%= cond do %>
+            <% @current_item && @reconvert_item == nil -> %>
+              <.detail_panel item={@current_item} progress={@progress[@current_item["id"]]} />
+            <% @reconvert_item || @convert_open -> %>
+              <.convert_panel
+                uploads={@uploads}
+                presets={@presets}
+                preset_id={@preset_id}
+                halo={@halo}
+                bloom={@bloom}
+                chroma={@chroma}
+                layered={@layered}
+                layer_colors={@layer_colors}
+                floor={@floor}
+                glow={@glow}
+                spread={@spread}
+                trail={@trail}
+                detail={@detail}
+                swap_sides={@swap_sides}
+                calib={@calib}
+                calib_url={@calib_url}
+                calib_error={@calib_error}
+                folder_count={length(@items)}
+                selected_count={MapSet.size(@selected)}
+                reconvert_item={@reconvert_item}
+                user_presets={@user_presets}
+                preset_name={@preset_name}
+              />
+            <% true -> %>
+              <div
+                id="right-placeholder"
+                class="flex h-full min-h-[60vh] flex-col items-center justify-center gap-4 text-center"
+              >
+                <p class="text-sm text-cx-text-dim">
+                  escolha uma conversão na galeria<br />ou comece uma nova
+                </p>
+                <button type="button" id="placeholder-new" phx-click="open_convert" class="neon-cta">
+                  + nova conversão
+                </button>
+              </div>
           <% end %>
         </aside>
       </div>
@@ -770,29 +844,28 @@ defmodule CamerexWeb.LibraryLive do
   ## Internas — conversão
 
   defp convert_upload(socket) do
-    folder = socket.assigns.folder
-
-    ids =
-      consume_uploaded_entries(socket, :media, fn %{path: path}, entry ->
-        {:ok, _id} =
-          Workspace.create_item(
-            path,
-            entry.client_name,
-            media_type(entry.client_name),
-            socket.assigns.preset_id,
-            panel_params_for(socket, media_type(entry.client_name)),
-            folder: folder
-          )
-      end)
-
-    case ids do
+    case import_uploads(socket, socket.assigns.preset_id) do
       [] ->
         {:noreply, put_flash(socket, :error, "Escolha uma foto ou vídeo para converter.")}
 
       ids ->
         Enum.each(ids, &Jobs.enqueue/1)
-        {:noreply, socket |> clear_calibration() |> reload()}
+        {:noreply, socket |> assign(:convert_open, false) |> clear_calibration() |> reload()}
     end
+  end
+
+  # consome os uploads e cria os itens (sem enfileirar) — base comum de
+  # "Converter" e "Só importar". preset_id `nil` → item "new" (sem processar,
+  # igual à importação de pasta); com preset → "queued". create_item devolve
+  # {:ok, id}, que o consume_uploaded_entries desembrulha para o próprio id.
+  defp import_uploads(socket, preset_id) do
+    folder = socket.assigns.folder
+
+    consume_uploaded_entries(socket, :media, fn %{path: path}, entry ->
+      type = media_type(entry.client_name)
+      params = if preset_id, do: panel_params_for(socket, type), else: nil
+      Workspace.create_item(path, entry.client_name, type, preset_id, params, folder: folder)
+    end)
   end
 
   defp reprocess_item(socket, item) do

@@ -40,6 +40,21 @@ defmodule CamerexWeb.ConvertPanel do
   def convert_panel(assigns) do
     ~H"""
     <section id="convert-panel" class="space-y-4">
+      <header class="flex items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">
+          {if @reconvert_item, do: "Reprocessar", else: "Nova conversão"}
+        </h2>
+        <button
+          type="button"
+          id="close-convert"
+          phx-click="close_convert"
+          aria-label="fechar painel de conversão"
+          class="rounded border border-cx-border px-2 py-1 text-sm text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
+        >
+          fechar ✕
+        </button>
+      </header>
+
       <div
         :if={@reconvert_item}
         id="reconvert-chip"
@@ -237,13 +252,25 @@ defmodule CamerexWeb.ConvertPanel do
           </label>
         </div>
 
-        <button
-          type="submit"
-          id="convert-submit"
-          class="mt-4 rounded bg-cx-teal px-4 py-2 font-medium text-cx-bg"
-        >
-          {submit_label(@reconvert_item)}
-        </button>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="submit"
+            id="convert-submit"
+            class="rounded bg-cx-teal px-4 py-2 font-medium text-cx-bg focus-visible:ring-2 focus-visible:ring-cx-text"
+          >
+            {submit_label(@reconvert_item)}
+          </button>
+          <button
+            :if={@reconvert_item == nil}
+            type="button"
+            id="import-only"
+            phx-click="import_only"
+            title="só importa pra biblioteca; processa quando você quiser"
+            class="rounded border border-cx-border px-4 py-2 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
+          >
+            Só importar
+          </button>
+        </div>
       </form>
 
       <div :if={@calib} id="calib-apply" class="mt-3 flex flex-wrap gap-2 text-sm">

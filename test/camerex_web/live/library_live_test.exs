@@ -67,11 +67,12 @@ defmodule CamerexWeb.LibraryLiveTest do
   end
 
   describe "detalhe in-place" do
-    test "clicar no card abre o painel; fechar volta ao convert", %{conn: conn, tmp: tmp} do
+    test "padrão é placeholder; card abre o detalhe; fechar volta ao placeholder",
+         %{conn: conn, tmp: tmp} do
       id = create_photo_item!(tmp, %{status: "done"})
 
       {:ok, lv, html} = live(conn, "/")
-      assert html =~ "convert-panel"
+      assert html =~ "right-placeholder"
       refute html =~ "detail-panel"
 
       lv |> element("#item-#{id} button[phx-click=open_item]") |> render_click()
@@ -80,7 +81,35 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       lv |> element("#close-detail") |> render_click()
       assert_patch(lv)
+      assert render(lv) =~ "right-placeholder"
+    end
+
+    test "+ nova conversão abre o painel; ✕ fecha de volta ao placeholder", %{conn: conn} do
+      {:ok, lv, html} = live(conn, "/")
+      refute html =~ "convert-panel"
+
+      lv |> element("#new-conversion") |> render_click()
       assert render(lv) =~ "convert-panel"
+
+      lv |> element("#close-convert") |> render_click()
+      assert render(lv) =~ "right-placeholder"
+    end
+
+    test "clicar em outra imagem durante o reprocesso troca o painel para ela",
+         %{conn: conn, tmp: tmp} do
+      a = create_photo_item!(tmp, %{status: "done"})
+      b = create_photo_item!(tmp, %{status: "done"})
+
+      {:ok, lv, _} = live(conn, "/?item=#{a}")
+      lv |> element("#reconvert-button") |> render_click()
+      assert render(lv) =~ "reconvert-chip"
+
+      # clicar no card de B deve abrir o detalhe de B, não ficar preso em A
+      lv |> element("#item-#{b} button[phx-click=open_item]") |> render_click()
+      assert_patch(lv)
+      html = render(lv)
+      assert html =~ "detail-panel"
+      refute html =~ "reconvert-chip"
     end
 
     test "apagar item do detalhe remove e volta à biblioteca", %{conn: conn, tmp: tmp} do
@@ -373,7 +402,7 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       lv |> element("#library-root") |> render_keydown()
       assert_patch(lv)
-      assert render(lv) =~ "convert-panel"
+      assert render(lv) =~ "right-placeholder"
     end
   end
 
@@ -429,8 +458,9 @@ defmodule CamerexWeb.LibraryLiveTest do
 
   describe "controle de bloom e presets de gradiente" do
     test "slider de bloom existe e atualiza o valor exibido", %{conn: conn} do
-      {:ok, lv, html} = live(conn, "/")
-      assert html =~ ~s(name="bloom")
+      {:ok, lv, _} = live(conn, "/")
+      lv |> element("#new-conversion") |> render_click()
+      assert render(lv) =~ ~s(name="bloom")
 
       lv |> form("#convert-form", %{"bloom" => "0.85"}) |> render_change()
       assert render(lv) =~ "0.85"
@@ -438,20 +468,23 @@ defmodule CamerexWeb.LibraryLiveTest do
 
     test "preset de gradiente aparece na faixa de swatches", %{conn: conn} do
       {:ok, lv, _} = live(conn, "/")
+      lv |> element("#new-conversion") |> render_click()
       assert has_element?(lv, "#preset-swatches button[phx-value-id=aurora]")
     end
 
     test "slider de cor (chroma) existe e atualiza o valor exibido", %{conn: conn} do
-      {:ok, lv, html} = live(conn, "/")
-      assert html =~ ~s(name="chroma")
+      {:ok, lv, _} = live(conn, "/")
+      lv |> element("#new-conversion") |> render_click()
+      assert render(lv) =~ ~s(name="chroma")
 
       lv |> form("#convert-form", %{"chroma" => "0.75"}) |> render_change()
       assert render(lv) =~ "0.75"
     end
 
     test "toggle 'colorir por parte' revela os pickers de cor", %{conn: conn} do
-      {:ok, lv, html} = live(conn, "/")
-      refute html =~ "layer-pickers"
+      {:ok, lv, _} = live(conn, "/")
+      lv |> element("#new-conversion") |> render_click()
+      refute render(lv) =~ "layer-pickers"
 
       lv |> form("#convert-form", %{"layered" => "true"}) |> render_change()
 
@@ -462,8 +495,9 @@ defmodule CamerexWeb.LibraryLiveTest do
     end
 
     test "toggle 'chão' revela os sliders de brilho e espalhamento", %{conn: conn} do
-      {:ok, lv, html} = live(conn, "/")
-      refute html =~ "floor-controls"
+      {:ok, lv, _} = live(conn, "/")
+      lv |> element("#new-conversion") |> render_click()
+      refute render(lv) =~ "floor-controls"
 
       lv |> form("#convert-form", %{"floor" => "true"}) |> render_change()
 
@@ -475,6 +509,7 @@ defmodule CamerexWeb.LibraryLiveTest do
   describe "presets do usuário na UI" do
     test "salvar ajustes atuais e aplicar de volta", %{conn: conn} do
       {:ok, lv, _} = live(conn, "/")
+      lv |> element("#new-conversion") |> render_click()
 
       lv |> element("button[phx-value-id=miami]") |> render_click()
       lv |> form("#convert-form", %{"halo" => "0.9"}) |> render_change()

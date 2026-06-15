@@ -22,7 +22,9 @@ defmodule CamerexWeb.GalleryThemeTest do
   end
 
   test "swatches dos 6 presets com data-swatch e cor exata da Palette", %{conn: conn} do
-    {:ok, _view, html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/")
+    view |> element("#new-conversion") |> render_click()
+    html = render(view)
 
     for preset <- Palette.all() do
       assert html =~ ~s(data-swatch="#{preset.id}")
