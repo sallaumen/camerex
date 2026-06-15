@@ -119,6 +119,44 @@ defmodule Camerex.Pipeline.PhotoTest do
     end
   end
 
+  describe "render_layered/2 (cor por camada via parser)" do
+    # rótulos: bloco de roupa (4) e bloco de cabelo (2), cada um cercado por
+    # fundo (0) — assim a borda de cada camada sai na cor PURA (sem mistura
+    # com camada vizinha; numa foto real a textura interna já garante isso)
+    defp blocks_labels do
+      rows = Nx.iota({40, 40}, axis: 0)
+      cols = Nx.iota({40, 40}, axis: 1)
+      band = fn r0, r1 -> Nx.logical_and(Nx.greater_equal(rows, r0), Nx.less(rows, r1)) end
+      mid_cols = Nx.logical_and(Nx.greater_equal(cols, 8), Nx.less(cols, 32))
+
+      cloth = Nx.logical_and(band.(6, 16), mid_cols)
+      hair = Nx.logical_and(band.(24, 34), mid_cols)
+      Nx.select(cloth, 4, Nx.select(hair, 2, 0)) |> Nx.as_type(:u8)
+    end
+
+    test "render_layered via parser devolve {h,w,3} não-vazio" do
+      {:ok, layered} = Photo.render_layered(gray_scene(60, 40), [])
+      assert Nx.shape(layered) == {60, 40, 3}
+      assert layered |> Nx.sum() |> Nx.to_number() > 0
+    end
+
+    test "cada camada sai na sua cor; default da roupa é teal" do
+      layered = Photo.render_with_labels(gray_scene(40, 40), blocks_labels(), [])
+
+      assert count_color_pixels(layered, {43, 196, 178}) > 0
+      assert count_color_pixels(layered, {255, 90, 30}) > 0
+    end
+
+    test "layer_colors sobrescreve a cor de uma camada" do
+      layered =
+        Photo.render_with_labels(gray_scene(40, 40), blocks_labels(),
+          layer_colors: %{clothing: {0, 0, 255}}
+        )
+
+      assert count_color_pixels(layered, {0, 0, 255}) > 0
+    end
+  end
+
   test "swap_sides inverte as cores do duotone" do
     scene = gray_scene(64, 64)
 
