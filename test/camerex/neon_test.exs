@@ -137,6 +137,48 @@ defmodule Camerex.NeonTest do
     end
   end
 
+  describe "trace_edges/3 — smooth (supressão por densidade)" do
+    # listras horizontais de período `p` num campo cheio: período curto = textura
+    # densa (transições juntas); período longo = estrutura espaçada. O bilateral
+    # e o blur interno do Canny exigem traços largos o bastante p/ sobreviverem.
+    defp striped_scene(p) do
+      rows = Nx.iota({64, 64}, axis: 0)
+      band = Nx.remainder(Nx.quotient(rows, div(p, 2)), 2)
+
+      rgb =
+        band
+        |> Nx.multiply(255)
+        |> Nx.as_type(:u8)
+        |> Nx.new_axis(-1)
+        |> Nx.broadcast({64, 64, 3})
+
+      {rgb, Nx.broadcast(Nx.u8(255), {64, 64})}
+    end
+
+    defp lit_px(edges), do: edges |> Nx.sum() |> Nx.to_number()
+
+    test "default (smooth: false) é idêntico a não passar smooth (goldens preservados)" do
+      {rgb, mask} = striped_scene(8)
+
+      assert Nx.to_binary(Neon.trace_edges(rgb, mask)) ==
+               Nx.to_binary(Neon.trace_edges(rgb, mask, smooth: false))
+    end
+
+    test "smooth: true poda a textura densa (período curto)" do
+      {rgb, mask} = striped_scene(8)
+
+      assert lit_px(Neon.trace_edges(rgb, mask, smooth: true)) <
+               lit_px(Neon.trace_edges(rgb, mask))
+    end
+
+    test "smooth: true preserva a estrutura espaçada (período longo)" do
+      {rgb, mask} = striped_scene(12)
+
+      assert lit_px(Neon.trace_edges(rgb, mask, smooth: true)) ==
+               lit_px(Neon.trace_edges(rgb, mask))
+    end
+  end
+
   describe "weights_for/3 (regra modo→pesos compartilhada foto/vídeo)" do
     test "mono não tem pesos; duotone e gradiente batem as primitivas" do
       mask =

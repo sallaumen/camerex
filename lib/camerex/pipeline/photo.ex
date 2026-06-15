@@ -79,7 +79,12 @@ defmodule Camerex.Pipeline.Photo do
         # uma passada de bordas sobre a silhueta união SUAVIZADA (mata a
         # escada do upsample); cores num campo único MESCLADO nas fronteiras
         union = parts |> union_mask() |> smooth_mask(w)
-        edges = rgb |> Neon.trace_edges(union, detail: detail, chroma: chroma) |> to_unit_f32()
+
+        edges =
+          rgb
+          |> Neon.trace_edges(union, detail: detail, chroma: chroma, smooth: true)
+          |> to_unit_f32()
+
         field = blended_color_field(parts, w)
         Neon.compose(edges, [{0, 0, 0}], halo: halo, bloom: bloom, color_field: field)
     end
