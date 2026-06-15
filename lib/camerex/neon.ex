@@ -48,8 +48,9 @@ defmodule Camerex.Neon do
   defp add_chroma_edges(base, _rgb_mat, _eroded, chroma) when chroma <= 0.0, do: base
 
   # Canny no canal de saturação (HSV): pega bordas de COR que o cinza perde
-  # (tecido vermelho sobre sombra). medianBlur mata o chuvisco sem apagar as
-  # dobras; o limiar acompanha `chroma` (mais cor → mais sensível).
+  # (tecido vermelho sobre sombra). medianBlur tira sal-pimenta; despeckle
+  # remove componentes minúsculos (o chuvisco de padrões finos, ex.: paetês)
+  # SEM tocar nas dobras (linhas longas conectadas). O limiar acompanha `chroma`.
   defp add_chroma_edges(base, rgb_mat, eroded, chroma) do
     lo = round(72 - 80 * chroma)
     hi = round(168 - 120 * chroma)
@@ -60,9 +61,27 @@ defmodule Camerex.Neon do
       |> Evision.extractChannel(1)
       |> Evision.medianBlur(5)
       |> Evision.canny(lo, hi)
+      |> despeckle(40)
       |> Evision.min(eroded)
 
     Evision.max(base, inner_chroma)
+  end
+
+  # remove componentes conectados menores que `min_area` px (speckle), mantendo
+  # as linhas longas. Fundo (label 0) tem área enorme mas é 0 nas bordas → ok.
+  defp despeckle(edges_mat, min_area) do
+    {_n, labels, stats, _centroids} = Evision.connectedComponentsWithStats(edges_mat)
+    labels_nx = Evision.Mat.to_nx(labels, Nx.BinaryBackend)
+    areas = stats |> Evision.Mat.to_nx(Nx.BinaryBackend) |> then(& &1[[.., 4]])
+
+    keep =
+      areas
+      |> Nx.greater_equal(min_area)
+      |> Nx.take(labels_nx)
+      |> Nx.multiply(255)
+      |> Nx.as_type(:u8)
+
+    edges_mat |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.min(keep) |> Evision.Mat.from_nx()
   end
 
   @doc """
