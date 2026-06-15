@@ -30,12 +30,13 @@ defmodule Camerex.Pipeline.Photo do
     halo = Keyword.get(opts, :halo, 0.6)
     bloom = Keyword.get(opts, :bloom, 0.0)
     detail = Keyword.get(opts, :detail, 0.5)
+    chroma = Keyword.get(opts, :chroma, 0.0)
     swap_sides = Keyword.get(opts, :swap_sides, false)
 
     with {:ok, preset} <- fetch_preset(preset_id) do
       edges =
         rgb
-        |> Neon.trace_edges(mask, detail: detail)
+        |> Neon.trace_edges(mask, detail: detail, chroma: chroma)
         |> Nx.as_type(:f32)
         |> Nx.divide(255.0)
 
@@ -98,6 +99,7 @@ defmodule Camerex.Pipeline.Photo do
       halo: p["halo"] || 0.6,
       bloom: p["bloom"] || 0.0,
       detail: p["detail"] || 0.5,
+      chroma: p["chroma"] || 0.0,
       swap_sides: p["swap_sides"] || false,
       model: p["model"] || "u2net"
     ]
