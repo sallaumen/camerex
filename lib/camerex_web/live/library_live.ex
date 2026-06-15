@@ -107,7 +107,8 @@ defmodule CamerexWeb.LibraryLive do
   ## Calibragem ao vivo (Tasks async → estas mensagens)
 
   def handle_info({:calib_ready, {:ok, session}}, socket) do
-    {:noreply, socket |> assign(:calib, session) |> rerender_calibration()}
+    {:noreply,
+     socket |> assign(:calib, session) |> suggest_layer_colors(session) |> rerender_calibration()}
   end
 
   def handle_info({:calib_ready, {:error, reason}}, socket) do
@@ -837,6 +838,19 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   defp rerender_calibration(socket), do: socket
+
+  # upload novo: pré-preenche os pickers com as cores detectadas das partes
+  # (coerentes com a roupa). No reprocesso de um item, as cores salvas do
+  # manifest (apply_item_params) mandam — não sobrescreve.
+  defp suggest_layer_colors(socket, %{labels: labels, rgb: rgb}) when labels != nil do
+    if socket.assigns.reconvert_item == nil do
+      assign(socket, :layer_colors, Layers.suggest_colors(rgb, labels))
+    else
+      socket
+    end
+  end
+
+  defp suggest_layer_colors(socket, _session), do: socket
 
   defp safe_render(session, params) do
     Calibration.render(session, params)

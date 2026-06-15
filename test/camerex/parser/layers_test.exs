@@ -9,6 +9,29 @@ defmodule Camerex.Parser.LayersTest do
     assert Layers.default_colors().clothing == {43, 196, 178}
   end
 
+  test "suggest_colors/2 detecta a cor da parte (vermelho na roupa) e realça" do
+    # roupa (label 4) vermelha no topo; resto fundo (0). cabelo ausente → default
+    rows = Nx.iota({40, 40}, axis: 0)
+    cloth = Nx.less(rows, 20)
+    labels = Nx.select(cloth, 4, 0) |> Nx.as_type(:u8)
+
+    red = Nx.tensor([200, 20, 20], type: :u8) |> Nx.broadcast({40, 40, 3})
+
+    rgb =
+      Nx.select(
+        Nx.new_axis(cloth, -1) |> Nx.broadcast({40, 40, 3}),
+        red,
+        Nx.broadcast(Nx.u8(10), {40, 40, 3})
+      )
+
+    colors = Layers.suggest_colors(rgb, labels)
+
+    {r, g, b} = colors.clothing
+    assert r > g and r > b, "roupa deveria puxar p/ vermelho, veio #{inspect(colors.clothing)}"
+    # cabelo ausente na imagem → mantém o default
+    assert colors.hair == Layers.default_colors().hair
+  end
+
   test "mask/2 marca os pixels da camada (e suaviza)" do
     # bloco 8×8 de Upper-clothes (4) no centro de um campo 24×24 de fundo (0)
     rows = Nx.iota({24, 24}, axis: 0)
