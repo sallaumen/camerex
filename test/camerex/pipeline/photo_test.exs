@@ -119,6 +119,24 @@ defmodule Camerex.Pipeline.PhotoTest do
     end
   end
 
+  describe "chão (Neon.Scene)" do
+    test "floor: true anexa o piso (mais alto); floor: false não muda as dims" do
+      rgb = gray_scene(40, 40)
+      rows = Nx.iota({40, 40}, axis: 0)
+
+      mask =
+        Nx.logical_and(Nx.greater_equal(rows, 5), Nx.less(rows, 38))
+        |> Nx.multiply(255)
+        |> Nx.as_type(:u8)
+
+      {:ok, flat} = Photo.render_with_mask(rgb, mask, preset: "forro-teal", floor: false)
+      {:ok, floored} = Photo.render_with_mask(rgb, mask, preset: "forro-teal", floor: true)
+
+      assert Nx.shape(flat) == {40, 40, 3}
+      assert elem(Nx.shape(floored), 0) > 40
+    end
+  end
+
   describe "render_layered/2 (cor por camada via parser)" do
     # rótulos: bloco de roupa (4) e bloco de cabelo (2), cada um cercado por
     # fundo (0) — assim a borda de cada camada sai na cor PURA (sem mistura

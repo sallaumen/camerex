@@ -7,7 +7,7 @@ defmodule Camerex.Pipeline.Photo do
   """
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
-  alias Camerex.Neon.Palette
+  alias Camerex.Neon.{Palette, Scene}
   alias Camerex.Parser.Layers
 
   @spec render(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
@@ -41,8 +41,10 @@ defmodule Camerex.Pipeline.Photo do
         |> Nx.as_type(:f32)
         |> Nx.divide(255.0)
 
-      {:ok,
-       Neon.compose(edges, colors(preset, swap_sides), compose_opts(preset, mask, halo, bloom))}
+      neon =
+        Neon.compose(edges, colors(preset, swap_sides), compose_opts(preset, mask, halo, bloom))
+
+      {:ok, with_floor(neon, opts)}
     end
   end
 
@@ -87,6 +89,19 @@ defmodule Camerex.Pipeline.Photo do
         acc
       end
     end)
+    |> with_floor(opts)
+  end
+
+  # anexa o chão (Neon.Scene) quando ligado; opt-in, default neutro
+  defp with_floor(neon, opts) do
+    if Keyword.get(opts, :floor, false) do
+      Scene.apply(neon,
+        reflection: Keyword.get(opts, :reflection, 0.55),
+        ripple: Keyword.get(opts, :ripple, 0.35)
+      )
+    else
+      neon
+    end
   end
 
   @spec run(String.t(), (non_neg_integer(), non_neg_integer() -> any()) | nil) ::
@@ -150,7 +165,10 @@ defmodule Camerex.Pipeline.Photo do
       swap_sides: p["swap_sides"] || false,
       model: p["model"] || "u2net",
       layered: p["layered"] || false,
-      layer_colors: Layers.normalize_colors(p["layer_colors"])
+      layer_colors: Layers.normalize_colors(p["layer_colors"]),
+      floor: p["floor"] || false,
+      reflection: p["reflection"] || 0.55,
+      ripple: p["ripple"] || 0.35
     ]
   end
 
