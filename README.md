@@ -53,6 +53,9 @@ conversão/detalhe à direita — nada navega para outra página.
   camada com sua própria cor, escolhida nos pickers. É o caminho para cores
   corretas por região, que cor pura não resolve quando pele/roupa têm o
   mesmo tom.
+- **Chão com reflexo de água**: ligue "chão" e o sujeito ganha um piso com
+  reflexo espelhado (esmaecido, ondulado, com poça de luz na cor dele) — não
+  fica mais "flutuando". Sliders de **reflexo** e **ondulação**.
 - **Calibragem ao vivo**: ao soltar uma mídia (ou reprocessar um item), uma
   prévia re-renderiza a cada ajuste em tempo quase-real — a segmentação cara
   roda uma vez e cada mudança só recompõe. Achou o ponto: **Aplicar nesta
