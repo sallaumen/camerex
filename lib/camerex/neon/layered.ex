@@ -34,19 +34,21 @@ defmodule Camerex.Neon.Layered do
   # detalhe interno: o mean-shift POSTERIZA (achata a imagem em regiões de cor
   # chapada) antes do Canny, então a textura do tecido nem vira borda — o Canny
   # traça só fronteiras de região (cabelo em mechas, vincos, perfis), sem os
-  # "quadrados". Roda numa versão reduzida (o mean-shift é caro).
-  #
-  # O slider `detail` controla o RAIO DE COR do mean-shift: detalhe baixo = raio
-  # alto = poucas regiões grandes = só os vincos maiores; detalhe alto = raio
-  # baixo = muitas regiões = bastante traço. Isso dá um ramp SUAVE — mexer no
-  # limiar do Canny saltava, porque as bordas de região são fortes e passam até
-  # com limiar alto. O Canny fica fixo e moderado.
+  # "quadrados". Roda numa versão reduzida (o mean-shift é caro). Parâmetros
+  # FIXOS — o mapa de traços é sempre o mesmo, rico.
   @ms_work_width 600
   @ms_spatial 16
-  @ms_color_max 100
-  @ms_color_min 14
+  @ms_color 28
   @canny_lo 50
   @canny_hi 130
+  # o slider `detail` controla QUANTOS traços aparecem por TAMANHO: mantém só os
+  # componentes acima de um mínimo que CAI com o detalhe — detalhe baixo = só os
+  # traços longos (poucos), detalhe alto = inclui os curtos (muitos). Como há
+  # muitos traços de tamanhos variados, o número cresce gradual (não é opacidade,
+  # é quantidade). curva > 1 = entra devagar no começo. O mínimo é FRAÇÃO da área
+  # da imagem (invariante à resolução).
+  @stroke_max_frac 0.0011
+  @stroke_curve 1.3
   # CLAHE no canal de valor (V) antes do mean-shift: realça o micro-contraste
   # LOCAL, então os vincos de roupa preta (e o boné) — que o tecido escuro
   # esconde — sobem acima do raio de cor do mean-shift e viram traço. Em região
@@ -73,23 +75,11 @@ defmodule Camerex.Neon.Layered do
     detail = Keyword.get(opts, :detail, 0.5)
     {_h, w, _} = Nx.shape(rgb)
 
-    # o detalhe interno rampa em DOIS eixos pra não saltar: o nº de regiões do
-    # mean-shift (quantos traços) E o BRILHO (fade-in contínuo, `detail_gain`).
-    # Os contornos ficam sempre cheios; o interno entra fraco e vai acendendo.
-    contours = labels |> semantic_contours(w) |> to_unit_f32()
-
-    internal =
-      rgb
-      |> internal_detail(labels, detail)
-      |> to_unit_f32()
-      |> Nx.multiply(detail_gain(detail))
-
-    Nx.max(contours, internal)
+    labels
+    |> semantic_contours(w)
+    |> Nx.max(internal_detail(rgb, labels, detail))
+    |> to_unit_f32()
   end
-
-  # brilho do detalhe interno em função do slider: curva suave (pow 0.6) que
-  # entra bem fraco perto de 0 e abre até cheio em 1.0 — sem o degrau "nada→tudo".
-  defp detail_gain(detail), do: :math.pow(detail, 0.6)
 
   # contorno de cada rótulo presente (limpo de ilhas e suavizado) somado por
   # máximo à silhueta externa (contorno da união). Despeckle no fim remove os
@@ -129,25 +119,31 @@ defmodule Camerex.Neon.Layered do
         |> Evision.Mat.to_nx(Nx.BinaryBackend)
 
       rgb
-      |> posterized_edges(detail)
+      |> posterized_edges()
       |> Nx.min(eroded)
+      |> drop_small_components(stroke_min_area(detail, h * w))
       |> suppress_dense(w)
     end
   end
 
+  # tamanho mínimo de traço pro slider: cai com o detalhe. Detalhe baixo →
+  # mínimo alto → só os traços longos; detalhe alto → mínimo ~0 → todos.
+  defp stroke_min_area(detail, area),
+    do: round(area * @stroke_max_frac * :math.pow(1.0 - detail, @stroke_curve)) + 4
+
   # mean-shift (em resolução reduzida, por custo) → Canny → volta ao tamanho
-  # cheio. detail [0,1] abre os limiares do Canny: mais detalhe = mais traços.
-  defp posterized_edges(rgb, detail) do
+  # cheio. Parâmetros fixos: o mapa de traços é sempre o mesmo (o slider só
+  # decide QUANTOS sobrevivem, via stroke_min_area).
+  defp posterized_edges(rgb) do
     {h, w, _} = Nx.shape(rgb)
     scale = min(@ms_work_width / w, 1.0)
     {tw, th} = {max(round(w * scale), 2), max(round(h * scale), 2)}
-    sr = round(@ms_color_max - (@ms_color_max - @ms_color_min) * detail)
 
     rgb
     |> Evision.Mat.from_nx_2d()
     |> Evision.resize({tw, th}, interpolation: Evision.Constant.cv_INTER_AREA())
     |> lift_shadows()
-    |> Evision.pyrMeanShiftFiltering(@ms_spatial, sr)
+    |> Evision.pyrMeanShiftFiltering(@ms_spatial, @ms_color)
     |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2GRAY())
     |> Evision.canny(@canny_lo, @canny_hi)
     |> Evision.resize({w, h}, interpolation: Evision.Constant.cv_INTER_NEAREST())
