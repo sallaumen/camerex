@@ -153,23 +153,27 @@ defmodule Camerex.Pipeline.Photo do
     end
   end
 
+  # passa só o que o manifest tem; cada consumidor (render_with_mask,
+  # with_floor, …) aplica seu default via Keyword.get, então descartamos os
+  # ausentes para o fallback funcionar (e o credo não reclamar de complexidade)
   defp render_opts(manifest) do
     p = manifest["params"] || %{}
 
     [
       preset: manifest["preset"],
-      halo: p["halo"] || 0.6,
-      bloom: p["bloom"] || 0.0,
-      detail: p["detail"] || 0.5,
-      chroma: p["chroma"] || 0.0,
-      swap_sides: p["swap_sides"] || false,
-      model: p["model"] || "u2net",
-      layered: p["layered"] || false,
+      halo: p["halo"],
+      bloom: p["bloom"],
+      detail: p["detail"],
+      chroma: p["chroma"],
+      swap_sides: p["swap_sides"],
+      model: p["model"],
+      layered: p["layered"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
-      floor: p["floor"] || false,
-      reflection: p["reflection"] || 0.55,
-      ripple: p["ripple"] || 0.35
+      floor: p["floor"],
+      reflection: p["reflection"],
+      ripple: p["ripple"]
     ]
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
   end
 
   # Evision.imread devolve BGR; o domínio inteiro é RGB (contrato §4),

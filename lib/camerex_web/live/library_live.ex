@@ -892,20 +892,22 @@ defmodule CamerexWeb.LibraryLive do
     )
   end
 
+  @slider_keys ~w(halo bloom chroma trail detail reflection ripple)a
+
   defp apply_item_params(socket, %{"params" => params} = item) when is_map(params) do
-    assign(socket,
+    sliders =
+      Enum.map(@slider_keys, fn k ->
+        {k, params[Atom.to_string(k)] || Map.fetch!(socket.assigns, k)}
+      end)
+
+    socket
+    |> assign(sliders)
+    |> assign(
       preset_id: item["preset"] || socket.assigns.preset_id,
-      halo: params["halo"] || socket.assigns.halo,
-      bloom: params["bloom"] || socket.assigns.bloom,
-      chroma: params["chroma"] || socket.assigns.chroma,
-      trail: params["trail"] || socket.assigns.trail,
-      detail: params["detail"] || socket.assigns.detail,
       swap_sides: params["swap_sides"] || false,
       layered: params["layered"] || false,
       layer_colors: Layers.normalize_colors(params["layer_colors"]),
-      floor: params["floor"] || false,
-      reflection: params["reflection"] || socket.assigns.reflection,
-      ripple: params["ripple"] || socket.assigns.ripple
+      floor: params["floor"] || false
     )
   end
 
