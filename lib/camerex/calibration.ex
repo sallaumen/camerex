@@ -62,28 +62,38 @@ defmodule Camerex.Calibration do
   # modo "cor por camada" (parser pronto na sessão) vs. modo normal (máscara)
   defp render_neon(%{rgb: rgb, labels: labels}, %{"layered" => true} = params)
        when labels != nil do
-    opts = [
-      halo: params["halo"],
-      bloom: params["bloom"] || 0.0,
-      detail: params["detail"],
-      chroma: params["chroma"] || 0.5,
-      layer_colors: Layers.normalize_colors(params["layer_colors"])
-    ]
+    opts =
+      [
+        halo: params["halo"],
+        bloom: params["bloom"] || 0.0,
+        detail: params["detail"],
+        chroma: params["chroma"] || 0.5,
+        layer_colors: Layers.normalize_colors(params["layer_colors"])
+      ] ++ floor_opts(params)
 
     {:ok, Photo.render_with_labels(rgb, labels, opts)}
   end
 
   defp render_neon(%{rgb: rgb, mask: mask}, params) do
-    opts = [
-      preset: params["preset"],
-      halo: params["halo"],
-      bloom: params["bloom"] || 0.0,
-      detail: params["detail"],
-      chroma: params["chroma"] || 0.0,
-      swap_sides: params["swap_sides"] || false
-    ]
+    opts =
+      [
+        preset: params["preset"],
+        halo: params["halo"],
+        bloom: params["bloom"] || 0.0,
+        detail: params["detail"],
+        chroma: params["chroma"] || 0.0,
+        swap_sides: params["swap_sides"] || false
+      ] ++ floor_opts(params)
 
     Photo.render_with_mask(rgb, mask, opts)
+  end
+
+  defp floor_opts(params) do
+    [
+      floor: params["floor"] || false,
+      reflection: params["reflection"] || 0.55,
+      ripple: params["ripple"] || 0.35
+    ]
   end
 
   # INTER_AREA no downscale: única interpolação do OpenCV com anti-alias

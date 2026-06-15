@@ -87,6 +87,15 @@ defmodule Camerex.CalibrationTest do
     assert teal != azul
   end
 
+  test "chão ligado muda a prévia (e anexa o piso)" do
+    {:ok, session} = Calibration.prepare(scene(64, 64))
+
+    {:ok, sem} = Calibration.render(session, params())
+    {:ok, com} = Calibration.render(session, params(%{"floor" => true}))
+
+    assert sem != com
+  end
+
   test "preset desconhecido devolve erro" do
     {:ok, session} = Calibration.prepare(scene(32, 32))
 
