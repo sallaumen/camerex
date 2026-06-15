@@ -69,14 +69,22 @@ defmodule Camerex.DoctorTest do
     end
   end
 
-  test "models/0 declara u2net e u2netp com urls dos releases da rembg" do
-    files = Enum.map(Doctor.models(), & &1.file)
-    assert "u2net.onnx" in files
-    assert "u2netp.onnx" in files
+  test "models/0 declara os de segmentação (rembg) e o parser (HuggingFace)" do
+    by_file = Map.new(Doctor.models(), &{&1.file, &1})
 
-    assert Enum.all?(
-             Doctor.models(),
-             &String.starts_with?(&1.url, "https://github.com/danielgatis/rembg/releases/")
+    assert Map.has_key?(by_file, "u2net.onnx")
+    assert Map.has_key?(by_file, "u2netp.onnx")
+    assert Map.has_key?(by_file, "segformer_b2_clothes.onnx")
+
+    # u2net/u2netp vêm dos releases da rembg
+    for f <- ~w(u2net.onnx u2netp.onnx) do
+      assert String.starts_with?(by_file[f].url, "https://github.com/danielgatis/rembg/releases/")
+    end
+
+    # o parser de human parsing vem do HuggingFace
+    assert String.starts_with?(
+             by_file["segformer_b2_clothes.onnx"].url,
+             "https://huggingface.co/"
            )
   end
 end
