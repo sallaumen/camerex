@@ -17,11 +17,9 @@ defmodule Camerex.Neon do
   def trace_edges(rgb, mask, opts \\ []) do
     detail = Keyword.get(opts, :detail, 0.5)
     chroma = Keyword.get(opts, :chroma, 0.0)
-    smooth = Keyword.get(opts, :smooth, false)
     canny_lo = round(100 - 80 * detail)
     canny_hi = round(220 - 160 * detail)
 
-    {_mh, mw} = Nx.shape(mask)
     rgb_mat = Evision.Mat.from_nx_2d(rgb)
     mask_mat = Evision.Mat.from_nx(mask)
     eroded = Evision.erode(mask_mat, kernel({5, 5}))
@@ -41,34 +39,9 @@ defmodule Camerex.Neon do
     inner
     |> Evision.max(Evision.canny(mask_mat, 50, 150))
     |> add_chroma_edges(rgb_mat, eroded, chroma)
-    |> maybe_suppress_dense(smooth, mw)
     |> Evision.morphologyEx(Evision.Constant.cv_MORPH_CLOSE(), kernel({3, 3}))
     |> Evision.dilate(kernel({2, 2}))
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
-  end
-
-  # supressão por densidade: textura (sequins, padrão de tecido) faz uma região
-  # de borda DENSA; contorno limpo é esparso. Onde a densidade local passa do
-  # limiar, apaga — some o chuvisco/"quadrados", a silhueta e linhas isoladas
-  # (densidade baixa) ficam. É o que dá o acabamento fluido tipo tubo de LED.
-  @density_threshold 0.25
-
-  defp maybe_suppress_dense(mat, false, _w), do: mat
-  defp maybe_suppress_dense(mat, true, w), do: suppress_dense(mat, w)
-
-  defp suppress_dense(edges_mat, w) do
-    edges_nx = Evision.Mat.to_nx(edges_mat, Nx.BinaryBackend)
-
-    density =
-      edges_nx
-      |> Nx.as_type(:f32)
-      |> Nx.divide(255.0)
-      |> Evision.Mat.from_nx()
-      |> Evision.gaussianBlur({0, 0}, max(w / 150.0, 4.0))
-      |> Evision.Mat.to_nx(Nx.BinaryBackend)
-
-    keep = density |> Nx.less(@density_threshold) |> Nx.as_type(:u8)
-    edges_nx |> Nx.multiply(keep) |> Evision.Mat.from_nx()
   end
 
   # chroma == 0: caminho neutro (idêntico ao traçado só-luminância de antes)

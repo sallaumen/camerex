@@ -70,6 +70,43 @@ defmodule Camerex.Pipeline.VideoTest do
     assert File.exists?(Workspace.item_path(id, "thumb_neon.jpg"))
   end
 
+  test "cor-por-parte: layered: true converte de ponta a ponta (parser por frame)",
+       %{tmp_dir: tmp_dir} do
+    src = Path.join(tmp_dir, "clip.mp4")
+
+    {_, 0} =
+      System.cmd(
+        "ffmpeg",
+        ~w(-y -v error -f lavfi -i testsrc=duration=1:size=64x48:rate=8 #{src})
+      )
+
+    # mesma funcionalidade da foto: liga layered e escolhe a cor de um grupo
+    params = %{
+      "halo" => 0.6,
+      "trail" => 0.5,
+      "layered" => true,
+      "layer_colors" => %{"clothing" => [0, 0, 255]}
+    }
+
+    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, "forro-teal", params)
+    test_pid = self()
+
+    assert :ok =
+             Pipeline.Video.run(id, fn done, total ->
+               send(test_pid, {:progress, done, total})
+             end)
+
+    assert_received {:progress, 8, 8}
+
+    {:ok, manifest} = Workspace.manifest(id)
+    assert manifest["status"] == "done"
+    assert manifest["output_file"] == "neon.mp4"
+
+    out_path = Workspace.item_path(id, "neon.mp4")
+    assert File.exists?(out_path)
+    assert {:ok, %{width: 640}} = Probe.probe(out_path)
+  end
+
   test "arquivo corrompido: {:error, _} e manifest failed com mensagem",
        %{tmp_dir: tmp_dir} do
     src = Path.join(tmp_dir, "clip.mp4")

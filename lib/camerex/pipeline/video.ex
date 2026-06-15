@@ -6,8 +6,9 @@ defmodule Camerex.Pipeline.Video do
   frames num reduce; o stream do decoder mantém memória O(1 frame).
   """
 
-  alias Camerex.{Mask, Neon, Workspace}
-  alias Camerex.Neon.Palette
+  alias Camerex.{Mask, Neon, Parser, Workspace}
+  alias Camerex.Neon.{Layered, Palette}
+  alias Camerex.Parser.Layers
   alias Camerex.Video.{Decoder, Encoder, Probe}
 
   @work_width 640
@@ -18,6 +19,9 @@ defmodule Camerex.Pipeline.Video do
   @mask_bin_threshold 0.45
   @split_ema_prev 0.9
   @split_ema_curr 0.1
+  # cor-por-parte: peso do frame anterior na EMA do campo de cor (anti-tremor
+  # da rotulagem, que é parseada de forma independente por frame)
+  @field_ema_alpha 0.5
   @dark_luma_threshold 70
   @output_file "neon.mp4"
 
@@ -108,7 +112,7 @@ defmodule Camerex.Pipeline.Video do
   end
 
   defp encode_frames(in_path, enc, fps, height, total_estimate, opts, progress_cb) do
-    initial = %{mask_f: nil, trail: nil, split_ema: nil, count: 0, first: nil}
+    initial = %{mask_f: nil, trail: nil, split_ema: nil, field: nil, count: 0, first: nil}
 
     in_path
     |> Decoder.stream!(%{width: @work_width, height: height, fps: fps})
@@ -139,6 +143,45 @@ defmodule Camerex.Pipeline.Video do
   defp finish_render(state, enc, fps, height) do
     with :ok <- Encoder.close(enc) do
       {:ok, %{count: state.count, fps: fps, height: height, first: state.first}}
+    end
+  end
+
+  # cor-por-parte: arte-de-linha + campo de cor saem do Neon.Layered (MESMA
+  # regra da foto), parseados por frame e estabilizados no tempo — rastro na
+  # arte-de-linha, EMA no campo de cor. Não usa U²-Net: a silhueta vem da união
+  # das partes do parser. Parsear todo frame é caro; é o preço da qualidade.
+  defp process_frame(frame, state, %{layered: true} = opts, enc) do
+    with {:ok, labels} <- Parser.parse(frame) do
+      {_h, w, _} = Nx.shape(frame)
+      line = Layered.line_art(labels, w)
+
+      field =
+        Mask.ema(Layered.color_field(labels, opts.layer_colors, w), state.field, @field_ema_alpha)
+
+      trail =
+        case state.trail do
+          nil -> line
+          prev -> Nx.max(line, Nx.multiply(prev, opts.trail_decay))
+        end
+
+      neon =
+        Neon.compose(trail, [{0, 0, 0}],
+          halo: opts.halo,
+          bloom: opts.bloom,
+          color_field: field,
+          current_edges: line
+        )
+
+      with :ok <- Encoder.write_frame(enc, neon) do
+        {:ok,
+         %{
+           state
+           | trail: trail,
+             field: field,
+             count: state.count + 1,
+             first: state.first || {frame, neon}
+         }}
+      end
     end
   end
 
@@ -273,7 +316,9 @@ defmodule Camerex.Pipeline.Video do
       bloom: p["bloom"],
       trail_decay: p["trail"],
       mode: preset.mode,
-      colors: colors
+      colors: colors,
+      layered: p["layered"] == true,
+      layer_colors: Layers.normalize_colors(p["layer_colors"])
     }
   end
 

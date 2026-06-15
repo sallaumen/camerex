@@ -7,7 +7,7 @@ defmodule Camerex.Pipeline.Photo do
   """
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
-  alias Camerex.Neon.{Palette, Scene}
+  alias Camerex.Neon.{Layered, Palette, Scene}
   alias Camerex.Parser.Layers
 
   @spec render(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
@@ -60,78 +60,24 @@ defmodule Camerex.Pipeline.Photo do
     end
   end
 
-  @doc "Parte pós-parse do render por camada (a calibragem parseia 1x e chama isto)."
+  @doc """
+  Parte pós-parse do render por camada (a calibragem parseia 1x e chama isto).
+  A arte-de-linha e o campo de cor vêm do `Neon.Layered` (regra compartilhada
+  com o vídeo): contornos das máscaras semânticas suaves — sem o Canva da foto,
+  logo sem o chuvisco/"quadrados" da textura do tecido.
+  """
   @spec render_with_labels(Nx.Tensor.t(), Nx.Tensor.t(), keyword()) :: Nx.Tensor.t()
   def render_with_labels(rgb, labels, opts \\ []) do
     halo = Keyword.get(opts, :halo, 0.6)
     bloom = Keyword.get(opts, :bloom, 0.0)
-    detail = Keyword.get(opts, :detail, 0.5)
-    chroma = Keyword.get(opts, :chroma, 0.5)
     colors = Keyword.get(opts, :layer_colors, Layers.default_colors())
+    {_h, w, _} = Nx.shape(rgb)
 
-    {h, w, _} = Nx.shape(rgb)
+    line = Layered.line_art(labels, w)
+    field = Layered.color_field(labels, colors, w)
 
-    case present_parts(labels, colors) do
-      [] ->
-        Nx.broadcast(Nx.u8(0), {h, w, 3})
-
-      parts ->
-        # uma passada de bordas sobre a silhueta união SUAVIZADA (mata a
-        # escada do upsample); cores num campo único MESCLADO nas fronteiras
-        union = parts |> union_mask() |> smooth_mask(w)
-
-        edges =
-          rgb
-          |> Neon.trace_edges(union, detail: detail, chroma: chroma, smooth: true)
-          |> to_unit_f32()
-
-        field = blended_color_field(parts, w)
-        Neon.compose(edges, [{0, 0, 0}], halo: halo, bloom: bloom, color_field: field)
-    end
+    Neon.compose(line, [{0, 0, 0}], halo: halo, bloom: bloom, color_field: field)
     |> with_floor(opts)
-  end
-
-  defp to_unit_f32(u8), do: u8 |> Nx.as_type(:f32) |> Nx.divide(255.0)
-
-  # máscaras das partes presentes com a cor escolhida (uma varredura de labels)
-  defp present_parts(labels, colors) do
-    Layers.groups()
-    |> Enum.map(fn g -> {Layers.mask(labels, g.ids), Map.get(colors, g.key, g.default)} end)
-    |> Enum.filter(fn {mask, _c} -> Nx.to_number(Nx.sum(mask)) > 0 end)
-  end
-
-  defp union_mask([{first, _} | rest]) do
-    Enum.reduce(rest, first, fn {mask, _c}, acc -> Nx.max(acc, mask) end)
-  end
-
-  # campo de cor mesclado: cada parte vira um peso SUAVE (borrado); nas
-  # interseções as cores se misturam proporcionalmente (num/den) → fluidez de
-  # tubo de LED em vez de borda dura entre camadas.
-  defp blended_color_field(parts, w) do
-    sigma = max(w / 80.0, 4.0)
-    {hh, ww} = parts |> hd() |> elem(0) |> Nx.shape()
-    acc0 = {Nx.broadcast(0.0, {hh, ww, 3}), Nx.broadcast(0.0, {hh, ww})}
-
-    {num, den} =
-      Enum.reduce(parts, acc0, fn {mask, {r, g, b}}, {num, den} ->
-        soft = mask |> to_unit_f32() |> blur2d(sigma)
-        color = Nx.tensor([r, g, b], type: :f32) |> Nx.reshape({1, 1, 3})
-        {Nx.add(num, Nx.multiply(Nx.new_axis(soft, -1), color)), Nx.add(den, soft)}
-      end)
-
-    Nx.divide(num, Nx.new_axis(Nx.max(den, 1.0e-3), -1))
-  end
-
-  # arredonda a escada do upsample dos rótulos (blur + re-limiar)
-  defp smooth_mask(mask, w) do
-    mask |> blur2d(max(w / 240.0, 1.5)) |> Nx.greater(127) |> Nx.multiply(255) |> Nx.as_type(:u8)
-  end
-
-  defp blur2d(t, sigma) do
-    t
-    |> Evision.Mat.from_nx()
-    |> Evision.gaussianBlur({0, 0}, sigma)
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
   end
 
   # anexa o chão (Neon.Scene) quando ligado; opt-in, default neutro
