@@ -18,7 +18,6 @@ defmodule Camerex.Neon.Layered do
   (rastro na arte-de-linha, EMA no campo de cor).
   """
 
-  alias Camerex.Neon
   alias Camerex.Neon.Palette
   alias Camerex.Parser.Layers
 
@@ -32,24 +31,27 @@ defmodule Camerex.Neon.Layered do
   # enorme conectado, então só os ovais soltos caem.
   @contour_min_area_frac 0.0005
 
-  # detalhe interno: o slider [0,1] vira o `detail` do trace_edges. A banda vai
-  # quase até o nível do mono (gradiente forte = rosto, vincos, mãos; a textura
-  # fraca do tecido fica de fora). chroma pega borda de COR também. Depois a
-  # supressão por densidade tira só a textura MUITO densa (renda, paetê) sem
-  # tocar nas linhas esparsas do rosto/vincos.
-  @detail_trace_scale 0.6
-  @detail_chroma 0.3
-  @density_sigma_div 120.0
-  @density_threshold 0.4
+  # detalhe interno: o mean-shift POSTERIZA (achata a imagem em regiões de cor
+  # chapada) antes do Canny, então a textura do tecido nem vira borda — o Canny
+  # traça só fronteiras de região (cabelo em mechas, vincos, perfis), sem os
+  # "quadrados". Roda numa versão reduzida (o mean-shift é caro). O slider abre
+  # os limiares do Canny (mais detalhe = mais traços).
+  @ms_work_width 600
+  @ms_spatial 16
+  @ms_color 40
+  # supressão por densidade: faxina final da textura MUITO densa (renda, paetê)
+  # que sobrevive ao mean-shift. O resto já está limpo, então pode ser firme.
+  @density_sigma_div 60.0
+  @density_threshold 0.34
 
   @doc """
   Arte-de-linha `{h, w}` f32 em [0, 1]: combina por máximo duas camadas —
 
     * **contornos semânticos** (sempre): silhueta + fronteiras entre partes, das
       máscaras suaves. Espinha dorsal limpa, zero textura.
-    * **detalhe interno** (opt-in via `detail:` > 0): rosto, mãos, vincos do
-      Canny, mas só onde o gradiente é forte (limiar alto) e com a textura densa
-      suprimida — traz definição sem os "quadrados" do tecido.
+    * **detalhe interno** (opt-in via `detail:` > 0): rosto, mãos, vincos e
+      mechas de cabelo, do Canny sobre a imagem POSTERIZADA (mean-shift) — traz
+      definição sem os "quadrados" da textura do tecido.
 
   opts: `detail:` 0..1 (quanto detalhe interno; 0 = só contornos, default 0.5).
   """
@@ -84,20 +86,47 @@ defmodule Camerex.Neon.Layered do
     end
   end
 
-  # detalhe interno (u8 {h,w}): Canny de limiar alto confinado à figura, com a
-  # textura densa suprimida. detail <= 0 → sem detalhe (só contornos).
+  # detalhe interno (u8 {h,w}): Canny sobre a imagem posterizada, confinado à
+  # figura (erodida), com a textura densa suprimida. detail <= 0 → só contornos.
   defp internal_detail(rgb, labels, detail) do
     {h, w, _} = Nx.shape(rgb)
 
     if detail <= 0.0 do
       Nx.broadcast(Nx.u8(0), {h, w})
     else
-      union = labels |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
+      eroded =
+        labels
+        |> Nx.greater(0)
+        |> Nx.multiply(255)
+        |> Nx.as_type(:u8)
+        |> Evision.Mat.from_nx()
+        |> Evision.erode(kernel(5))
+        |> Evision.Mat.to_nx(Nx.BinaryBackend)
 
       rgb
-      |> Neon.trace_edges(union, detail: detail * @detail_trace_scale, chroma: @detail_chroma)
+      |> posterized_edges(detail)
+      |> Nx.min(eroded)
       |> suppress_dense(w)
     end
+  end
+
+  # mean-shift (em resolução reduzida, por custo) → Canny → volta ao tamanho
+  # cheio. detail [0,1] abre os limiares do Canny: mais detalhe = mais traços.
+  defp posterized_edges(rgb, detail) do
+    {h, w, _} = Nx.shape(rgb)
+    scale = min(@ms_work_width / w, 1.0)
+    {tw, th} = {max(round(w * scale), 2), max(round(h * scale), 2)}
+    lo = round(70 - 50 * detail)
+    hi = round(160 - 70 * detail)
+
+    rgb
+    |> Evision.Mat.from_nx_2d()
+    |> Evision.resize({tw, th}, interpolation: Evision.Constant.cv_INTER_AREA())
+    |> Evision.pyrMeanShiftFiltering(@ms_spatial, @ms_color)
+    |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2GRAY())
+    |> Evision.canny(lo, hi)
+    |> Evision.resize({w, h}, interpolation: Evision.Constant.cv_INTER_NEAREST())
+    |> Evision.Mat.to_nx(Nx.BinaryBackend)
   end
 
   # textura densa (renda, paetê) faz uma região de borda DENSA; vinco/feição é
