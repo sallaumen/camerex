@@ -50,6 +50,7 @@ defmodule Camerex.Calibration do
       halo: params["halo"],
       bloom: params["bloom"] || 0.0,
       detail: params["detail"],
+      chroma: params["chroma"] || 0.0,
       swap_sides: params["swap_sides"] || false
     ]
 
