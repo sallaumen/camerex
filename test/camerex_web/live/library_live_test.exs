@@ -440,6 +440,14 @@ defmodule CamerexWeb.LibraryLiveTest do
       {:ok, lv, _} = live(conn, "/")
       assert has_element?(lv, "#preset-swatches button[phx-value-id=aurora]")
     end
+
+    test "slider de cor (chroma) existe e atualiza o valor exibido", %{conn: conn} do
+      {:ok, lv, html} = live(conn, "/")
+      assert html =~ ~s(name="chroma")
+
+      lv |> form("#convert-form", %{"chroma" => "0.75"}) |> render_change()
+      assert render(lv) =~ "0.75"
+    end
   end
 
   describe "presets do usuário na UI" do

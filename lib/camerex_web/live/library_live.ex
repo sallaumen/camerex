@@ -44,6 +44,7 @@ defmodule CamerexWeb.LibraryLive do
         preset_id: "forro-laranja",
         halo: 0.6,
         bloom: 0.4,
+        chroma: 0.5,
         trail: 0.7,
         detail: 0.5,
         swap_sides: false,
@@ -554,6 +555,7 @@ defmodule CamerexWeb.LibraryLive do
               preset_id={@preset_id}
               halo={@halo}
               bloom={@bloom}
+              chroma={@chroma}
               trail={@trail}
               detail={@detail}
               swap_sides={@swap_sides}
@@ -867,6 +869,7 @@ defmodule CamerexWeb.LibraryLive do
     assign(socket,
       halo: parse_slider(params["halo"], socket.assigns.halo),
       bloom: parse_slider(params["bloom"], socket.assigns.bloom),
+      chroma: parse_slider(params["chroma"], socket.assigns.chroma),
       trail: parse_slider(params["trail"], socket.assigns.trail),
       detail: parse_slider(params["detail"], socket.assigns.detail),
       swap_sides: params["swap_sides"] == "true"
@@ -878,6 +881,7 @@ defmodule CamerexWeb.LibraryLive do
       preset_id: item["preset"] || socket.assigns.preset_id,
       halo: params["halo"] || socket.assigns.halo,
       bloom: params["bloom"] || socket.assigns.bloom,
+      chroma: params["chroma"] || socket.assigns.chroma,
       trail: params["trail"] || socket.assigns.trail,
       detail: params["detail"] || socket.assigns.detail,
       swap_sides: params["swap_sides"] || false
@@ -901,6 +905,7 @@ defmodule CamerexWeb.LibraryLive do
     %{
       "halo" => socket.assigns.halo,
       "bloom" => socket.assigns.bloom,
+      "chroma" => socket.assigns.chroma,
       "trail" => socket.assigns.trail,
       "detail" => socket.assigns.detail,
       "swap_sides" => socket.assigns.swap_sides,
