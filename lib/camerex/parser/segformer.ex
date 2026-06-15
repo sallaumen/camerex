@@ -53,16 +53,14 @@ defmodule Camerex.Parser.Segformer do
   defp run_inference(model, rgb) do
     {h, w, 3} = Nx.shape(rgb)
 
-    labels =
+    logits =
       model
       |> Ortex.run(preprocess(rgb))
       |> elem(0)
       |> Nx.backend_transfer()
       |> then(& &1[0])
-      |> Nx.argmax(axis: 0)
-      |> Nx.as_type(:u8)
 
-    {:ok, upsample(labels, {h, w})}
+    {:ok, upsampled_argmax(logits, {h, w})}
   rescue
     e -> {:error, e}
   end
@@ -80,10 +78,16 @@ defmodule Camerex.Parser.Segformer do
     |> Nx.new_axis(0)
   end
 
-  defp upsample(labels, {h, w}) do
-    labels
-    |> Evision.Mat.from_nx()
-    |> Evision.resize({w, h}, interpolation: Evision.Constant.cv_INTER_NEAREST())
+  # upsample BILINEAR dos logits {18,128,128} → argmax em resolução cheia.
+  # A ordem importa: argmax-antes-de-upsample (NEAREST) cravava blocos de
+  # ~128px; upsample-antes-de-argmax dá fronteiras curvas e suaves.
+  defp upsampled_argmax(logits, {h, w}) do
+    logits
+    |> Nx.transpose(axes: [1, 2, 0])
+    |> Evision.Mat.from_nx_2d()
+    |> Evision.resize({w, h}, interpolation: Evision.Constant.cv_INTER_LINEAR())
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
+    |> Nx.argmax(axis: -1)
+    |> Nx.as_type(:u8)
   end
 end
