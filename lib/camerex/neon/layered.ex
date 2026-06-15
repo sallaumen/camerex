@@ -73,11 +73,23 @@ defmodule Camerex.Neon.Layered do
     detail = Keyword.get(opts, :detail, 0.5)
     {_h, w, _} = Nx.shape(rgb)
 
-    labels
-    |> semantic_contours(w)
-    |> Nx.max(internal_detail(rgb, labels, detail))
-    |> to_unit_f32()
+    # o detalhe interno rampa em DOIS eixos pra não saltar: o nº de regiões do
+    # mean-shift (quantos traços) E o BRILHO (fade-in contínuo, `detail_gain`).
+    # Os contornos ficam sempre cheios; o interno entra fraco e vai acendendo.
+    contours = labels |> semantic_contours(w) |> to_unit_f32()
+
+    internal =
+      rgb
+      |> internal_detail(labels, detail)
+      |> to_unit_f32()
+      |> Nx.multiply(detail_gain(detail))
+
+    Nx.max(contours, internal)
   end
+
+  # brilho do detalhe interno em função do slider: curva suave (pow 0.6) que
+  # entra bem fraco perto de 0 e abre até cheio em 1.0 — sem o degrau "nada→tudo".
+  defp detail_gain(detail), do: :math.pow(detail, 0.6)
 
   # contorno de cada rótulo presente (limpo de ilhas e suavizado) somado por
   # máximo à silhueta externa (contorno da união). Despeckle no fim remove os

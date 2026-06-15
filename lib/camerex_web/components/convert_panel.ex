@@ -188,7 +188,7 @@ defmodule CamerexWeb.ConvertPanel do
               name="detail"
               min="0"
               max="1"
-              step="0.05"
+              step="0.02"
               value={@detail}
               phx-debounce="150"
               class="w-full"
