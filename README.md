@@ -35,7 +35,8 @@ Erlang/OTP + Elixir (ex.: `brew install elixir` ou asdf). O primeiro
 
 ```sh
 mix setup            # deps + assets
-mix camerex.setup    # baixa u2net.onnx (176 MB) e u2netp.onnx (4,7 MB), com MD5
+mix camerex.setup    # baixa u2net (176 MB), u2netp (4,7 MB) e o parser
+                     # segformer_b2_clothes (105 MB), com verificação MD5
 mix phx.server       # http://localhost:4000 (escuta só em 127.0.0.1)
 ```
 
@@ -43,9 +44,15 @@ A interface é uma **biblioteca single-page** pensada para telas largas:
 árvore de pastas no rail esquerdo, grade de mídia no centro e painel de
 conversão/detalhe à direita — nada navega para outra página.
 
-- **Converter**: solte uma foto ou vídeo na dropzone, escolha um dos 6
-  presets de cor (mono ou duotone) e ajuste **halo**, **rastro** e
-  **detalhe**.
+- **Converter**: solte uma foto ou vídeo na dropzone, escolha um preset de
+  cor (mono, duotone ou **gradiente** — Aurora/Brasa) e ajuste **halo**,
+  **brilho atmosférico**, **cor** (recupera tecido de baixo contraste de
+  luminância via canal de saturação), **rastro** e **detalhe**.
+- **Cor por parte** (human parsing): ligue "colorir por parte" e um modelo
+  semântico (SegFormer/ATR, local) separa **pele, cabelo e roupa** — cada
+  camada com sua própria cor, escolhida nos pickers. É o caminho para cores
+  corretas por região, que cor pura não resolve quando pele/roupa têm o
+  mesmo tom.
 - **Calibragem ao vivo**: ao soltar uma mídia (ou reprocessar um item), uma
   prévia re-renderiza a cada ajuste em tempo quase-real — a segmentação cara
   roda uma vez e cada mudança só recompõe. Achou o ponto: **Aplicar nesta
