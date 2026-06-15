@@ -3,15 +3,15 @@ defmodule Camerex.Neon.SceneTest do
 
   alias Camerex.Neon.Scene
 
-  # neon sintético: um bloco aceso (ciano) no topo de um fundo preto 80×60
+  # neon sintético: um bloco aceso (ciano) sobre fundo preto 80×60, com folga
+  # abaixo dos "pés" para a metade de baixo da poça caber
   defp neon_scene do
     rows = Nx.iota({80, 60}, axis: 0)
     cols = Nx.iota({80, 60}, axis: 1)
 
-    # bloco alto, indo quase até a base (pés perto do fim → piso anexado embaixo)
     block =
       Nx.logical_and(
-        Nx.logical_and(Nx.greater_equal(rows, 10), Nx.less(rows, 76)),
+        Nx.logical_and(Nx.greater_equal(rows, 10), Nx.less(rows, 60)),
         Nx.logical_and(Nx.greater_equal(cols, 20), Nx.less(cols, 40))
       )
 
@@ -24,37 +24,52 @@ defmodule Camerex.Neon.SceneTest do
     )
   end
 
-  test "apply/2 anexa o piso: imagem fica mais alta que a original" do
+  defp total(t), do: t |> Nx.sum() |> Nx.to_number()
+
+  test "apply/2 estende a altura (metade de baixo da poça)" do
     neon = neon_scene()
     {h, w, _} = Nx.shape(neon)
 
-    out = Scene.apply(neon)
-    {oh, ow, oc} = Nx.shape(out)
+    {oh, ow, oc} = Scene.apply(neon) |> Nx.shape()
 
     assert ow == w
     assert oc == 3
     assert oh > h
   end
 
-  test "o reflexo enche o piso com conteúdo (não fica preto)" do
+  test "glow ilumina ao redor dos pés (mais claro que sem glow)" do
     neon = neon_scene()
-    {h, _, _} = Nx.shape(neon)
-    out = Scene.apply(neon, reflection: 0.8, pool: 0.7)
 
-    {oh, _, _} = Nx.shape(out)
-    floor = Nx.slice_along_axis(out, h, oh - h, axis: 0)
+    com = Scene.apply(neon, glow: 0.9) |> total()
+    sem = Scene.apply(neon, glow: 0.0) |> total()
 
-    assert floor |> Nx.sum() |> Nx.to_number() > 0
+    assert com > sem
   end
 
-  test "reflexo/poça em 0 deixa o piso praticamente escuro" do
+  test "glow: 0 não adiciona luz — região original intacta e piso preto" do
     neon = neon_scene()
     {h, _, _} = Nx.shape(neon)
-    out = Scene.apply(neon, reflection: 0.0, pool: 0.0, ripple: 0.0)
 
+    out = Scene.apply(neon, glow: 0.0)
     {oh, _, _} = Nx.shape(out)
-    floor = Nx.slice_along_axis(out, h, oh - h, axis: 0)
 
-    assert floor |> Nx.sum() |> Nx.to_number() == 0
+    # a parte de cima é o neon original byte a byte; o piso anexado fica preto
+    assert Nx.to_binary(Nx.slice_along_axis(out, 0, h, axis: 0)) == Nx.to_binary(neon)
+    assert Nx.slice_along_axis(out, h, oh - h, axis: 0) |> total() == 0
+  end
+
+  test "espalhamento maior aumenta a poça (mais luz no total)" do
+    neon = neon_scene()
+
+    estreito = Scene.apply(neon, glow: 0.9, spread: 0.1) |> total()
+    largo = Scene.apply(neon, glow: 0.9, spread: 1.0) |> total()
+
+    assert largo > estreito
+  end
+
+  test "sem nada aceso devolve o neon intacto (sem chão)" do
+    black = Nx.broadcast(Nx.u8(0), {30, 20, 3})
+
+    assert Scene.apply(black) == black
   end
 end

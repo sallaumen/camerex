@@ -84,8 +84,8 @@ defmodule Camerex.Pipeline.Photo do
   defp with_floor(neon, opts) do
     if Keyword.get(opts, :floor, false) do
       Scene.apply(neon,
-        reflection: Keyword.get(opts, :reflection, 0.55),
-        ripple: Keyword.get(opts, :ripple, 0.35)
+        glow: Keyword.get(opts, :glow, 0.85),
+        spread: Keyword.get(opts, :spread, 0.5)
       )
     else
       neon
@@ -158,8 +158,8 @@ defmodule Camerex.Pipeline.Photo do
       layered: p["layered"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       floor: p["floor"],
-      reflection: p["reflection"],
-      ripple: p["ripple"]
+      glow: p["glow"],
+      spread: p["spread"]
     ]
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
   end

@@ -164,8 +164,8 @@ defmodule Camerex.LibraryTest do
         "layered" => true,
         "layer_colors" => %{"clothing" => [0, 0, 255]},
         "floor" => true,
-        "reflection" => 0.6,
-        "ripple" => 0.4
+        "glow" => 0.6,
+        "spread" => 0.4
       }
 
       assert %{enqueued: 1} = Library.process_items([id], params)
@@ -176,8 +176,8 @@ defmodule Camerex.LibraryTest do
       assert m["params"]["layered"] == true
       assert m["params"]["layer_colors"] == %{"clothing" => [0, 0, 255]}
       assert m["params"]["floor"] == true
-      assert m["params"]["reflection"] == 0.6
-      assert m["params"]["ripple"] == 0.4
+      assert m["params"]["glow"] == 0.6
+      assert m["params"]["spread"] == 0.4
     end
   end
 end

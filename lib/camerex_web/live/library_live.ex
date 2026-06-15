@@ -49,8 +49,8 @@ defmodule CamerexWeb.LibraryLive do
         layered: false,
         layer_colors: Layers.default_colors(),
         floor: false,
-        reflection: 0.55,
-        ripple: 0.35,
+        glow: 0.85,
+        spread: 0.5,
         trail: 0.7,
         detail: 0.5,
         swap_sides: false,
@@ -566,8 +566,8 @@ defmodule CamerexWeb.LibraryLive do
               layered={@layered}
               layer_colors={@layer_colors}
               floor={@floor}
-              reflection={@reflection}
-              ripple={@ripple}
+              glow={@glow}
+              spread={@spread}
               trail={@trail}
               detail={@detail}
               swap_sides={@swap_sides}
@@ -901,12 +901,12 @@ defmodule CamerexWeb.LibraryLive do
       layered: params["layered"] == "true",
       layer_colors: parse_layer_colors(params, socket.assigns.layer_colors),
       floor: params["floor"] == "true",
-      reflection: parse_slider(params["reflection"], socket.assigns.reflection),
-      ripple: parse_slider(params["ripple"], socket.assigns.ripple)
+      glow: parse_slider(params["glow"], socket.assigns.glow),
+      spread: parse_slider(params["spread"], socket.assigns.spread)
     )
   end
 
-  @slider_keys ~w(halo bloom chroma trail detail reflection ripple)a
+  @slider_keys ~w(halo bloom chroma trail detail glow spread)a
 
   defp apply_item_params(socket, %{"params" => params} = item) when is_map(params) do
     sliders =
@@ -963,8 +963,8 @@ defmodule CamerexWeb.LibraryLive do
       "layered" => socket.assigns.layered,
       "layer_colors" => serialize_layer_colors(socket.assigns.layer_colors),
       "floor" => socket.assigns.floor,
-      "reflection" => socket.assigns.reflection,
-      "ripple" => socket.assigns.ripple,
+      "glow" => socket.assigns.glow,
+      "spread" => socket.assigns.spread,
       "model" => default_model(type)
     }
   end

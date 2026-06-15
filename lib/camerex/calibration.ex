@@ -91,8 +91,8 @@ defmodule Camerex.Calibration do
   defp floor_opts(params) do
     [
       floor: params["floor"] || false,
-      reflection: params["reflection"] || 0.55,
-      ripple: params["ripple"] || 0.35
+      glow: params["glow"] || 0.85,
+      spread: params["spread"] || 0.5
     ]
   end
 

@@ -12,7 +12,7 @@ defmodule Camerex.Library do
   # mantém em sincronia com panel_params_for/2 da LibraryLive (tudo que o
   # render lê do manifest); sem isso, reprocessar perde os ajustes novos
   @param_keys ~w(halo bloom chroma trail detail swap_sides model
-                 layered layer_colors floor reflection ripple)
+                 layered layer_colors floor glow spread)
 
   defdelegate normalize_folder(path), to: Workspace
 
