@@ -27,13 +27,20 @@ defmodule Camerex.Neon.Layered do
   # de virar contorno, senão pingam bolhinhas soltas na arte.
   @island_area_frac 0.0004
 
-  # detalhe interno: o slider [0,1] vira o `detail` do trace_edges nesta banda
-  # CONSERVADORA (limiar alto → só gradiente forte: rosto, vincos, mãos; a
-  # textura fraca do tecido nem vira borda). Depois a supressão por densidade
-  # tira a textura densa que sobrou (renda, paetê) sem tocar nas linhas esparsas.
-  @detail_trace_scale 0.35
+  # contornos: loops ISOLADOS menores que esta fração viram "bolinhas" (anel de
+  # uma ilha que sobrou). A silhueta e as fronteiras reais são um componente
+  # enorme conectado, então só os ovais soltos caem.
+  @contour_min_area_frac 0.0005
+
+  # detalhe interno: o slider [0,1] vira o `detail` do trace_edges. A banda vai
+  # quase até o nível do mono (gradiente forte = rosto, vincos, mãos; a textura
+  # fraca do tecido fica de fora). chroma pega borda de COR também. Depois a
+  # supressão por densidade tira só a textura MUITO densa (renda, paetê) sem
+  # tocar nas linhas esparsas do rosto/vincos.
+  @detail_trace_scale 0.6
+  @detail_chroma 0.3
   @density_sigma_div 120.0
-  @density_threshold 0.28
+  @density_threshold 0.4
 
   @doc """
   Arte-de-linha `{h, w}` f32 em [0, 1]: combina por máximo duas camadas —
@@ -58,7 +65,8 @@ defmodule Camerex.Neon.Layered do
   end
 
   # contorno de cada rótulo presente (limpo de ilhas e suavizado) somado por
-  # máximo à silhueta externa (contorno da união). u8 {h,w}. Sem parte → zeros.
+  # máximo à silhueta externa (contorno da união). Despeckle no fim remove os
+  # ovais soltos das ilhas. u8 {h,w}. Sem parte → zeros.
   defp semantic_contours(labels, w) do
     {h, _w} = Nx.shape(labels)
 
@@ -69,7 +77,10 @@ defmodule Camerex.Neon.Layered do
       masks ->
         per_label = masks |> Enum.map(&contour/1) |> Enum.reduce(&Nx.max/2)
         silhouette = masks |> Enum.reduce(&Nx.max/2) |> contour()
-        Nx.max(per_label, silhouette)
+
+        per_label
+        |> Nx.max(silhouette)
+        |> drop_small_components(round(h * w * @contour_min_area_frac))
     end
   end
 
@@ -84,7 +95,7 @@ defmodule Camerex.Neon.Layered do
       union = labels |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
 
       rgb
-      |> Neon.trace_edges(union, detail: detail * @detail_trace_scale, chroma: 0.0)
+      |> Neon.trace_edges(union, detail: detail * @detail_trace_scale, chroma: @detail_chroma)
       |> suppress_dense(w)
     end
   end
