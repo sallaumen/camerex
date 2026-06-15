@@ -448,6 +448,18 @@ defmodule CamerexWeb.LibraryLiveTest do
       lv |> form("#convert-form", %{"chroma" => "0.75"}) |> render_change()
       assert render(lv) =~ "0.75"
     end
+
+    test "toggle 'colorir por parte' revela os pickers de cor", %{conn: conn} do
+      {:ok, lv, html} = live(conn, "/")
+      refute html =~ "layer-pickers"
+
+      lv |> form("#convert-form", %{"layered" => "true"}) |> render_change()
+
+      html = render(lv)
+      assert html =~ "layer-pickers"
+      assert has_element?(lv, "input[type=color][name=layer_clothing]")
+      assert has_element?(lv, "input[type=color][name=layer_skin]")
+    end
   end
 
   describe "presets do usuário na UI" do

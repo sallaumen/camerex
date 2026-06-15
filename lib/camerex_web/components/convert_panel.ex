@@ -11,6 +11,7 @@ defmodule CamerexWeb.ConvertPanel do
   import CamerexWeb.NeonComponents
 
   alias Camerex.Neon.Palette
+  alias Camerex.Parser.Layers
   alias Phoenix.LiveView.JS
 
   attr :uploads, :map, required: true
@@ -19,6 +20,8 @@ defmodule CamerexWeb.ConvertPanel do
   attr :halo, :float, required: true
   attr :bloom, :float, required: true
   attr :chroma, :float, required: true
+  attr :layered, :boolean, default: false
+  attr :layer_colors, :map, default: %{}
   attr :trail, :float, required: true
   attr :detail, :float, required: true
   attr :swap_sides, :boolean, required: true
@@ -176,6 +179,26 @@ defmodule CamerexWeb.ConvertPanel do
           <input type="checkbox" name="swap_sides" value="true" checked={@swap_sides} />
           inverter lados
         </label>
+
+        <label id="layered-toggle" class="mt-3 flex items-center gap-2 text-sm">
+          <input type="hidden" name="layered" value="false" />
+          <input type="checkbox" name="layered" value="true" checked={@layered} />
+          colorir por parte (pele, cabelo, roupa)
+        </label>
+
+        <div :if={@layered} id="layer-pickers" class="mt-2 grid grid-cols-2 gap-2 text-sm">
+          <label :for={group <- Layers.groups()} class="flex items-center gap-2">
+            <input
+              type="color"
+              name={"layer_#{group.key}"}
+              value={Palette.hex(Map.get(@layer_colors, group.key, group.default))}
+              phx-debounce="200"
+              aria-label={"cor da camada #{group.label}"}
+              class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
+            />
+            {group.label}
+          </label>
+        </div>
 
         <button
           type="submit"

@@ -14,6 +14,7 @@ defmodule CamerexWeb.LibraryLive do
   alias Camerex.{Calibration, Jobs, Library, Settings, UserPresets, Workspace}
   alias Camerex.Library.Import, as: LibraryImport
   alias Camerex.Neon.Palette
+  alias Camerex.Parser.Layers
 
   @video_exts ~w(.mp4 .mov .m4v .webm)
 
@@ -45,6 +46,8 @@ defmodule CamerexWeb.LibraryLive do
         halo: 0.6,
         bloom: 0.4,
         chroma: 0.5,
+        layered: false,
+        layer_colors: Layers.default_colors(),
         trail: 0.7,
         detail: 0.5,
         swap_sides: false,
@@ -556,6 +559,8 @@ defmodule CamerexWeb.LibraryLive do
               halo={@halo}
               bloom={@bloom}
               chroma={@chroma}
+              layered={@layered}
+              layer_colors={@layer_colors}
               trail={@trail}
               detail={@detail}
               swap_sides={@swap_sides}
@@ -872,7 +877,9 @@ defmodule CamerexWeb.LibraryLive do
       chroma: parse_slider(params["chroma"], socket.assigns.chroma),
       trail: parse_slider(params["trail"], socket.assigns.trail),
       detail: parse_slider(params["detail"], socket.assigns.detail),
-      swap_sides: params["swap_sides"] == "true"
+      swap_sides: params["swap_sides"] == "true",
+      layered: params["layered"] == "true",
+      layer_colors: parse_layer_colors(params, socket.assigns.layer_colors)
     )
   end
 
@@ -884,7 +891,9 @@ defmodule CamerexWeb.LibraryLive do
       chroma: params["chroma"] || socket.assigns.chroma,
       trail: params["trail"] || socket.assigns.trail,
       detail: params["detail"] || socket.assigns.detail,
-      swap_sides: params["swap_sides"] || false
+      swap_sides: params["swap_sides"] || false,
+      layered: params["layered"] || false,
+      layer_colors: Layers.normalize_colors(params["layer_colors"])
     )
   end
 
@@ -899,6 +908,20 @@ defmodule CamerexWeb.LibraryLive do
     end
   end
 
+  # lê os 4 pickers de cor (hex dos <input type=color>) sobre o estado atual
+  defp parse_layer_colors(params, current) do
+    Enum.reduce(Layers.groups(), current, fn %{key: key}, acc ->
+      case params["layer_#{key}"] do
+        "#" <> _ = hex -> Map.put(acc, key, hex_to_rgb(hex))
+        _ -> acc
+      end
+    end)
+  end
+
+  defp hex_to_rgb("#" <> <<r::binary-2, g::binary-2, b::binary-2>>) do
+    {String.to_integer(r, 16), String.to_integer(g, 16), String.to_integer(b, 16)}
+  end
+
   defp panel_params(socket), do: panel_params_for(socket, :photo)
 
   defp panel_params_for(socket, type) do
@@ -909,8 +932,15 @@ defmodule CamerexWeb.LibraryLive do
       "trail" => socket.assigns.trail,
       "detail" => socket.assigns.detail,
       "swap_sides" => socket.assigns.swap_sides,
+      "layered" => socket.assigns.layered,
+      "layer_colors" => serialize_layer_colors(socket.assigns.layer_colors),
       "model" => default_model(type)
     }
+  end
+
+  # %{skin: {r,g,b}, ...} -> %{"skin" => [r,g,b], ...} (JSON-safe pro manifest)
+  defp serialize_layer_colors(colors) do
+    Map.new(colors, fn {k, {r, g, b}} -> {Atom.to_string(k), [r, g, b]} end)
   end
 
   defp bulk_process(socket, params) do
