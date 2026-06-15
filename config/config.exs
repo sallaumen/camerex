@@ -17,7 +17,8 @@ config :mime, :types, %{"video/x-m4v" => ["m4v"]}
 config :camerex,
   workspace_root: Path.expand("workspace"),
   models_dir: Path.expand("priv/models"),
-  segmenter: Camerex.Segmenter.Ortex
+  segmenter: Camerex.Segmenter.Ortex,
+  parser: Camerex.Parser.Segformer
 
 config :camerex,
   generators: [timestamp_type: :utc_datetime]

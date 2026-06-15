@@ -28,6 +28,7 @@ config :phoenix,
   sort_verified_routes_query_params: true
 
 config :camerex, segmenter: Camerex.Segmenter.Fixture
+config :camerex, parser: Camerex.Parser.Fixture
 config :camerex, doctor: Camerex.DoctorStub
 
 # o boot do app em test roda mark_interrupted_on_boot(): nunca apontar
