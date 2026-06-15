@@ -25,6 +25,24 @@ defmodule Camerex.Parser.Layers do
   def default_colors, do: Map.new(@groups, &{&1.key, &1.default})
 
   @doc """
+  Normaliza cores por camada vindas do manifest/UI (`%{"skin" => [r,g,b]}` ou
+  `%{skin: {r,g,b}}`) para `%{atom => {r,g,b}}`, mescladas sobre os defaults.
+  `nil` devolve os defaults.
+  """
+  @spec normalize_colors(map() | nil) :: %{atom() => Palette.color()}
+  def normalize_colors(nil), do: default_colors()
+
+  def normalize_colors(map) when is_map(map) do
+    parsed = Map.new(map, fn {k, v} -> {to_key(k), to_color(v)} end)
+    Map.merge(default_colors(), parsed)
+  end
+
+  defp to_key(k) when is_atom(k), do: k
+  defp to_key(k) when is_binary(k), do: String.to_existing_atom(k)
+  defp to_color({r, g, b}), do: {r, g, b}
+  defp to_color([r, g, b]), do: {r, g, b}
+
+  @doc """
   Máscara u8 `{h, w}` 0|255 dos pixels cujo rótulo está em `ids`, com close
   morfológico 5×5 para suavizar as bordas em escada deixadas pelo upsample.
   """

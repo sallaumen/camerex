@@ -74,6 +74,19 @@ defmodule Camerex.CalibrationTest do
     assert sem != com
   end
 
+  test "modo layered: trocar a cor de uma camada muda a prévia" do
+    {:ok, session} = Calibration.prepare(scene(64, 64))
+    assert session.labels != nil
+
+    base = params(%{"layered" => true, "layer_colors" => %{"clothing" => [43, 196, 178]}})
+    {:ok, teal} = Calibration.render(session, base)
+
+    {:ok, azul} =
+      Calibration.render(session, put_in(base["layer_colors"], %{"clothing" => [0, 0, 255]}))
+
+    assert teal != azul
+  end
+
   test "preset desconhecido devolve erro" do
     {:ok, session} = Calibration.prepare(scene(32, 32))
 

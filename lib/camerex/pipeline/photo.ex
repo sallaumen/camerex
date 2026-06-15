@@ -150,19 +150,8 @@ defmodule Camerex.Pipeline.Photo do
       swap_sides: p["swap_sides"] || false,
       model: p["model"] || "u2net",
       layered: p["layered"] || false,
-      layer_colors: parse_layer_colors(p["layer_colors"])
+      layer_colors: Layers.normalize_colors(p["layer_colors"])
     ]
-  end
-
-  # manifest guarda cores por camada como %{"skin" => [r,g,b], ...} (JSON);
-  # converte para %{skin: {r,g,b}, ...} sobre os defaults.
-  defp parse_layer_colors(nil), do: Layers.default_colors()
-
-  defp parse_layer_colors(map) when is_map(map) do
-    parsed =
-      Map.new(map, fn {k, [r, g, b]} -> {String.to_existing_atom(k), {r, g, b}} end)
-
-    Map.merge(Layers.default_colors(), parsed)
   end
 
   # Evision.imread devolve BGR; o domínio inteiro é RGB (contrato §4),

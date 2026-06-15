@@ -7,12 +7,13 @@ defmodule Camerex.Calibration do
   não sobre resolução.
   """
 
-  alias Camerex.Mask
+  alias Camerex.{Mask, Parser}
+  alias Camerex.Parser.Layers
   alias Camerex.Pipeline.{FramePreview, Photo}
 
   @preview_width 480
 
-  @type session :: %{rgb: Nx.Tensor.t(), mask: Nx.Tensor.t()}
+  @type session :: %{rgb: Nx.Tensor.t(), mask: Nx.Tensor.t(), labels: Nx.Tensor.t() | nil}
 
   @doc """
   Prepara a sessão direto de um arquivo de mídia: foto é lida inteira;
@@ -34,7 +35,15 @@ defmodule Camerex.Calibration do
     segmenter = Application.fetch_env!(:camerex, :segmenter)
 
     with {:ok, raw} <- segmenter.segment(rgb, model: model) do
-      {:ok, %{rgb: rgb, mask: Mask.largest_component(raw)}}
+      # parseia as partes uma vez também (modo "cor por camada"); se o parser
+      # falhar (modelo ausente), labels = nil e o layered cai pro modo normal
+      labels =
+        case Parser.parse(rgb) do
+          {:ok, l} -> l
+          {:error, _} -> nil
+        end
+
+      {:ok, %{rgb: rgb, mask: Mask.largest_component(raw), labels: labels}}
     end
   end
 
@@ -44,7 +53,27 @@ defmodule Camerex.Calibration do
   e devolve um data URL PNG pronto para `<img src>`.
   """
   @spec render(session(), map()) :: {:ok, String.t()} | {:error, term()}
-  def render(%{rgb: rgb, mask: mask}, params) do
+  def render(session, params) do
+    with {:ok, neon} <- render_neon(session, params) do
+      encode_data_url(neon)
+    end
+  end
+
+  # modo "cor por camada" (parser pronto na sessão) vs. modo normal (máscara)
+  defp render_neon(%{rgb: rgb, labels: labels}, %{"layered" => true} = params)
+       when labels != nil do
+    opts = [
+      halo: params["halo"],
+      bloom: params["bloom"] || 0.0,
+      detail: params["detail"],
+      chroma: params["chroma"] || 0.5,
+      layer_colors: Layers.normalize_colors(params["layer_colors"])
+    ]
+
+    {:ok, Photo.render_with_labels(rgb, labels, opts)}
+  end
+
+  defp render_neon(%{rgb: rgb, mask: mask}, params) do
     opts = [
       preset: params["preset"],
       halo: params["halo"],
@@ -54,9 +83,7 @@ defmodule Camerex.Calibration do
       swap_sides: params["swap_sides"] || false
     ]
 
-    with {:ok, neon} <- Photo.render_with_mask(rgb, mask, opts) do
-      encode_data_url(neon)
-    end
+    Photo.render_with_mask(rgb, mask, opts)
   end
 
   # INTER_AREA no downscale: única interpolação do OpenCV com anti-alias
