@@ -75,7 +75,24 @@ defmodule Camerex.CalibrationTest do
   end
 
   test "modo layered: trocar a cor de uma camada muda a prévia" do
-    {:ok, session} = Calibration.prepare(scene(64, 64))
+    # cena com uma borda interna (quadrado claro) — uniforme não geraria bordas
+    rows = Nx.iota({64, 64}, axis: 0)
+    cols = Nx.iota({64, 64}, axis: 1)
+
+    sq =
+      Nx.logical_and(
+        Nx.logical_and(Nx.greater_equal(rows, 18), Nx.less(rows, 48)),
+        Nx.logical_and(Nx.greater_equal(cols, 18), Nx.less(cols, 48))
+      )
+
+    featured =
+      Nx.select(
+        Nx.new_axis(sq, -1) |> Nx.broadcast({64, 64, 3}),
+        Nx.broadcast(Nx.u8(220), {64, 64, 3}),
+        Nx.broadcast(Nx.u8(80), {64, 64, 3})
+      )
+
+    {:ok, session} = Calibration.prepare(featured)
     assert session.labels != nil
 
     base = params(%{"layered" => true, "layer_colors" => %{"clothing" => [43, 196, 178]}})

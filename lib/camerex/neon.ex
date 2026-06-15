@@ -92,9 +92,13 @@ defmodule Camerex.Neon do
     intens =
       halo_big |> Nx.max(halo_mid) |> Nx.max(halo_atmo) |> Nx.max(current_edges)
 
+    # `color_field:` (campo {h,w,3} f32 pronto) sobrepõe colors/weights — é
+    # como o modo cor-por-parte injeta cores já mescladas nas fronteiras.
+    field = Keyword.get(opts, :color_field) || color_field(colors, weights)
+
     intens
     |> Nx.new_axis(-1)
-    |> Nx.multiply(color_field(colors, weights))
+    |> Nx.multiply(field)
     |> Nx.clip(0, 255)
     |> Nx.as_type(:u8)
   end

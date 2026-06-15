@@ -320,6 +320,21 @@ defmodule Camerex.NeonTest do
       assert Nx.to_flat_list(out.(0.25)[0][0]) == [50, 50, 50]
     end
 
+    test "color_field pronto sobrepõe colors/weights (cor por pixel)" do
+      edges = Nx.broadcast(Nx.tensor(1.0, type: :f32), {2, 2})
+      # campo: linha 0 vermelha, linha 1 azul
+      field =
+        Nx.tensor(
+          [[[255.0, 0.0, 0.0], [255.0, 0.0, 0.0]], [[0.0, 0.0, 255.0], [0.0, 0.0, 255.0]]],
+          type: :f32
+        )
+
+      out = Neon.compose(edges, [{9, 9, 9}], color_field: field)
+
+      assert Nx.to_flat_list(out[0][0]) == [255, 0, 0]
+      assert Nx.to_flat_list(out[1][0]) == [0, 0, 255]
+    end
+
     test "current_edges substitui o input na camada de linha nítida (vídeo)" do
       trail = Nx.broadcast(Nx.tensor(0.0, type: :f32), {8, 8})
       current = Nx.put_slice(trail, [4, 4], Nx.tensor([[1.0]], type: :f32))

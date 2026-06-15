@@ -138,9 +138,7 @@ defmodule Camerex.Pipeline.PhotoTest do
   end
 
   describe "render_layered/2 (cor por camada via parser)" do
-    # rótulos: bloco de roupa (4) e bloco de cabelo (2), cada um cercado por
-    # fundo (0) — assim a borda de cada camada sai na cor PURA (sem mistura
-    # com camada vizinha; numa foto real a textura interna já garante isso)
+    # rótulos: bloco de roupa (4) em cima, bloco de cabelo (2) embaixo
     defp blocks_labels do
       rows = Nx.iota({40, 40}, axis: 0)
       cols = Nx.iota({40, 40}, axis: 1)
@@ -152,26 +150,38 @@ defmodule Camerex.Pipeline.PhotoTest do
       Nx.select(cloth, 4, Nx.select(hair, 2, 0)) |> Nx.as_type(:u8)
     end
 
-    test "render_layered via parser devolve {h,w,3} não-vazio" do
+    defp chan_max(t, ch), do: t[[.., .., ch]] |> Nx.reduce_max() |> Nx.to_number()
+
+    test "render_layered via parser devolve {h,w,3} (wiring parse→render)" do
       {:ok, layered} = Photo.render_layered(gray_scene(60, 40), [])
       assert Nx.shape(layered) == {60, 40, 3}
-      assert layered |> Nx.sum() |> Nx.to_number() > 0
     end
 
-    test "cada camada sai na sua cor; default da roupa é teal" do
+    test "render_with_labels com partes que têm borda é não-vazio" do
+      out = Photo.render_with_labels(gray_scene(40, 40), blocks_labels(), [])
+      assert out |> Nx.sum() |> Nx.to_number() > 0
+    end
+
+    test "campo mesclado: roupa fria (teal, verde>vermelho), cabelo quente" do
       layered = Photo.render_with_labels(gray_scene(40, 40), blocks_labels(), [])
 
-      assert count_color_pixels(layered, {43, 196, 178}) > 0
-      assert count_color_pixels(layered, {255, 90, 30}) > 0
+      cloth = layered[[6..15, 8..31, ..]]
+      hair = layered[[24..33, 8..31, ..]]
+
+      # teal {43,196,178}: verde domina o vermelho
+      assert chan_max(cloth, 1) > chan_max(cloth, 0)
+      # laranja {255,90,30}: vermelho domina o azul
+      assert chan_max(hair, 0) > chan_max(hair, 2)
     end
 
-    test "layer_colors sobrescreve a cor de uma camada" do
+    test "layer_colors sobrescreve a cor de uma camada (roupa azul)" do
       layered =
         Photo.render_with_labels(gray_scene(40, 40), blocks_labels(),
           layer_colors: %{clothing: {0, 0, 255}}
         )
 
-      assert count_color_pixels(layered, {0, 0, 255}) > 0
+      cloth = layered[[6..15, 8..31, ..]]
+      assert chan_max(cloth, 2) > chan_max(cloth, 0)
     end
   end
 
