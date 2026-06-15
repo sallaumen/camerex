@@ -460,6 +460,16 @@ defmodule CamerexWeb.LibraryLiveTest do
       assert has_element?(lv, "input[type=color][name=layer_clothing]")
       assert has_element?(lv, "input[type=color][name=layer_skin]")
     end
+
+    test "toggle 'chão' revela os sliders de reflexo e ondulação", %{conn: conn} do
+      {:ok, lv, html} = live(conn, "/")
+      refute html =~ "floor-controls"
+
+      lv |> form("#convert-form", %{"floor" => "true"}) |> render_change()
+
+      assert has_element?(lv, "#floor-controls input[name=reflection]")
+      assert has_element?(lv, "#floor-controls input[name=ripple]")
+    end
   end
 
   describe "presets do usuário na UI" do

@@ -22,6 +22,9 @@ defmodule CamerexWeb.ConvertPanel do
   attr :chroma, :float, required: true
   attr :layered, :boolean, default: false
   attr :layer_colors, :map, default: %{}
+  attr :floor, :boolean, default: false
+  attr :reflection, :float, default: 0.55
+  attr :ripple, :float, default: 0.35
   attr :trail, :float, required: true
   attr :detail, :float, required: true
   attr :swap_sides, :boolean, required: true
@@ -197,6 +200,41 @@ defmodule CamerexWeb.ConvertPanel do
               class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
             />
             {group.label}
+          </label>
+        </div>
+
+        <label id="floor-toggle" class="mt-3 flex items-center gap-2 text-sm">
+          <input type="hidden" name="floor" value="false" />
+          <input type="checkbox" name="floor" value="true" checked={@floor} />
+          chão com reflexo de água
+        </label>
+
+        <div :if={@floor} id="floor-controls" class="mt-2 space-y-3 text-sm">
+          <label class="block">
+            reflexo ({@reflection})
+            <input
+              type="range"
+              name="reflection"
+              min="0"
+              max="1"
+              step="0.05"
+              value={@reflection}
+              phx-debounce="150"
+              class="w-full"
+            />
+          </label>
+          <label class="block">
+            ondulação ({@ripple})
+            <input
+              type="range"
+              name="ripple"
+              min="0"
+              max="1"
+              step="0.05"
+              value={@ripple}
+              phx-debounce="150"
+              class="w-full"
+            />
           </label>
         </div>
 

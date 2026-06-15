@@ -48,6 +48,9 @@ defmodule CamerexWeb.LibraryLive do
         chroma: 0.5,
         layered: false,
         layer_colors: Layers.default_colors(),
+        floor: false,
+        reflection: 0.55,
+        ripple: 0.35,
         trail: 0.7,
         detail: 0.5,
         swap_sides: false,
@@ -561,6 +564,9 @@ defmodule CamerexWeb.LibraryLive do
               chroma={@chroma}
               layered={@layered}
               layer_colors={@layer_colors}
+              floor={@floor}
+              reflection={@reflection}
+              ripple={@ripple}
               trail={@trail}
               detail={@detail}
               swap_sides={@swap_sides}
@@ -879,7 +885,10 @@ defmodule CamerexWeb.LibraryLive do
       detail: parse_slider(params["detail"], socket.assigns.detail),
       swap_sides: params["swap_sides"] == "true",
       layered: params["layered"] == "true",
-      layer_colors: parse_layer_colors(params, socket.assigns.layer_colors)
+      layer_colors: parse_layer_colors(params, socket.assigns.layer_colors),
+      floor: params["floor"] == "true",
+      reflection: parse_slider(params["reflection"], socket.assigns.reflection),
+      ripple: parse_slider(params["ripple"], socket.assigns.ripple)
     )
   end
 
@@ -893,7 +902,10 @@ defmodule CamerexWeb.LibraryLive do
       detail: params["detail"] || socket.assigns.detail,
       swap_sides: params["swap_sides"] || false,
       layered: params["layered"] || false,
-      layer_colors: Layers.normalize_colors(params["layer_colors"])
+      layer_colors: Layers.normalize_colors(params["layer_colors"]),
+      floor: params["floor"] || false,
+      reflection: params["reflection"] || socket.assigns.reflection,
+      ripple: params["ripple"] || socket.assigns.ripple
     )
   end
 
@@ -934,6 +946,9 @@ defmodule CamerexWeb.LibraryLive do
       "swap_sides" => socket.assigns.swap_sides,
       "layered" => socket.assigns.layered,
       "layer_colors" => serialize_layer_colors(socket.assigns.layer_colors),
+      "floor" => socket.assigns.floor,
+      "reflection" => socket.assigns.reflection,
+      "ripple" => socket.assigns.ripple,
       "model" => default_model(type)
     }
   end
