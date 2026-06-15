@@ -19,7 +19,6 @@ defmodule Camerex.Pipeline.Video do
   @split_ema_prev 0.9
   @split_ema_curr 0.1
   @dark_luma_threshold 70
-  @duotone_blend_px 24
   @output_file "neon.mp4"
 
   @spec run(String.t(), (non_neg_integer(), non_neg_integer() -> any())) ::
@@ -150,7 +149,10 @@ defmodule Camerex.Pipeline.Video do
       mask_f = component |> to_unit_f32() |> Mask.ema(state.mask_f, @mask_ema_alpha)
       mask_bin = binarize(mask_f)
 
-      edges = frame |> Neon.trace_edges(mask_bin, detail: opts.detail) |> to_unit_f32()
+      edges =
+        frame
+        |> Neon.trace_edges(mask_bin, detail: opts.detail, chroma: opts.chroma)
+        |> to_unit_f32()
 
       trail =
         case state.trail do
@@ -158,11 +160,12 @@ defmodule Camerex.Pipeline.Video do
           prev -> Nx.max(edges, Nx.multiply(prev, opts.trail_decay))
         end
 
-      {split_ema, weights} = duotone(mask_bin, state.split_ema, opts)
+      {split_ema, weights} = color_weights(mask_bin, state.split_ema, opts)
 
       neon =
         Neon.compose(trail, opts.colors,
           halo: opts.halo,
+          bloom: opts.bloom,
           duotone_weights: weights,
           current_edges: edges
         )
@@ -201,10 +204,10 @@ defmodule Camerex.Pipeline.Video do
 
   defp luma(frame), do: frame |> Nx.as_type(:f32) |> Nx.mean() |> Nx.to_number()
 
-  defp duotone(_mask_bin, split_ema, %{mode: :mono}), do: {split_ema, nil}
-
-  defp duotone(mask_bin, split_ema, %{mode: :duotone}) do
-    {h, w} = Nx.shape(mask_bin)
+  # pesos de cor por frame. duotone usa split com EMA temporal (anti-tremor);
+  # mono/gradiente vêm da regra compartilhada Neon.weights_for (gradiente
+  # entrou na F1 — sem esta cláusula o vídeo crashava com Aurora/Brasa).
+  defp color_weights(mask_bin, split_ema, %{mode: :duotone}) do
     split_now = Neon.mask_median_x(mask_bin)
 
     split =
@@ -213,7 +216,11 @@ defmodule Camerex.Pipeline.Video do
         prev -> @split_ema_prev * prev + @split_ema_curr * split_now
       end
 
-    {split, Neon.duotone_weights(h, w, split, @duotone_blend_px)}
+    {split, Neon.weights_for(:duotone, mask_bin, split)}
+  end
+
+  defp color_weights(mask_bin, split_ema, %{mode: mode}) do
+    {split_ema, Neon.weights_for(mode, mask_bin, 0.0)}
   end
 
   defp binarize(nil), do: nil
@@ -227,42 +234,44 @@ defmodule Camerex.Pipeline.Video do
 
   defp to_unit_f32(u8), do: u8 |> Nx.as_type(:f32) |> Nx.divide(255.0)
 
+  # defaults dos ajustes por frame (merge de mapa em vez de `||` em cadeia —
+  # mantém o credo feliz e os params num lugar só)
+  @frame_defaults %{
+    "detail" => 0.5,
+    "chroma" => 0.0,
+    "halo" => 0.6,
+    "bloom" => 0.0,
+    "trail" => 0.7
+  }
+
   defp build_opts(manifest) do
     params = manifest["params"] || %{}
     preset = Palette.get(manifest["preset"]) || Palette.get("forro-duotone")
-
-    colors =
-      if preset.mode == :duotone and params["swap_sides"] == true,
-        do: Enum.reverse(preset.colors),
-        else: preset.colors
-
-    %{
-      segmenter: Application.fetch_env!(:camerex, :segmenter),
-      model: params["model"] || "u2net",
-      detail: params["detail"] || 0.5,
-      halo: params["halo"] || 0.6,
-      trail_decay: params["trail"] || 0.7,
-      mode: preset.mode,
-      colors: colors
-    }
+    p = Map.merge(Map.put(@frame_defaults, "model", "u2net"), params)
+    frame_opts(p, preset, params["swap_sides"] == true)
   end
 
   # variante de build_opts para a CLI (keyword em vez de manifest)
   defp build_opts_kw(opts) do
-    preset =
-      Palette.get(Keyword.get(opts, :preset, "forro-teal")) || Palette.get("forro-teal")
+    preset = Palette.get(Keyword.get(opts, :preset, "forro-teal")) || Palette.get("forro-teal")
+    params = Map.new(opts, fn {k, v} -> {Atom.to_string(k), v} end)
+    p = Map.merge(Map.put(@frame_defaults, "model", "u2netp"), params)
+    frame_opts(p, preset, Keyword.get(opts, :swap_sides, false))
+  end
 
+  # monta o mapa de opções por frame a partir de params já com defaults
+  defp frame_opts(p, preset, swap) do
     colors =
-      if preset.mode == :duotone and Keyword.get(opts, :swap_sides, false),
-        do: Enum.reverse(preset.colors),
-        else: preset.colors
+      if preset.mode == :duotone and swap, do: Enum.reverse(preset.colors), else: preset.colors
 
     %{
       segmenter: Application.fetch_env!(:camerex, :segmenter),
-      model: Keyword.get(opts, :model, "u2netp"),
-      detail: Keyword.get(opts, :detail, 0.5),
-      halo: Keyword.get(opts, :halo, 0.6),
-      trail_decay: Keyword.get(opts, :trail, 0.7),
+      model: p["model"],
+      detail: p["detail"],
+      chroma: p["chroma"],
+      halo: p["halo"],
+      bloom: p["bloom"],
+      trail_decay: p["trail"],
       mode: preset.mode,
       colors: colors
     }

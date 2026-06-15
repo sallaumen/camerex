@@ -137,6 +137,24 @@ defmodule Camerex.NeonTest do
     end
   end
 
+  describe "weights_for/3 (regra modo→pesos compartilhada foto/vídeo)" do
+    test "mono não tem pesos; duotone e gradiente batem as primitivas" do
+      mask =
+        Nx.broadcast(Nx.u8(0), {20, 20})
+        |> Nx.put_slice([4, 4], Nx.broadcast(Nx.u8(255), {12, 12}))
+
+      assert Neon.weights_for(:mono, mask, 10.0) == nil
+
+      assert Nx.to_binary(Neon.weights_for(:duotone, mask, 10.0)) ==
+               Nx.to_binary(Neon.duotone_weights(20, 20, 10.0, 24))
+
+      {yt, yb} = Neon.mask_y_bounds(mask)
+
+      assert Nx.to_binary(Neon.weights_for(:gradient, mask, 0.0)) ==
+               Nx.to_binary(Neon.vertical_weights(20, 20, yt, yb))
+    end
+  end
+
   describe "mask_y_bounds/1" do
     test "linhas acesas 2..5 numa máscara 8x8" do
       mask =

@@ -181,6 +181,27 @@ defmodule Camerex.Neon do
     |> Nx.clip(0.0, 1.0)
   end
 
+  @doc """
+  Campo de pesos de cor `{h, w}` (ou `nil`) para o modo do preset — **regra
+  única compartilhada por foto e vídeo** para não dessincronizar (foi a falta
+  do `:gradient` no vídeo que quebrou). `split_x` é o split do duotone
+  (mediana na foto, EMA temporal no vídeo); ignorado em mono/gradiente.
+  """
+  @spec weights_for(:mono | :duotone | :gradient, Nx.Tensor.t(), number()) ::
+          Nx.Tensor.t() | nil
+  def weights_for(:mono, _mask, _split_x), do: nil
+
+  def weights_for(:duotone, mask, split_x) do
+    {h, w} = Nx.shape(mask)
+    duotone_weights(h, w, split_x, 24)
+  end
+
+  def weights_for(:gradient, mask, _split_x) do
+    {h, w} = Nx.shape(mask)
+    {y_top, y_bottom} = mask_y_bounds(mask)
+    vertical_weights(h, w, y_top, y_bottom)
+  end
+
   defp gaussian_blur(t, sigma) do
     t
     |> Evision.Mat.from_nx()

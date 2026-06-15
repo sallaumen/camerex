@@ -215,18 +215,9 @@ defmodule Camerex.Pipeline.Photo do
   defp colors(%{colors: [left, right]}, true), do: [right, left]
   defp colors(%{colors: colors}, _swap), do: colors
 
-  defp compose_opts(%{mode: :gradient}, mask, halo, bloom) do
-    {h, w} = Nx.shape(mask)
-    {y_top, y_bottom} = Neon.mask_y_bounds(mask)
-    weights = Neon.vertical_weights(h, w, y_top, y_bottom)
-    [halo: halo, bloom: bloom, duotone_weights: weights]
+  # foto: split do duotone = mediana-x da máscara; mono/gradiente ignoram
+  defp compose_opts(%{mode: mode}, mask, halo, bloom) do
+    split = if mode == :duotone, do: Neon.mask_median_x(mask), else: 0.0
+    [halo: halo, bloom: bloom, duotone_weights: Neon.weights_for(mode, mask, split)]
   end
-
-  defp compose_opts(%{mode: :duotone}, mask, halo, bloom) do
-    {h, w} = Nx.shape(mask)
-    weights = Neon.duotone_weights(h, w, Neon.mask_median_x(mask), 24)
-    [halo: halo, bloom: bloom, duotone_weights: weights]
-  end
-
-  defp compose_opts(%{mode: :mono}, _mask, halo, bloom), do: [halo: halo, bloom: bloom]
 end
