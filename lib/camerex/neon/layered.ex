@@ -39,6 +39,11 @@ defmodule Camerex.Neon.Layered do
   @ms_work_width 600
   @ms_spatial 16
   @ms_color 40
+  # CLAHE no canal de valor (V) antes do mean-shift: realça o micro-contraste
+  # LOCAL, então os vincos de roupa preta (e o boné) — que o tecido escuro
+  # esconde — sobem acima do raio de cor do mean-shift e viram traço. Em região
+  # já clara o efeito é pequeno; a posterização do mean-shift segura a textura.
+  @shadow_clip 4.0
   # supressão por densidade: faxina final da textura MUITO densa (renda, paetê)
   # que sobrevive ao mean-shift. O resto já está limpo, então pode ser firme.
   @density_sigma_div 60.0
@@ -122,11 +127,24 @@ defmodule Camerex.Neon.Layered do
     rgb
     |> Evision.Mat.from_nx_2d()
     |> Evision.resize({tw, th}, interpolation: Evision.Constant.cv_INTER_AREA())
+    |> lift_shadows()
     |> Evision.pyrMeanShiftFiltering(@ms_spatial, @ms_color)
     |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2GRAY())
     |> Evision.canny(lo, hi)
     |> Evision.resize({w, h}, interpolation: Evision.Constant.cv_INTER_NEAREST())
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
+  end
+
+  # equaliza localmente o canal V (HSV): traz os vincos do preto/boné sem mexer
+  # no matiz/saturação (a cor fica fiel pro campo de cor por parte).
+  defp lift_shadows(rgb_mat) do
+    clahe = Evision.createCLAHE(clipLimit: @shadow_clip, tileGridSize: {8, 8})
+
+    [hc, sc, vc] =
+      rgb_mat |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2HSV()) |> Evision.split()
+
+    v = Evision.CLAHE.apply(clahe, vc)
+    [hc, sc, v] |> Evision.merge() |> Evision.cvtColor(Evision.Constant.cv_COLOR_HSV2RGB())
   end
 
   # textura densa (renda, paetê) faz uma região de borda DENSA; vinco/feição é
