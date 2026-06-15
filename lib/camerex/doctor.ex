@@ -20,6 +20,13 @@ defmodule Camerex.Doctor do
       # valor confirmado na fonte da rembg (sessions/u2netp.py)
       md5: "8e83ca70e441ab06c318d82300c84806",
       url: "#{@release_base}/u2netp.onnx"
+    },
+    %{
+      id: "segformer_b2_clothes",
+      file: "segformer_b2_clothes.onnx",
+      # human parsing (ATR, 18 classes) para o modo "cor por camada"
+      md5: "4550f71564310ceca502afc204bbc89c",
+      url: "https://huggingface.co/Xenova/segformer_b2_clothes/resolve/main/onnx/model.onnx"
     }
   ]
 

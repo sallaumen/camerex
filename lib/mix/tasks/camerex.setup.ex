@@ -1,9 +1,10 @@
 defmodule Mix.Tasks.Camerex.Setup do
-  @shortdoc "Baixa os modelos ONNX (u2net/u2netp) com verificação MD5"
+  @shortdoc "Baixa os modelos ONNX (u2net/u2netp + human parsing) com verificação MD5"
 
   @moduledoc """
-  Baixa os modelos de segmentação para `priv/models/` (config
-  `:camerex, :models_dir`) com verificação de MD5.
+  Baixa os modelos para `priv/models/` (config `:camerex, :models_dir`) com
+  verificação de MD5: segmentação (u2net/u2netp) e human parsing
+  (segformer_b2_clothes, ~105 MB, para o modo "cor por parte").
 
       mix camerex.setup            # idempotente: pula o que já está íntegro
       mix camerex.setup --force    # re-baixa tudo
