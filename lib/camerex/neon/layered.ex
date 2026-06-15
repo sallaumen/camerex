@@ -34,11 +34,19 @@ defmodule Camerex.Neon.Layered do
   # detalhe interno: o mean-shift POSTERIZA (achata a imagem em regiões de cor
   # chapada) antes do Canny, então a textura do tecido nem vira borda — o Canny
   # traça só fronteiras de região (cabelo em mechas, vincos, perfis), sem os
-  # "quadrados". Roda numa versão reduzida (o mean-shift é caro). O slider abre
-  # os limiares do Canny (mais detalhe = mais traços).
+  # "quadrados". Roda numa versão reduzida (o mean-shift é caro).
+  #
+  # O slider `detail` controla o RAIO DE COR do mean-shift: detalhe baixo = raio
+  # alto = poucas regiões grandes = só os vincos maiores; detalhe alto = raio
+  # baixo = muitas regiões = bastante traço. Isso dá um ramp SUAVE — mexer no
+  # limiar do Canny saltava, porque as bordas de região são fortes e passam até
+  # com limiar alto. O Canny fica fixo e moderado.
   @ms_work_width 600
   @ms_spatial 16
-  @ms_color 40
+  @ms_color_max 100
+  @ms_color_min 14
+  @canny_lo 50
+  @canny_hi 130
   # CLAHE no canal de valor (V) antes do mean-shift: realça o micro-contraste
   # LOCAL, então os vincos de roupa preta (e o boné) — que o tecido escuro
   # esconde — sobem acima do raio de cor do mean-shift e viram traço. Em região
@@ -121,16 +129,15 @@ defmodule Camerex.Neon.Layered do
     {h, w, _} = Nx.shape(rgb)
     scale = min(@ms_work_width / w, 1.0)
     {tw, th} = {max(round(w * scale), 2), max(round(h * scale), 2)}
-    lo = round(70 - 50 * detail)
-    hi = round(160 - 70 * detail)
+    sr = round(@ms_color_max - (@ms_color_max - @ms_color_min) * detail)
 
     rgb
     |> Evision.Mat.from_nx_2d()
     |> Evision.resize({tw, th}, interpolation: Evision.Constant.cv_INTER_AREA())
     |> lift_shadows()
-    |> Evision.pyrMeanShiftFiltering(@ms_spatial, @ms_color)
+    |> Evision.pyrMeanShiftFiltering(@ms_spatial, sr)
     |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2GRAY())
-    |> Evision.canny(lo, hi)
+    |> Evision.canny(@canny_lo, @canny_hi)
     |> Evision.resize({w, h}, interpolation: Evision.Constant.cv_INTER_NEAREST())
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
   end

@@ -142,4 +142,32 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert render(view) =~ "right-placeholder"
     end
   end
+
+  describe "cor-por-parte esconde controles irrelevantes" do
+    test "ligar cor-por-parte esconde swatches de preset e o slider 'cor'", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      # sem layered: swatches de preset e 'cor' (chroma) estão visíveis
+      assert has_element?(view, "#preset-swatches")
+      assert has_element?(view, "#convert-form input[name=chroma]")
+
+      view |> form("#convert-form", %{"layered" => "true"}) |> render_change()
+
+      # com layered: a cor vem dos pickers → swatches e 'cor' somem, pickers entram
+      refute has_element?(view, "#preset-swatches")
+      refute has_element?(view, "#convert-form input[name=chroma]")
+      assert has_element?(view, "#layer-pickers")
+    end
+
+    test "reprocesso de foto esconde 'rastro' (no-op em foto; halo segue)",
+         %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, view, _} = live(conn, "/?item=#{id}")
+      view |> element("#reconvert-button") |> render_click()
+
+      refute has_element?(view, "#convert-form input[name=trail]")
+      assert has_element?(view, "#convert-form input[name=halo]")
+    end
+  end
 end

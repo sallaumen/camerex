@@ -111,7 +111,11 @@ defmodule CamerexWeb.ConvertPanel do
           </div>
         </div>
 
-        <fieldset id="preset-swatches" class="mt-4 flex flex-wrap items-center gap-3">
+        <fieldset
+          :if={not @layered}
+          id="preset-swatches"
+          class="mt-4 flex flex-wrap items-center gap-3"
+        >
           <.preset_swatch
             :for={preset <- @presets}
             preset={preset}
@@ -151,7 +155,7 @@ defmodule CamerexWeb.ConvertPanel do
               class="w-full"
             />
           </label>
-          <label class="block">
+          <label :if={not @layered} class="block">
             cor ({@chroma})
             <input
               type="range"
@@ -164,7 +168,7 @@ defmodule CamerexWeb.ConvertPanel do
               class="w-full"
             />
           </label>
-          <label class="block">
+          <label :if={not photo_reconvert?(@reconvert_item)} class="block">
             rastro ({@trail})
             <input
               type="range"
@@ -192,7 +196,11 @@ defmodule CamerexWeb.ConvertPanel do
           </label>
         </div>
 
-        <label :if={duotone?(@preset_id)} id="swap-sides" class="mt-3 flex items-center gap-2 text-sm">
+        <label
+          :if={duotone?(@preset_id) and not @layered}
+          id="swap-sides"
+          class="mt-3 flex items-center gap-2 text-sm"
+        >
           <input type="hidden" name="swap_sides" value="false" />
           <input type="checkbox" name="swap_sides" value="true" checked={@swap_sides} />
           inverter lados
@@ -204,18 +212,21 @@ defmodule CamerexWeb.ConvertPanel do
           colorir por parte (pele, cabelo, roupa)
         </label>
 
-        <div :if={@layered} id="layer-pickers" class="mt-2 grid grid-cols-2 gap-2 text-sm">
-          <label :for={group <- Layers.groups()} class="flex items-center gap-2">
-            <input
-              type="color"
-              name={"layer_#{group.key}"}
-              value={Palette.hex(Map.get(@layer_colors, group.key, group.default))}
-              phx-debounce="200"
-              aria-label={"cor da camada #{group.label}"}
-              class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
-            />
-            {group.label}
-          </label>
+        <div :if={@layered} id="layer-pickers" class="mt-2 space-y-2">
+          <p class="text-xs text-cx-text-dim">cor de cada parte</p>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <label :for={group <- Layers.groups()} class="flex items-center gap-2">
+              <input
+                type="color"
+                name={"layer_#{group.key}"}
+                value={Palette.hex(Map.get(@layer_colors, group.key, group.default))}
+                phx-debounce="200"
+                aria-label={"cor da camada #{group.label}"}
+                class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
+              />
+              {group.label}
+            </label>
+          </div>
         </div>
 
         <label id="floor-toggle" class="mt-3 flex items-center gap-2 text-sm">
@@ -345,6 +356,11 @@ defmodule CamerexWeb.ConvertPanel do
   defp duotone?(preset_id) do
     match?(%{mode: :duotone}, Palette.get(preset_id))
   end
+
+  # rastro só afeta vídeo (decaimento entre frames); num reprocesso de foto é
+  # no-op, então some — não confunde com um controle que não faz nada.
+  defp photo_reconvert?(%{"type" => "photo"}), do: true
+  defp photo_reconvert?(_), do: false
 
   defp submit_label(nil), do: "Converter"
   defp submit_label(%{"status" => "new"}), do: "Processar agora"
