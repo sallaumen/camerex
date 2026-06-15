@@ -7,17 +7,22 @@ defmodule Camerex.Neon do
   @doc """
   Bordas internas (CLAHE + bilateral + Canny dentro da máscara erodida) +
   silhueta (Canny da máscara), fechadas (CLOSE 3×3) e dilatadas (2×2).
-  `(rgb u8 {h,w,3}, mask u8 {h,w}, detail: 0.0..1.0 default 0.5)` →
-  edges u8 `{h, w}` 0|255.
+  `(rgb u8 {h,w,3}, mask u8 {h,w}, opts)` → edges u8 `{h, w}` 0|255.
+
+  opts: `detail:` 0..1 (default 0.5; limiar do Canny de luminância) ·
+  `chroma:` 0..1 (default 0.0; Canny no canal de saturação para recuperar
+  bordas de cor — ex.: tecido vermelho sobre sombra. 0 = neutro).
   """
   @spec trace_edges(Nx.Tensor.t(), Nx.Tensor.t(), keyword()) :: Nx.Tensor.t()
   def trace_edges(rgb, mask, opts \\ []) do
     detail = Keyword.get(opts, :detail, 0.5)
+    chroma = Keyword.get(opts, :chroma, 0.0)
     canny_lo = round(100 - 80 * detail)
     canny_hi = round(220 - 160 * detail)
 
     rgb_mat = Evision.Mat.from_nx_2d(rgb)
     mask_mat = Evision.Mat.from_nx(mask)
+    eroded = Evision.erode(mask_mat, kernel({5, 5}))
     clahe = Evision.createCLAHE(clipLimit: 3.0, tileGridSize: {8, 8})
 
     gray =
@@ -29,13 +34,35 @@ defmodule Camerex.Neon do
       gray
       |> Evision.bilateralFilter(9, 60.0, 60.0)
       |> Evision.canny(canny_lo, canny_hi)
-      |> Evision.min(Evision.erode(mask_mat, kernel({5, 5})))
+      |> Evision.min(eroded)
 
     inner
     |> Evision.max(Evision.canny(mask_mat, 50, 150))
+    |> add_chroma_edges(rgb_mat, eroded, chroma)
     |> Evision.morphologyEx(Evision.Constant.cv_MORPH_CLOSE(), kernel({3, 3}))
     |> Evision.dilate(kernel({2, 2}))
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
+  end
+
+  # chroma == 0: caminho neutro (idêntico ao traçado só-luminância de antes)
+  defp add_chroma_edges(base, _rgb_mat, _eroded, chroma) when chroma <= 0.0, do: base
+
+  # Canny no canal de saturação (HSV): pega bordas de COR que o cinza perde
+  # (tecido vermelho sobre sombra). medianBlur mata o chuvisco sem apagar as
+  # dobras; o limiar acompanha `chroma` (mais cor → mais sensível).
+  defp add_chroma_edges(base, rgb_mat, eroded, chroma) do
+    lo = round(72 - 80 * chroma)
+    hi = round(168 - 120 * chroma)
+
+    inner_chroma =
+      rgb_mat
+      |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2HSV())
+      |> Evision.extractChannel(1)
+      |> Evision.medianBlur(5)
+      |> Evision.canny(lo, hi)
+      |> Evision.min(eroded)
+
+    Evision.max(base, inner_chroma)
   end
 
   @doc """
