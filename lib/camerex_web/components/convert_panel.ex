@@ -22,6 +22,8 @@ defmodule CamerexWeb.ConvertPanel do
   attr :chroma, :float, required: true
   attr :layered, :boolean, default: false
   attr :layer_colors, :map, default: %{}
+  attr :fill, :boolean, default: false
+  attr :fill_opacity, :float, default: 0.5
   attr :floor, :boolean, default: false
   attr :glow, :float, default: 0.85
   attr :spread, :float, default: 0.5
@@ -227,6 +229,26 @@ defmodule CamerexWeb.ConvertPanel do
               {group.label}
             </label>
           </div>
+
+          <label id="fill-toggle" class="mt-3 flex items-center gap-2">
+            <input type="hidden" name="fill" value="false" />
+            <input type="checkbox" name="fill" value="true" checked={@fill} />
+            preencher as partes (textura suave)
+          </label>
+
+          <label :if={@fill} class="block">
+            opacidade ({@fill_opacity})
+            <input
+              type="range"
+              name="fill_opacity"
+              min="0"
+              max="1"
+              step="0.05"
+              value={@fill_opacity}
+              phx-debounce="150"
+              class="w-full"
+            />
+          </label>
         </div>
 
         <label id="floor-toggle" class="mt-3 flex items-center gap-2 text-sm">

@@ -169,5 +169,22 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       refute has_element?(view, "#convert-form input[name=trail]")
       assert has_element?(view, "#convert-form input[name=halo]")
     end
+
+    test "preenchimento: toggle só com layered; slider de opacidade ao ligar", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      # sem layered, sem preenchimento
+      refute has_element?(view, "#fill-toggle")
+
+      view |> form("#convert-form", %{"layered" => "true"}) |> render_change()
+      # com layered: o toggle aparece, mas o slider de opacidade ainda não
+      assert has_element?(view, "#fill-toggle")
+      refute has_element?(view, "#convert-form input[name=fill_opacity]")
+
+      view |> form("#convert-form", %{"layered" => "true", "fill" => "true"}) |> render_change()
+      # com preenchimento ligado: o slider de opacidade entra
+      assert has_element?(view, "#convert-form input[name=fill_opacity]")
+    end
   end
 end

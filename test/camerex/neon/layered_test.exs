@@ -123,4 +123,46 @@ defmodule Camerex.Neon.LayeredTest do
              |> Nx.to_number() == 0.0
     end
   end
+
+  describe "texture_fill/3" do
+    # campo de cor sintético: bloco teal no meio, zero fora
+    defp field_with_block do
+      rows = Nx.iota({40, 40}, axis: 0)
+      cols = Nx.iota({40, 40}, axis: 1)
+
+      inside =
+        Nx.logical_and(
+          Nx.logical_and(Nx.greater_equal(rows, 10), Nx.less(rows, 30)),
+          Nx.logical_and(Nx.greater_equal(cols, 10), Nx.less(cols, 30))
+        )
+        |> Nx.new_axis(-1)
+        |> Nx.broadcast({40, 40, 3})
+
+      teal =
+        Nx.tensor([43, 196, 178], type: :f32)
+        |> Nx.reshape({1, 1, 3})
+        |> Nx.broadcast({40, 40, 3})
+
+      Nx.select(inside, teal, Nx.broadcast(0.0, {40, 40, 3}))
+    end
+
+    test "confina à parte (field=0 → fill=0) e o brilho escala com a opacidade" do
+      rgb = Nx.broadcast(Nx.u8(180), {40, 40, 3})
+      field = field_with_block()
+
+      f0 = Layered.texture_fill(rgb, field, 0.0)
+      f3 = Layered.texture_fill(rgb, field, 0.3)
+      f6 = Layered.texture_fill(rgb, field, 0.6)
+
+      assert Nx.shape(f6) == {40, 40, 3}
+      assert Nx.type(f6) == {:f, 32}
+      # opacidade 0 → nada
+      assert Nx.to_number(Nx.sum(f0)) == 0.0
+      # fora da parte (field=0) → fill=0
+      assert f6[[0..5, 0..5, ..]] |> Nx.sum() |> Nx.to_number() == 0.0
+      # dentro da parte → aceso, e mais opacidade = mais brilho (não é binário)
+      assert Nx.to_number(Nx.sum(f3)) > 0.0
+      assert Nx.to_number(Nx.sum(f6)) > Nx.to_number(Nx.sum(f3))
+    end
+  end
 end

@@ -49,6 +49,8 @@ defmodule CamerexWeb.LibraryLive do
         chroma: 0.5,
         layered: false,
         layer_colors: Layers.default_colors(),
+        fill: false,
+        fill_opacity: 0.5,
         floor: false,
         glow: 0.85,
         spread: 0.5,
@@ -627,6 +629,8 @@ defmodule CamerexWeb.LibraryLive do
                 chroma={@chroma}
                 layered={@layered}
                 layer_colors={@layer_colors}
+                fill={@fill}
+                fill_opacity={@fill_opacity}
                 floor={@floor}
                 glow={@glow}
                 spread={@spread}
@@ -973,13 +977,15 @@ defmodule CamerexWeb.LibraryLive do
       swap_sides: params["swap_sides"] == "true",
       layered: params["layered"] == "true",
       layer_colors: parse_layer_colors(params, socket.assigns.layer_colors),
+      fill: params["fill"] == "true",
+      fill_opacity: parse_slider(params["fill_opacity"], socket.assigns.fill_opacity),
       floor: params["floor"] == "true",
       glow: parse_slider(params["glow"], socket.assigns.glow),
       spread: parse_slider(params["spread"], socket.assigns.spread)
     )
   end
 
-  @slider_keys ~w(halo bloom chroma trail detail glow spread)a
+  @slider_keys ~w(halo bloom chroma trail detail fill_opacity glow spread)a
 
   defp apply_item_params(socket, %{"params" => params} = item) when is_map(params) do
     sliders =
@@ -994,6 +1000,7 @@ defmodule CamerexWeb.LibraryLive do
       swap_sides: params["swap_sides"] || false,
       layered: params["layered"] || false,
       layer_colors: Layers.normalize_colors(params["layer_colors"]),
+      fill: params["fill"] || false,
       floor: params["floor"] || false
     )
   end
@@ -1035,6 +1042,8 @@ defmodule CamerexWeb.LibraryLive do
       "swap_sides" => socket.assigns.swap_sides,
       "layered" => socket.assigns.layered,
       "layer_colors" => serialize_layer_colors(socket.assigns.layer_colors),
+      "fill" => socket.assigns.fill,
+      "fill_opacity" => socket.assigns.fill_opacity,
       "floor" => socket.assigns.floor,
       "glow" => socket.assigns.glow,
       "spread" => socket.assigns.spread,

@@ -171,6 +171,7 @@ defmodule Camerex.Pipeline.Video do
           color_field: field,
           current_edges: line
         )
+        |> fill_frame(opts, frame, field)
 
       with :ok <- Encoder.write_frame(enc, neon) do
         {:ok,
@@ -226,6 +227,15 @@ defmodule Camerex.Pipeline.Video do
       end
     end
   end
+
+  # preenchimento texturizado SOB as linhas no cor-por-parte (mesma regra da
+  # foto). field aqui já é o campo de cor com EMA; a textura vem do frame.
+  defp fill_frame(neon, %{fill: true} = opts, frame, field) do
+    fill = Layered.texture_fill(frame, field, opts.fill_opacity)
+    neon |> Nx.as_type(:f32) |> Nx.max(fill) |> Nx.clip(0, 255) |> Nx.as_type(:u8)
+  end
+
+  defp fill_frame(neon, _opts, _frame, _field), do: neon
 
   # cena escura (luma média < 70): clareia SÓ a entrada da segmentação;
   # as bordas continuam vindo do frame original (igual ao protótipo Python)
@@ -318,7 +328,9 @@ defmodule Camerex.Pipeline.Video do
       mode: preset.mode,
       colors: colors,
       layered: p["layered"] == true,
-      layer_colors: Layers.normalize_colors(p["layer_colors"])
+      layer_colors: Layers.normalize_colors(p["layer_colors"]),
+      fill: p["fill"] == true,
+      fill_opacity: p["fill_opacity"] || 0.5
     }
   end
 

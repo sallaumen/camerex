@@ -58,6 +58,11 @@ defmodule Camerex.Neon.Layered do
   # que sobrevive ao mean-shift. O resto já está limpo, então pode ser firme.
   @density_sigma_div 60.0
   @density_threshold 0.34
+  # preenchimento: a cor de cada parte modulada pela LUMINÂNCIA da foto (segue
+  # dobras/volume → textura orgânica, não um chapado). Piso pra toda parte
+  # receber um tom-base mesmo no escuro; gama < 1 levanta os meios-tons.
+  @fill_floor 0.32
+  @fill_gamma 0.8
 
   @doc """
   Arte-de-linha `{h, w}` f32 em [0, 1]: combina por máximo duas camadas —
@@ -189,6 +194,28 @@ defmodule Camerex.Neon.Layered do
       [] -> Nx.broadcast(0.0, {h, w, 3})
       parts -> blended_field(parts, w)
     end
+  end
+
+  @doc """
+  Camada de PREENCHIMENTO `{h, w, 3}` f32: o `field` (cor por parte) modulado
+  pela luminância de `rgb` (textura que segue dobras/volume, com piso) e escalado
+  por `opacity` 0..1. Fora das partes o `field` é ~0, então o fill fica confinado
+  à figura. Componha por máximo sob as linhas (elas ficam crispas por cima).
+  """
+  @spec texture_fill(Nx.Tensor.t(), Nx.Tensor.t(), float()) :: Nx.Tensor.t()
+  def texture_fill(rgb, field, opacity) do
+    tex =
+      rgb
+      |> Evision.Mat.from_nx_2d()
+      |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2GRAY())
+      |> Evision.Mat.to_nx(Nx.BinaryBackend)
+      |> Nx.as_type(:f32)
+      |> Nx.divide(255.0)
+      |> Nx.pow(@fill_gamma)
+      |> Nx.multiply(1.0 - @fill_floor)
+      |> Nx.add(@fill_floor)
+
+    field |> Nx.multiply(Nx.new_axis(tex, -1)) |> Nx.multiply(opacity)
   end
 
   # --- arte-de-linha (contornos por rótulo individual) ----------------------

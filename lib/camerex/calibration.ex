@@ -68,7 +68,9 @@ defmodule Camerex.Calibration do
         bloom: params["bloom"] || 0.0,
         detail: params["detail"],
         chroma: params["chroma"] || 0.5,
-        layer_colors: Layers.normalize_colors(params["layer_colors"])
+        layer_colors: Layers.normalize_colors(params["layer_colors"]),
+        fill: params["fill"] || false,
+        fill_opacity: params["fill_opacity"] || 0.5
       ] ++ floor_opts(params)
 
     {:ok, Photo.render_with_labels(rgb, labels, opts)}
