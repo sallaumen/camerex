@@ -11,18 +11,25 @@ defmodule CamerexWeb.LibraryLive do
   import CamerexWeb.DetailPanel
   import CamerexWeb.LibraryComponents
 
-  alias Camerex.{Calibration, Jobs, Library, Settings, UserPresets, Workspace}
+  alias Camerex.{Calibration, Jobs, Library, Settings, SystemStats, UserPresets, Workspace}
   alias Camerex.Library.Import, as: LibraryImport
   alias Camerex.Neon.Palette
   alias Camerex.Parser.Layers
+  alias Camerex.Pipeline.Video
 
   @video_exts ~w(.mp4 .mov .m4v .webm)
+  # tick do mini-dashboard de performance (CPU/RAM); cache do prompt à parte,
+  # 2s é responsivo sem floodar o socket
+  @perf_interval 2_000
 
   ## Mount / params
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Jobs.subscribe()
+    if connected?(socket) do
+      Jobs.subscribe()
+      Process.send_after(self(), :perf_tick, @perf_interval)
+    end
 
     socket =
       socket
@@ -42,6 +49,8 @@ defmodule CamerexWeb.LibraryLive do
         import_path: "",
         import_scan: nil,
         new_folder_name: "",
+        perf: SystemStats.snapshot(),
+        frame_concurrency: Video.frame_concurrency(),
         colors_json: "",
         colors_json_error: nil,
         presets: Palette.all(),
@@ -133,6 +142,12 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   def handle_info({:calib_render, _stale_ref, _result}, socket), do: {:noreply, socket}
+
+  # tick do mini-dashboard: re-amostra CPU/RAM/BEAM e reagenda enquanto vivo
+  def handle_info(:perf_tick, socket) do
+    Process.send_after(self(), :perf_tick, @perf_interval)
+    {:noreply, assign(socket, :perf, SystemStats.snapshot())}
+  end
 
   ## Navegação e seleção
 
@@ -465,6 +480,18 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply, assign(socket, :concurrency, concurrency)}
   end
 
+  # threads/frame do vídeo: persiste (clamp em Video) e ecoa o valor aplicado;
+  # entrada inválida mantém o atual
+  def handle_event("set_frame_concurrency", %{"frame_concurrency" => n}, socket) do
+    applied =
+      case Integer.parse(n) do
+        {i, _} -> Video.set_frame_concurrency(i)
+        :error -> socket.assigns.frame_concurrency
+      end
+
+    {:noreply, assign(socket, :frame_concurrency, applied)}
+  end
+
   # Esc fecha a camada mais ao topo: modal > reprocesso > painel de detalhe
   def handle_event("escape_pressed", _params, socket) do
     cond do
@@ -491,6 +518,7 @@ defmodule CamerexWeb.LibraryLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
+      <.perf_dashboard perf={@perf} frame_concurrency={@frame_concurrency} />
       <div
         id="library-root"
         class="flex min-h-screen w-full gap-4 p-4"

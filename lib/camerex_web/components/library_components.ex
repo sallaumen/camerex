@@ -289,4 +289,92 @@ defmodule CamerexWeb.LibraryComponents do
 
   defp progress_pct(%{done: d, total: t}) when t > 0, do: Float.round(d / t * 100, 1)
   defp progress_pct(_), do: 0.0
+
+  @doc """
+  Mini-dashboard fixo (canto inferior esquerdo): barras de CPU e RAM do sistema
+  e memória do BEAM, mais o controle de threads/frame do vídeo. `perf` vem de
+  `Camerex.SystemStats.snapshot/0`. Emite `set_frame_concurrency` pro LiveView.
+  """
+  attr :perf, :map, required: true, doc: "snapshot de Camerex.SystemStats"
+  attr :frame_concurrency, :integer, required: true
+
+  def perf_dashboard(assigns) do
+    ~H"""
+    <div
+      id="perf-dashboard"
+      class="fixed bottom-3 left-3 z-50 w-56 rounded-lg border border-cx-border bg-cx-surface p-3 text-xs shadow-lg"
+    >
+      <p class="mb-2 flex items-center justify-between font-semibold uppercase tracking-wide text-cx-text-dim">
+        <span>desempenho</span>
+        <span>{@perf.schedulers} cores</span>
+      </p>
+
+      <.perf_bar label="CPU" pct={@perf.cpu_pct} />
+      <.perf_bar label="RAM" pct={ram_pct(@perf.mem)} note={ram_note(@perf.mem)} />
+
+      <p class="mb-2 flex justify-between">
+        <span class="text-cx-text-dim">BEAM</span>
+        <span class="text-cx-text">{@perf.beam_mb} MB</span>
+      </p>
+
+      <form
+        id="frame-concurrency-form"
+        phx-change="set_frame_concurrency"
+        class="flex items-center justify-between gap-2 border-t border-cx-border pt-2"
+      >
+        <label for="frame-concurrency" class="text-cx-text-dim">threads/frame</label>
+        <input
+          type="number"
+          id="frame-concurrency"
+          name="frame_concurrency"
+          value={@frame_concurrency}
+          min="1"
+          max="64"
+          step="1"
+          phx-debounce="300"
+          class="w-16 rounded border border-cx-border bg-cx-bg px-2 py-1 text-right text-cx-text"
+        />
+      </form>
+      <p class="mt-1 text-cx-text-dim">vale no próximo vídeo</p>
+    </div>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :pct, :integer, default: nil
+  attr :note, :string, default: nil
+
+  defp perf_bar(assigns) do
+    ~H"""
+    <div class="mb-2">
+      <div class="mb-0.5 flex justify-between">
+        <span class="text-cx-text-dim">{@label}</span>
+        <span class="text-cx-text">
+          {if @pct, do: "#{@pct}%", else: "—"}{if @note, do: " · #{@note}", else: ""}
+        </span>
+      </div>
+      <div class="h-2 overflow-hidden rounded bg-cx-bg">
+        <div
+          class={["h-full rounded transition-all duration-500", bar_color(@pct)]}
+          style={"width: #{@pct || 0}%"}
+        >
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  # cor da barra por carga: teal tranquilo · laranja atenção · vermelho no talo
+  defp bar_color(nil), do: "bg-cx-border"
+  defp bar_color(pct) when pct >= 90, do: "bg-red-500"
+  defp bar_color(pct) when pct >= 70, do: "bg-cx-orange"
+  defp bar_color(_), do: "bg-cx-teal"
+
+  defp ram_pct(nil), do: nil
+  defp ram_pct(%{pct: pct}), do: pct
+
+  defp ram_note(nil), do: nil
+  defp ram_note(%{used_mb: used, total_mb: total}), do: "#{gb(used)}/#{gb(total)} GB"
+
+  defp gb(mb), do: Float.round(mb / 1024, 1)
 end

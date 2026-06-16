@@ -225,4 +225,17 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert has_element?(view, "#transparent-toggle input[type=checkbox][checked]")
     end
   end
+
+  describe "dashboard de performance" do
+    test "presente no canto e ajusta threads/frame do vídeo", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+
+      assert has_element?(view, "#perf-dashboard")
+      assert has_element?(view, "#frame-concurrency-form input[name=frame_concurrency]")
+
+      # ajustar o controle reflete no valor do input (e persiste via Settings)
+      view |> form("#frame-concurrency-form", %{"frame_concurrency" => "8"}) |> render_change()
+      assert has_element?(view, ~s(#frame-concurrency[value="8"]))
+    end
+  end
 end

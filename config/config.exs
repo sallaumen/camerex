@@ -9,6 +9,13 @@ import Config
 
 config :nx, default_backend: EXLA.Backend
 
+# :os_mon alimenta o mini-dashboard (CPU via cpu_sup, RAM via memsup). Sem disco
+# (não usamos) e watermarks no teto pra não poluir o log com alarmes de memória.
+config :os_mon,
+  start_disksup: false,
+  sysmem_high_watermark: 0.99,
+  procmem_high_watermark: 0.99
+
 config :elixir, :time_zone_database, TimeZoneInfo.TimeZoneDatabase
 
 # .m4v não está no banco MIME padrão; o allow_upload exige tipo conhecido

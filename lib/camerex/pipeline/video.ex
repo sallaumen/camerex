@@ -19,7 +19,7 @@ defmodule Camerex.Pipeline.Video do
   hospedar é seguro e neutro em custo.
   """
 
-  alias Camerex.{Mask, Neon, Parser, Workspace}
+  alias Camerex.{Mask, Neon, Parser, Settings, Workspace}
   alias Camerex.Neon.{Layered, Palette}
   alias Camerex.Parser.{Layers, Object}
   alias Camerex.Video.{Decoder, Encoder, Probe}
@@ -412,20 +412,35 @@ defmodule Camerex.Pipeline.Video do
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
       fill_texture: p["fill_texture"] || 0.15,
-      frame_concurrency: frame_concurrency(p)
+      frame_concurrency: resolve_frame_concurrency(p)
     }
   end
 
-  # quantos frames preparar em paralelo. Default = nº de schedulers (1 vídeo
-  # satura a máquina); configurável via `:video_frame_concurrency` (p/ baixar
-  # quando vários vídeos rodam juntos) ou param `frame_concurrency` por item.
-  defp frame_concurrency(p) do
-    case p["frame_concurrency"] do
-      n when is_integer(n) and n > 0 ->
-        n
+  # teto generoso pro controle ao vivo: o usuário pode sobre-assinar os cores e
+  # monitorar no dashboard; acima disso é desperdício/risco de memória.
+  @frame_concurrency_max 64
 
-      _ ->
-        Application.get_env(:camerex, :video_frame_concurrency) || System.schedulers_online()
+  @doc """
+  Quantos frames preparar em paralelo (lido das Settings; default = nº de
+  schedulers). Ajustável ao vivo pelo dashboard — vale para o PRÓXIMO vídeo
+  (um job em andamento fixa a concorrência no início, via async_stream).
+  """
+  @spec frame_concurrency() :: pos_integer()
+  def frame_concurrency, do: Settings.get("video_frame_concurrency", System.schedulers_online())
+
+  @doc "Ajusta (clamp 1..#{@frame_concurrency_max}) e persiste; devolve o valor aplicado."
+  @spec set_frame_concurrency(integer()) :: pos_integer()
+  def set_frame_concurrency(n) do
+    clamped = n |> max(1) |> min(@frame_concurrency_max)
+    :ok = Settings.put("video_frame_concurrency", clamped)
+    clamped
+  end
+
+  # resolução por job: param explícito do item (CLI/teste) > Settings/default
+  defp resolve_frame_concurrency(p) do
+    case p["frame_concurrency"] do
+      n when is_integer(n) and n > 0 -> n
+      _ -> frame_concurrency()
     end
   end
 

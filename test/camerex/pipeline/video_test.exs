@@ -150,4 +150,15 @@ defmodule Camerex.Pipeline.VideoTest do
     # então o stream que chega ao encoder é o mesmo -> saída byte a byte igual
     assert File.read!(serial) == File.read!(parallel)
   end
+
+  test "frame_concurrency: default = schedulers; set faz clamp e persiste" do
+    # sem setting no workspace (tmp) -> default = nº de schedulers
+    assert Pipeline.Video.frame_concurrency() == System.schedulers_online()
+
+    # clamp em cima (64) e embaixo (1), persistido nas Settings
+    assert Pipeline.Video.set_frame_concurrency(1000) == 64
+    assert Pipeline.Video.frame_concurrency() == 64
+    assert Pipeline.Video.set_frame_concurrency(0) == 1
+    assert Pipeline.Video.frame_concurrency() == 1
+  end
 end
