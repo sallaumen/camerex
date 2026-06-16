@@ -238,4 +238,42 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert has_element?(view, ~s(#frame-concurrency[value="8"]))
     end
   end
+
+  describe "meus presets" do
+    test "salvar+aplicar preset restaura TODAS as configs (não só halo/trail)",
+         %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      # liga configs NOVAS (layered, fundo transparente, opacidade do fundo)
+      view
+      |> form("#convert-form", %{
+        "layered" => "true",
+        "transparent_bg" => "true",
+        "bg_opacity" => "0.4"
+      })
+      |> render_change()
+
+      # salva como preset
+      view |> form("#save-preset-form", %{"name" => "meu preset"}) |> render_submit()
+
+      # zera tudo de volta
+      view
+      |> form("#convert-form", %{
+        "layered" => "false",
+        "transparent_bg" => "false",
+        "bg_opacity" => "0"
+      })
+      |> render_change()
+
+      refute has_element?(view, "#transparent-toggle input[type=checkbox][checked]")
+
+      # aplica o preset salvo -> restaura as 3 configs novas
+      view |> element("button[phx-value-id='meu-preset']") |> render_click()
+
+      assert has_element?(view, "#layer-pickers")
+      assert has_element?(view, "#transparent-toggle input[type=checkbox][checked]")
+      assert has_element?(view, ~s(#convert-form input[name=bg_opacity][value="0.4"]))
+    end
+  end
 end

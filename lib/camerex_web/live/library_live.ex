@@ -455,17 +455,18 @@ defmodule CamerexWeb.LibraryLive do
       nil ->
         {:noreply, socket}
 
-      p ->
-        {:noreply,
-         socket
-         |> assign(
-           preset_id: p["preset"],
-           halo: p["halo"],
-           trail: p["trail"],
-           detail: p["detail"],
-           swap_sides: p["swap_sides"]
-         )
-         |> rerender_calibration()}
+      preset ->
+        # restaura pela MESMA trilha do reprocesso (apply_item_params), então o
+        # preset traz de volta TODOS os controles — não só halo/trail/detail
+        socket =
+          socket
+          |> apply_item_params(%{
+            "preset" => preset["preset"],
+            "params" => UserPresets.params(preset)
+          })
+          |> rerender_calibration()
+
+        {:noreply, socket}
     end
   end
 

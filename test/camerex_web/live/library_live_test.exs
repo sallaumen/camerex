@@ -559,7 +559,8 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       assert [preset] = UserPresets.all()
       assert preset["preset"] == "miami"
-      assert preset["halo"] == 0.9
+      # params agora ficam no sub-mapa "params" (antes era chave plana no topo)
+      assert preset["params"]["halo"] == 0.9
 
       # muda o painel e re-aplica o preset salvo
       lv |> element("button[phx-value-id=ouro]") |> render_click()

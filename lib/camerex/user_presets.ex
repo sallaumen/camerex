@@ -10,7 +10,9 @@ defmodule Camerex.UserPresets do
 
   @file_name "user_presets.json"
   @models ~w(u2net u2netp)
-  @param_keys ~w(halo trail detail swap_sides model)
+  # presets antigos guardavam os params como chaves planas no topo (sem o
+  # sub-mapa "params"); este é o conjunto que aqueles tinham, p/ fallback
+  @legacy_keys ~w(halo trail detail swap_sides model)
 
   @type preset :: %{String.t() => term()}
 
@@ -45,7 +47,9 @@ defmodule Camerex.UserPresets do
 
   @doc "Mapa de params de conversão (formato do manifest §3) de um preset salvo."
   @spec params(preset()) :: %{String.t() => term()}
-  def params(preset), do: Map.take(preset, @param_keys)
+  def params(%{"params" => params}) when is_map(params), do: params
+  # presets antigos (chaves planas no topo, sem o sub-mapa "params")
+  def params(preset), do: Map.take(preset, @legacy_keys)
 
   defp validate(attrs) do
     name = attrs |> Map.get("name", "") |> String.trim()
@@ -78,11 +82,10 @@ defmodule Camerex.UserPresets do
            "id" => Workspace.slug(name),
            "name" => name,
            "preset" => attrs["preset"],
-           "halo" => attrs["halo"] * 1.0,
-           "trail" => attrs["trail"] * 1.0,
-           "detail" => attrs["detail"] * 1.0,
-           "swap_sides" => attrs["swap_sides"],
-           "model" => attrs["model"]
+           # guarda o mapa de params INTEIRO (genérico): params novos (cor, fundo,
+           # objeto, preenchimento, chão…) entram sozinhos, sem listar campo a
+           # campo aqui — era exatamente o que deixava preset salvo pra trás.
+           "params" => Map.drop(attrs, ["id", "name", "preset"])
          }}
     end
   end
