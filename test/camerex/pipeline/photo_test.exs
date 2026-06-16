@@ -133,7 +133,8 @@ defmodule Camerex.Pipeline.PhotoTest do
       {:ok, floored} = Photo.render_with_mask(rgb, mask, preset: "forro-teal", floor: true)
 
       assert Nx.shape(flat) == {40, 40, 3}
-      assert elem(Nx.shape(floored), 0) > 40
+      assert {floored_h, 40, 3} = Nx.shape(floored)
+      assert floored_h > 40
     end
   end
 
