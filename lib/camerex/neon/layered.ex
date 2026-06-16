@@ -38,7 +38,7 @@ defmodule Camerex.Neon.Layered do
   # FIXOS — o mapa de traços é sempre o mesmo, rico.
   @ms_work_width 600
   @ms_spatial 16
-  @ms_color 28
+  @ms_color 20
   @canny_lo 50
   @canny_hi 130
   # o slider `detail` controla QUANTOS traços aparecem por TAMANHO: mantém só os
@@ -66,6 +66,10 @@ defmodule Camerex.Neon.Layered do
   # borrado e sangraria pra fora).
   @fill_gamma 0.8
   @fill_inset_div 150
+  # blur do campo de cor: divisor menor = blur maior = mais sangramento entre
+  # cores nas fronteiras. Estreito o bastante pra a cor não vazar de uma parte
+  # pra outra (ex.: pele clara invadindo o cabelo), mas ainda com transição suave.
+  @field_blur_div 200
 
   @doc """
   Arte-de-linha `{h, w}` f32 em [0, 1]: combina por máximo duas camadas —
@@ -326,7 +330,7 @@ defmodule Camerex.Neon.Layered do
   # cada parte vira um peso SUAVE (borrado); nas interseções as cores se misturam
   # proporcionalmente (num/den) → fluidez de tubo de LED em vez de borda dura.
   defp blended_field(parts, w) do
-    sigma = max(w / 80.0, 4.0)
+    sigma = max(w / @field_blur_div, 3.0)
     {hh, ww} = parts |> hd() |> elem(0) |> Nx.shape()
     acc0 = {Nx.broadcast(0.0, {hh, ww, 3}), Nx.broadcast(0.0, {hh, ww})}
 
