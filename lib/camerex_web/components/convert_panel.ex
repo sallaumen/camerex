@@ -23,7 +23,8 @@ defmodule CamerexWeb.ConvertPanel do
   attr :layered, :boolean, default: false
   attr :layer_colors, :map, default: %{}
   attr :fill, :boolean, default: false
-  attr :fill_opacity, :float, default: 0.5
+  attr :fill_color, :float, default: 0.45
+  attr :fill_texture, :float, default: 0.15
   attr :floor, :boolean, default: false
   attr :glow, :float, default: 0.85
   attr :spread, :float, default: 0.5
@@ -232,23 +233,37 @@ defmodule CamerexWeb.ConvertPanel do
 
           <label id="fill-toggle" class="mt-3 flex items-center gap-2">
             <input type="hidden" name="fill" value="false" />
-            <input type="checkbox" name="fill" value="true" checked={@fill} />
-            preencher as partes (textura suave)
+            <input type="checkbox" name="fill" value="true" checked={@fill} /> preencher as partes
           </label>
 
-          <label :if={@fill} class="block">
-            opacidade ({@fill_opacity})
-            <input
-              type="range"
-              name="fill_opacity"
-              min="0"
-              max="1"
-              step="0.05"
-              value={@fill_opacity}
-              phx-debounce="150"
-              class="w-full"
-            />
-          </label>
+          <div :if={@fill} class="space-y-2">
+            <label class="block">
+              opacidade da cor ({@fill_color})
+              <input
+                type="range"
+                name="fill_color"
+                min="0"
+                max="1"
+                step="0.05"
+                value={@fill_color}
+                phx-debounce="150"
+                class="w-full"
+              />
+            </label>
+            <label class="block">
+              textura da foto ({@fill_texture})
+              <input
+                type="range"
+                name="fill_texture"
+                min="0"
+                max="1"
+                step="0.05"
+                value={@fill_texture}
+                phx-debounce="150"
+                class="w-full"
+              />
+            </label>
+          </div>
         </div>
 
         <label id="floor-toggle" class="mt-3 flex items-center gap-2 text-sm">

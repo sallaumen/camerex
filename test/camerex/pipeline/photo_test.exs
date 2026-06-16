@@ -187,7 +187,13 @@ defmodule Camerex.Pipeline.PhotoTest do
     test "preenchimento acende o INTERIOR das partes (que fica escuro sem fill)" do
       labels = blocks_labels()
       sem = Photo.render_with_labels(gray_scene(40, 40), labels, fill: false)
-      com = Photo.render_with_labels(gray_scene(40, 40), labels, fill: true, fill_opacity: 0.6)
+
+      com =
+        Photo.render_with_labels(gray_scene(40, 40), labels,
+          fill: true,
+          fill_color: 0.6,
+          fill_texture: 0.15
+        )
 
       # miolo do bloco de roupa, longe das bordas: só acende com o preenchimento
       miolo = fn out -> out[[9..12, 14..25, ..]] |> Nx.sum() |> Nx.to_number() end

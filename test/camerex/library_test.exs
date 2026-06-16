@@ -164,7 +164,8 @@ defmodule Camerex.LibraryTest do
         "layered" => true,
         "layer_colors" => %{"clothing" => [0, 0, 255]},
         "fill" => true,
-        "fill_opacity" => 0.45,
+        "fill_color" => 0.5,
+        "fill_texture" => 0.12,
         "floor" => true,
         "glow" => 0.6,
         "spread" => 0.4
@@ -178,7 +179,8 @@ defmodule Camerex.LibraryTest do
       assert m["params"]["layered"] == true
       assert m["params"]["layer_colors"] == %{"clothing" => [0, 0, 255]}
       assert m["params"]["fill"] == true
-      assert m["params"]["fill_opacity"] == 0.45
+      assert m["params"]["fill_color"] == 0.5
+      assert m["params"]["fill_texture"] == 0.12
       assert m["params"]["floor"] == true
       assert m["params"]["glow"] == 0.6
       assert m["params"]["spread"] == 0.4

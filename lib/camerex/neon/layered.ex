@@ -58,11 +58,14 @@ defmodule Camerex.Neon.Layered do
   # que sobrevive ao mean-shift. O resto já está limpo, então pode ser firme.
   @density_sigma_div 60.0
   @density_threshold 0.34
-  # preenchimento: a cor de cada parte modulada pela LUMINÂNCIA da foto (segue
-  # dobras/volume → textura orgânica, não um chapado). Piso pra toda parte
-  # receber um tom-base mesmo no escuro; gama < 1 levanta os meios-tons.
-  @fill_floor 0.32
+  # preenchimento: DUAS opacidades independentes — `color` (intensidade do tom
+  # chapado da parte) e `texture` (quanto a LUMINÂNCIA da foto modula por cima,
+  # dando volume/dobras). texture baixo = quase chapado mesmo com a cor forte.
+  # gama < 1 levanta os meios-tons da textura. O fill é confinado à figura
+  # ERODIDA (`@fill_inset_div`), pra não vazar pro chão/fundo (o campo de cor é
+  # borrado e sangraria pra fora).
   @fill_gamma 0.8
+  @fill_inset_div 150
 
   @doc """
   Arte-de-linha `{h, w}` f32 em [0, 1]: combina por máximo duas camadas —
@@ -197,14 +200,20 @@ defmodule Camerex.Neon.Layered do
   end
 
   @doc """
-  Camada de PREENCHIMENTO `{h, w, 3}` f32: o `field` (cor por parte) modulado
-  pela luminância de `rgb` (textura que segue dobras/volume, com piso) e escalado
-  por `opacity` 0..1. Fora das partes o `field` é ~0, então o fill fica confinado
-  à figura. Componha por máximo sob as linhas (elas ficam crispas por cima).
+  Camada de PREENCHIMENTO `{h, w, 3}` f32: o `field` (cor por parte) com duas
+  opacidades independentes e confinado à figura (de `labels`, erodida).
+
+  opts: `color:` 0..1 (intensidade do tom chapado) · `texture:` 0..1 (quanto a
+  luminância da foto modula por cima — dá volume/dobras). texture baixo deixa
+  quase chapado mesmo com a cor forte. Componha por máximo sob as linhas.
   """
-  @spec texture_fill(Nx.Tensor.t(), Nx.Tensor.t(), float()) :: Nx.Tensor.t()
-  def texture_fill(rgb, field, opacity) do
-    tex =
+  @spec texture_fill(Nx.Tensor.t(), Nx.Tensor.t(), Nx.Tensor.t(), keyword()) :: Nx.Tensor.t()
+  def texture_fill(rgb, field, labels, opts \\ []) do
+    color_op = Keyword.get(opts, :color, 0.45)
+    texture_op = Keyword.get(opts, :texture, 0.15)
+    {_h, w, _} = Nx.shape(rgb)
+
+    lum =
       rgb
       |> Evision.Mat.from_nx_2d()
       |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2GRAY())
@@ -212,10 +221,31 @@ defmodule Camerex.Neon.Layered do
       |> Nx.as_type(:f32)
       |> Nx.divide(255.0)
       |> Nx.pow(@fill_gamma)
-      |> Nx.multiply(1.0 - @fill_floor)
-      |> Nx.add(@fill_floor)
 
-    field |> Nx.multiply(Nx.new_axis(tex, -1)) |> Nx.multiply(opacity)
+    # tex ~1 (chapado) quando texture_op baixo; = luminância quando alto
+    tex = Nx.add(1.0 - texture_op, Nx.multiply(texture_op, lum))
+    mask = figure_inset_mask(labels, w)
+
+    field
+    |> Nx.multiply(Nx.new_axis(tex, -1))
+    |> Nx.multiply(color_op)
+    |> Nx.multiply(Nx.new_axis(mask, -1))
+  end
+
+  # união das partes ERODIDA (0/1 f32): confina o fill bem dentro da silhueta,
+  # então o campo de cor borrado não sangra pro chão/fundo.
+  defp figure_inset_mask(labels, w) do
+    k = max(round(w / @fill_inset_div), 1)
+
+    labels
+    |> Nx.greater(0)
+    |> Nx.multiply(255)
+    |> Nx.as_type(:u8)
+    |> Evision.Mat.from_nx()
+    |> Evision.erode(kernel(2 * k + 1))
+    |> Evision.Mat.to_nx(Nx.BinaryBackend)
+    |> Nx.greater(0)
+    |> Nx.as_type(:f32)
   end
 
   # --- arte-de-linha (contornos por rótulo individual) ----------------------

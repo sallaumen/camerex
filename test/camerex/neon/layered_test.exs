@@ -124,45 +124,37 @@ defmodule Camerex.Neon.LayeredTest do
     end
   end
 
-  describe "texture_fill/3" do
-    # campo de cor sintético: bloco teal no meio, zero fora
-    defp field_with_block do
-      rows = Nx.iota({40, 40}, axis: 0)
-      cols = Nx.iota({40, 40}, axis: 1)
-
-      inside =
-        Nx.logical_and(
-          Nx.logical_and(Nx.greater_equal(rows, 10), Nx.less(rows, 30)),
-          Nx.logical_and(Nx.greater_equal(cols, 10), Nx.less(cols, 30))
-        )
-        |> Nx.new_axis(-1)
-        |> Nx.broadcast({40, 40, 3})
-
-      teal =
-        Nx.tensor([43, 196, 178], type: :f32)
-        |> Nx.reshape({1, 1, 3})
-        |> Nx.broadcast({40, 40, 3})
-
-      Nx.select(inside, teal, Nx.broadcast(0.0, {40, 40, 3}))
+  describe "texture_fill/4" do
+    # bloco de roupa (4) + rgb com gradiente de luminância nas colunas
+    defp fill_fixture do
+      labels = block_labels(40, 40, 4, {10, 30, 10, 30})
+      field = Layered.color_field(labels, Layers.default_colors(), 40)
+      grad = Nx.iota({40, 40}, axis: 1) |> Nx.multiply(6) |> Nx.clip(0, 255) |> Nx.as_type(:u8)
+      rgb = grad |> Nx.new_axis(-1) |> Nx.broadcast({40, 40, 3})
+      {rgb, field, labels}
     end
 
-    test "confina à parte (field=0 → fill=0) e o brilho escala com a opacidade" do
-      rgb = Nx.broadcast(Nx.u8(180), {40, 40, 3})
-      field = field_with_block()
+    test "confina à figura, escala com a cor, e a textura é independente" do
+      {rgb, field, labels} = fill_fixture()
+      f = fn c, t -> Layered.texture_fill(rgb, field, labels, color: c, texture: t) end
+      px = fn out, r, col -> out[[r, col]] |> Nx.sum() |> Nx.to_number() end
 
-      f0 = Layered.texture_fill(rgb, field, 0.0)
-      f3 = Layered.texture_fill(rgb, field, 0.3)
-      f6 = Layered.texture_fill(rgb, field, 0.6)
+      assert Nx.shape(f.(0.5, 0.1)) == {40, 40, 3}
+      assert Nx.type(f.(0.5, 0.1)) == {:f, 32}
+      # cor 0 → nada aceso
+      assert Nx.to_number(Nx.sum(f.(0.0, 0.5))) == 0.0
+      # confinado: fora da parte (cantos) → 0, mesmo com o campo borrado
+      assert f.(0.6, 0.5)[[0..4, 0..4, ..]] |> Nx.sum() |> Nx.to_number() == 0.0
+      # opacidade da cor escala o brilho
+      assert Nx.to_number(Nx.sum(f.(0.6, 0.1))) > Nx.to_number(Nx.sum(f.(0.3, 0.1)))
 
-      assert Nx.shape(f6) == {40, 40, 3}
-      assert Nx.type(f6) == {:f, 32}
-      # opacidade 0 → nada
-      assert Nx.to_number(Nx.sum(f0)) == 0.0
-      # fora da parte (field=0) → fill=0
-      assert f6[[0..5, 0..5, ..]] |> Nx.sum() |> Nx.to_number() == 0.0
-      # dentro da parte → aceso, e mais opacidade = mais brilho (não é binário)
-      assert Nx.to_number(Nx.sum(f3)) > 0.0
-      assert Nx.to_number(Nx.sum(f6)) > Nx.to_number(Nx.sum(f3))
+      # textura 0 = chapado: dois pontos no bloco (lado escuro vs claro da FOTO)
+      # ficam iguais (a cor não varia com a luminância)
+      flat = f.(0.5, 0.0)
+      assert_in_delta px.(flat, 20, 13), px.(flat, 20, 26), 1.5
+      # textura alta = segue a luminância: o lado claro da foto fica mais aceso
+      shaded = f.(0.5, 0.9)
+      assert px.(shaded, 20, 26) > px.(shaded, 20, 13)
     end
   end
 end

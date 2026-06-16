@@ -78,16 +78,21 @@ defmodule Camerex.Pipeline.Photo do
     field = Layered.color_field(labels, colors, w)
 
     Neon.compose(line, [{0, 0, 0}], halo: halo, bloom: bloom, color_field: field)
-    |> with_fill(rgb, field, opts)
+    |> with_fill(rgb, field, labels, opts)
     |> with_floor(opts)
   end
 
-  # preenchimento texturizado SOB as linhas (opt-in): a cor de cada parte
-  # modulada pela luminância da foto, semi-transparente. Por máximo, então as
-  # linhas (mais brilhantes) ficam por cima e o interior ganha um tom com volume.
-  defp with_fill(neon, rgb, field, opts) do
+  # preenchimento texturizado SOB as linhas (opt-in): a cor de cada parte com
+  # opacidade própria + a luminância da foto (textura) com opacidade própria,
+  # confinado à figura. Por máximo, então as linhas ficam crispas por cima.
+  defp with_fill(neon, rgb, field, labels, opts) do
     if Keyword.get(opts, :fill, false) do
-      fill = Layered.texture_fill(rgb, field, Keyword.get(opts, :fill_opacity, 0.5))
+      fill =
+        Layered.texture_fill(rgb, field, labels,
+          color: Keyword.get(opts, :fill_color, 0.45),
+          texture: Keyword.get(opts, :fill_texture, 0.15)
+        )
+
       neon |> Nx.as_type(:f32) |> Nx.max(fill) |> Nx.clip(0, 255) |> Nx.as_type(:u8)
     else
       neon
@@ -172,7 +177,8 @@ defmodule Camerex.Pipeline.Photo do
       layered: p["layered"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       fill: p["fill"],
-      fill_opacity: p["fill_opacity"],
+      fill_color: p["fill_color"],
+      fill_texture: p["fill_texture"],
       floor: p["floor"],
       glow: p["glow"],
       spread: p["spread"]

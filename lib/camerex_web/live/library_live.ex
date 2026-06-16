@@ -50,7 +50,8 @@ defmodule CamerexWeb.LibraryLive do
         layered: false,
         layer_colors: Layers.default_colors(),
         fill: false,
-        fill_opacity: 0.5,
+        fill_color: 0.45,
+        fill_texture: 0.15,
         floor: false,
         glow: 0.85,
         spread: 0.5,
@@ -630,7 +631,8 @@ defmodule CamerexWeb.LibraryLive do
                 layered={@layered}
                 layer_colors={@layer_colors}
                 fill={@fill}
-                fill_opacity={@fill_opacity}
+                fill_color={@fill_color}
+                fill_texture={@fill_texture}
                 floor={@floor}
                 glow={@glow}
                 spread={@spread}
@@ -978,14 +980,15 @@ defmodule CamerexWeb.LibraryLive do
       layered: params["layered"] == "true",
       layer_colors: parse_layer_colors(params, socket.assigns.layer_colors),
       fill: params["fill"] == "true",
-      fill_opacity: parse_slider(params["fill_opacity"], socket.assigns.fill_opacity),
+      fill_color: parse_slider(params["fill_color"], socket.assigns.fill_color),
+      fill_texture: parse_slider(params["fill_texture"], socket.assigns.fill_texture),
       floor: params["floor"] == "true",
       glow: parse_slider(params["glow"], socket.assigns.glow),
       spread: parse_slider(params["spread"], socket.assigns.spread)
     )
   end
 
-  @slider_keys ~w(halo bloom chroma trail detail fill_opacity glow spread)a
+  @slider_keys ~w(halo bloom chroma trail detail fill_color fill_texture glow spread)a
 
   defp apply_item_params(socket, %{"params" => params} = item) when is_map(params) do
     sliders =
@@ -1043,7 +1046,8 @@ defmodule CamerexWeb.LibraryLive do
       "layered" => socket.assigns.layered,
       "layer_colors" => serialize_layer_colors(socket.assigns.layer_colors),
       "fill" => socket.assigns.fill,
-      "fill_opacity" => socket.assigns.fill_opacity,
+      "fill_color" => socket.assigns.fill_color,
+      "fill_texture" => socket.assigns.fill_texture,
       "floor" => socket.assigns.floor,
       "glow" => socket.assigns.glow,
       "spread" => socket.assigns.spread,
