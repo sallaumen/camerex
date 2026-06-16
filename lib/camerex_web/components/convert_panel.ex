@@ -72,319 +72,337 @@ defmodule CamerexWeb.ConvertPanel do
         </button>
       </div>
 
-      <div :if={@calib} id="calib-preview" class="rounded-lg border border-cx-border bg-cx-bg p-2">
-        <p :if={@calib == :preparing and @calib_url == nil} class="text-sm text-cx-text-dim">
-          preparando prévia…
-        </p>
-        <img
-          :if={@calib_url}
-          src={@calib_url}
-          data-role="calib-img"
-          alt="prévia ao vivo da calibragem"
-          class="w-full rounded"
-        />
-        <p :if={@calib_error} class="mt-1 text-sm text-cx-orange">
-          prévia falhou: {@calib_error}
-        </p>
-        <p class="mt-1 text-xs text-cx-text-dim">
-          prévia ao vivo · o rastro só aparece no vídeo final
-        </p>
-      </div>
-
-      <form id="convert-form" phx-submit="convert" phx-change="validate">
-        <div
-          :if={@reconvert_item == nil}
-          id="dropzone"
-          phx-drop-target={@uploads.media.ref}
-          class="rounded border border-dashed border-cx-border p-3"
-        >
-          <.live_file_input upload={@uploads.media} />
-          <p :for={err <- upload_errors(@uploads.media)} class="mt-1 text-sm text-red-300">
-            {upload_error_label(err)}
-          </p>
+      <%!-- 2 colunas no destaque: prévia GRANDE à esquerda, controles à direita --%>
+      <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+        <div id="convert-preview" class="self-start lg:sticky lg:top-4">
           <div
-            :for={entry <- @uploads.media.entries}
-            data-role="upload-entry"
-            class="mt-2 text-sm text-cx-text-dim"
+            :if={@calib}
+            id="calib-preview"
+            class="rounded-lg border border-cx-border bg-cx-bg p-2"
           >
-            {entry.client_name} — {entry.progress}%
-            <p :for={err <- upload_errors(@uploads.media, entry)} class="text-red-300">
-              {upload_error_label(err)}
+            <p :if={@calib == :preparing and @calib_url == nil} class="text-sm text-cx-text-dim">
+              preparando prévia…
+            </p>
+            <img
+              :if={@calib_url}
+              src={@calib_url}
+              data-role="calib-img"
+              alt="prévia ao vivo da calibragem"
+              class="mx-auto max-h-[72vh] w-full rounded object-contain"
+            />
+            <p :if={@calib_error} class="mt-1 text-sm text-cx-orange">
+              prévia falhou: {@calib_error}
+            </p>
+            <p class="mt-1 text-xs text-cx-text-dim">
+              prévia ao vivo · o rastro só aparece no vídeo final
             </p>
           </div>
-        </div>
-
-        <fieldset
-          :if={not @layered}
-          id="preset-swatches"
-          class="mt-4 flex flex-wrap items-center gap-3"
-        >
-          <.preset_swatch
-            :for={preset <- @presets}
-            preset={preset}
-            selected={preset.id == @preset_id}
-            phx-click="select_preset"
-            phx-value-id={preset.id}
-          />
-          <span class="text-xs text-cx-text-dim">
-            {(Palette.get(@preset_id) || %{name: @preset_id}).name}
-          </span>
-        </fieldset>
-
-        <div class="mt-4 space-y-3 text-sm">
-          <label class="block">
-            halo ({@halo})
-            <input
-              type="range"
-              name="halo"
-              min="0"
-              max="1"
-              step="0.05"
-              value={@halo}
-              phx-debounce="150"
-              class="w-full"
-            />
-          </label>
-          <label class="block">
-            brilho atmosférico ({@bloom})
-            <input
-              type="range"
-              name="bloom"
-              min="0"
-              max="1"
-              step="0.05"
-              value={@bloom}
-              phx-debounce="150"
-              class="w-full"
-            />
-          </label>
-          <label :if={not @layered} class="block">
-            cor ({@chroma})
-            <input
-              type="range"
-              name="chroma"
-              min="0"
-              max="1"
-              step="0.05"
-              value={@chroma}
-              phx-debounce="150"
-              class="w-full"
-            />
-          </label>
-          <label :if={not photo_reconvert?(@reconvert_item)} class="block">
-            rastro ({@trail})
-            <input
-              type="range"
-              name="trail"
-              min="0"
-              max="0.95"
-              step="0.05"
-              value={@trail}
-              phx-debounce="150"
-              class="w-full"
-            />
-          </label>
-          <label class="block">
-            detalhe ({@detail})
-            <input
-              type="range"
-              name="detail"
-              min="0"
-              max="1"
-              step="0.02"
-              value={@detail}
-              phx-debounce="150"
-              class="w-full"
-            />
-          </label>
-        </div>
-
-        <label
-          :if={duotone?(@preset_id) and not @layered}
-          id="swap-sides"
-          class="mt-3 flex items-center gap-2 text-sm"
-        >
-          <input type="hidden" name="swap_sides" value="false" />
-          <input type="checkbox" name="swap_sides" value="true" checked={@swap_sides} />
-          inverter lados
-        </label>
-
-        <label id="layered-toggle" class="mt-3 flex items-center gap-2 text-sm">
-          <input type="hidden" name="layered" value="false" />
-          <input type="checkbox" name="layered" value="true" checked={@layered} />
-          colorir por parte (pele, cabelo, roupa)
-        </label>
-
-        <div :if={@layered} id="layer-pickers" class="mt-2 space-y-2">
-          <p class="text-xs text-cx-text-dim">cor de cada parte</p>
-          <div class="grid grid-cols-2 gap-2 text-sm">
-            <label :for={group <- Layers.groups()} class="flex items-center gap-2">
-              <input
-                type="color"
-                name={"layer_#{group.key}"}
-                value={Palette.hex(Map.get(@layer_colors, group.key, group.default))}
-                phx-debounce="200"
-                aria-label={"cor da camada #{group.label}"}
-                class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
-              />
-              {group.label}
-            </label>
-          </div>
-
-          <label id="fill-toggle" class="mt-3 flex items-center gap-2">
-            <input type="hidden" name="fill" value="false" />
-            <input type="checkbox" name="fill" value="true" checked={@fill} /> preencher as partes
-          </label>
-
-          <div :if={@fill} class="space-y-2">
-            <label class="block">
-              opacidade da cor ({@fill_color})
-              <input
-                type="range"
-                name="fill_color"
-                min="0"
-                max="1"
-                step="0.05"
-                value={@fill_color}
-                phx-debounce="150"
-                class="w-full"
-              />
-            </label>
-            <label class="block">
-              textura da foto ({@fill_texture})
-              <input
-                type="range"
-                name="fill_texture"
-                min="0"
-                max="1"
-                step="0.05"
-                value={@fill_texture}
-                phx-debounce="150"
-                class="w-full"
-              />
-            </label>
+          <div
+            :if={!@calib}
+            class="flex min-h-[40vh] items-center justify-center rounded-lg border border-dashed border-cx-border p-4 text-center text-sm text-cx-text-dim"
+          >
+            a prévia ao vivo aparece aqui assim que você escolher uma mídia
           </div>
         </div>
 
-        <label id="floor-toggle" class="mt-3 flex items-center gap-2 text-sm">
-          <input type="hidden" name="floor" value="false" />
-          <input type="checkbox" name="floor" value="true" checked={@floor} /> luz no chão sob os pés
-        </label>
-
-        <div :if={@floor} id="floor-controls" class="mt-2 space-y-3 text-sm">
-          <label class="block">
-            brilho ({@glow})
-            <input
-              type="range"
-              name="glow"
-              min="0"
-              max="1"
-              step="0.05"
-              value={@glow}
-              phx-debounce="150"
-              class="w-full"
-            />
-          </label>
-          <label class="block">
-            espalhamento ({@spread})
-            <input
-              type="range"
-              name="spread"
-              min="0"
-              max="1"
-              step="0.05"
-              value={@spread}
-              phx-debounce="150"
-              class="w-full"
-            />
-          </label>
-        </div>
-
-        <div class="mt-4 flex flex-wrap items-center gap-2">
-          <button
-            type="submit"
-            id="convert-submit"
-            class="rounded bg-cx-teal px-4 py-2 font-medium text-cx-bg focus-visible:ring-2 focus-visible:ring-cx-text"
-          >
-            {submit_label(@reconvert_item)}
-          </button>
-          <button
-            :if={@reconvert_item == nil}
-            type="button"
-            id="import-only"
-            phx-click="import_only"
-            title="só importa pra biblioteca; processa quando você quiser"
-            class="rounded border border-cx-border px-4 py-2 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
-          >
-            Só importar
-          </button>
-        </div>
-      </form>
-
-      <div :if={@calib} id="calib-apply" class="mt-3 flex flex-wrap gap-2 text-sm">
-        <button
-          :if={@folder_count > 0}
-          type="button"
-          id="apply-folder"
-          phx-click="apply_folder"
-          data-confirm={"Aplicar estes ajustes em #{@folder_count} item(ns) desta pasta?"}
-          class="rounded border border-cx-border px-3 py-1.5 hover:border-cx-teal"
-        >
-          Aplicar nesta pasta ({@folder_count})
-        </button>
-        <button
-          :if={@selected_count > 0}
-          type="button"
-          id="apply-selection"
-          phx-click="apply_selection"
-          class="rounded border border-cx-border px-3 py-1.5 hover:border-cx-teal"
-        >
-          Aplicar na seleção ({@selected_count})
-        </button>
-      </div>
-
-      <div id="user-presets" class="border-t border-cx-border pt-3">
-        <p class="mb-2 text-xs uppercase tracking-wide text-cx-text-dim">meus presets</p>
-
-        <form id="save-preset-form" phx-submit="save_preset" class="flex items-center gap-2">
-          <input
-            type="text"
-            name="name"
-            value={@preset_name}
-            placeholder="nome do preset…"
-            class="w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5 text-sm"
-          />
-          <button
-            type="submit"
-            class="whitespace-nowrap rounded border border-cx-teal px-3 py-1.5 text-sm text-cx-teal"
-          >
-            salvar ajustes
-          </button>
-        </form>
-
-        <ul :if={@user_presets != []} class="mt-2 space-y-1 text-sm">
-          <li :for={p <- @user_presets} class="flex items-center gap-2" data-user-preset={p["id"]}>
-            <button
-              type="button"
-              phx-click="apply_preset"
-              phx-value-id={p["id"]}
-              class="flex-1 truncate rounded px-2 py-1 text-left hover:bg-cx-bg"
-              title={"aplicar #{p["name"]}"}
+        <div class="space-y-4">
+          <form id="convert-form" phx-submit="convert" phx-change="validate">
+            <div
+              :if={@reconvert_item == nil}
+              id="dropzone"
+              phx-drop-target={@uploads.media.ref}
+              class="rounded border border-dashed border-cx-border p-3"
             >
-              {p["name"]}
-              <span class="text-xs text-cx-text-dim">· {p["preset"]}</span>
+              <.live_file_input upload={@uploads.media} />
+              <p :for={err <- upload_errors(@uploads.media)} class="mt-1 text-sm text-red-300">
+                {upload_error_label(err)}
+              </p>
+              <div
+                :for={entry <- @uploads.media.entries}
+                data-role="upload-entry"
+                class="mt-2 text-sm text-cx-text-dim"
+              >
+                {entry.client_name} — {entry.progress}%
+                <p :for={err <- upload_errors(@uploads.media, entry)} class="text-red-300">
+                  {upload_error_label(err)}
+                </p>
+              </div>
+            </div>
+
+            <fieldset
+              :if={not @layered}
+              id="preset-swatches"
+              class="mt-4 flex flex-wrap items-center gap-3"
+            >
+              <.preset_swatch
+                :for={preset <- @presets}
+                preset={preset}
+                selected={preset.id == @preset_id}
+                phx-click="select_preset"
+                phx-value-id={preset.id}
+              />
+              <span class="text-xs text-cx-text-dim">
+                {(Palette.get(@preset_id) || %{name: @preset_id}).name}
+              </span>
+            </fieldset>
+
+            <div class="mt-4 space-y-3 text-sm">
+              <label class="block">
+                halo ({@halo})
+                <input
+                  type="range"
+                  name="halo"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={@halo}
+                  phx-debounce="150"
+                  class="w-full"
+                />
+              </label>
+              <label class="block">
+                brilho atmosférico ({@bloom})
+                <input
+                  type="range"
+                  name="bloom"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={@bloom}
+                  phx-debounce="150"
+                  class="w-full"
+                />
+              </label>
+              <label :if={not @layered} class="block">
+                cor ({@chroma})
+                <input
+                  type="range"
+                  name="chroma"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={@chroma}
+                  phx-debounce="150"
+                  class="w-full"
+                />
+              </label>
+              <label :if={not photo_reconvert?(@reconvert_item)} class="block">
+                rastro ({@trail})
+                <input
+                  type="range"
+                  name="trail"
+                  min="0"
+                  max="0.95"
+                  step="0.05"
+                  value={@trail}
+                  phx-debounce="150"
+                  class="w-full"
+                />
+              </label>
+              <label class="block">
+                detalhe ({@detail})
+                <input
+                  type="range"
+                  name="detail"
+                  min="0"
+                  max="1"
+                  step="0.02"
+                  value={@detail}
+                  phx-debounce="150"
+                  class="w-full"
+                />
+              </label>
+            </div>
+
+            <label
+              :if={duotone?(@preset_id) and not @layered}
+              id="swap-sides"
+              class="mt-3 flex items-center gap-2 text-sm"
+            >
+              <input type="hidden" name="swap_sides" value="false" />
+              <input type="checkbox" name="swap_sides" value="true" checked={@swap_sides} />
+              inverter lados
+            </label>
+
+            <label id="layered-toggle" class="mt-3 flex items-center gap-2 text-sm">
+              <input type="hidden" name="layered" value="false" />
+              <input type="checkbox" name="layered" value="true" checked={@layered} />
+              colorir por parte (pele, cabelo, roupa)
+            </label>
+
+            <div :if={@layered} id="layer-pickers" class="mt-2 space-y-2">
+              <p class="text-xs text-cx-text-dim">cor de cada parte</p>
+              <div class="grid grid-cols-2 gap-2 text-sm">
+                <label :for={group <- Layers.groups()} class="flex items-center gap-2">
+                  <input
+                    type="color"
+                    name={"layer_#{group.key}"}
+                    value={Palette.hex(Map.get(@layer_colors, group.key, group.default))}
+                    phx-debounce="200"
+                    aria-label={"cor da camada #{group.label}"}
+                    class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
+                  />
+                  {group.label}
+                </label>
+              </div>
+
+              <label id="fill-toggle" class="mt-3 flex items-center gap-2">
+                <input type="hidden" name="fill" value="false" />
+                <input type="checkbox" name="fill" value="true" checked={@fill} /> preencher as partes
+              </label>
+
+              <div :if={@fill} class="space-y-2">
+                <label class="block">
+                  opacidade da cor ({@fill_color})
+                  <input
+                    type="range"
+                    name="fill_color"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={@fill_color}
+                    phx-debounce="150"
+                    class="w-full"
+                  />
+                </label>
+                <label class="block">
+                  textura da foto ({@fill_texture})
+                  <input
+                    type="range"
+                    name="fill_texture"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={@fill_texture}
+                    phx-debounce="150"
+                    class="w-full"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <label id="floor-toggle" class="mt-3 flex items-center gap-2 text-sm">
+              <input type="hidden" name="floor" value="false" />
+              <input type="checkbox" name="floor" value="true" checked={@floor} />
+              luz no chão sob os pés
+            </label>
+
+            <div :if={@floor} id="floor-controls" class="mt-2 space-y-3 text-sm">
+              <label class="block">
+                brilho ({@glow})
+                <input
+                  type="range"
+                  name="glow"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={@glow}
+                  phx-debounce="150"
+                  class="w-full"
+                />
+              </label>
+              <label class="block">
+                espalhamento ({@spread})
+                <input
+                  type="range"
+                  name="spread"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={@spread}
+                  phx-debounce="150"
+                  class="w-full"
+                />
+              </label>
+            </div>
+
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+              <button
+                type="submit"
+                id="convert-submit"
+                class="rounded bg-cx-teal px-4 py-2 font-medium text-cx-bg focus-visible:ring-2 focus-visible:ring-cx-text"
+              >
+                {submit_label(@reconvert_item)}
+              </button>
+              <button
+                :if={@reconvert_item == nil}
+                type="button"
+                id="import-only"
+                phx-click="import_only"
+                title="só importa pra biblioteca; processa quando você quiser"
+                class="rounded border border-cx-border px-4 py-2 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
+              >
+                Só importar
+              </button>
+            </div>
+          </form>
+
+          <div :if={@calib} id="calib-apply" class="mt-3 flex flex-wrap gap-2 text-sm">
+            <button
+              :if={@folder_count > 0}
+              type="button"
+              id="apply-folder"
+              phx-click="apply_folder"
+              data-confirm={"Aplicar estes ajustes em #{@folder_count} item(ns) desta pasta?"}
+              class="rounded border border-cx-border px-3 py-1.5 hover:border-cx-teal"
+            >
+              Aplicar nesta pasta ({@folder_count})
             </button>
             <button
+              :if={@selected_count > 0}
               type="button"
-              phx-click={JS.push("delete_preset", value: %{id: p["id"]})}
-              data-confirm={"Apagar o preset #{p["name"]}?"}
-              aria-label={"apagar preset #{p["name"]}"}
-              class="text-cx-text-dim hover:text-red-300"
+              id="apply-selection"
+              phx-click="apply_selection"
+              class="rounded border border-cx-border px-3 py-1.5 hover:border-cx-teal"
             >
-              ✕
+              Aplicar na seleção ({@selected_count})
             </button>
-          </li>
-        </ul>
+          </div>
+
+          <div id="user-presets" class="border-t border-cx-border pt-3">
+            <p class="mb-2 text-xs uppercase tracking-wide text-cx-text-dim">meus presets</p>
+
+            <form id="save-preset-form" phx-submit="save_preset" class="flex items-center gap-2">
+              <input
+                type="text"
+                name="name"
+                value={@preset_name}
+                placeholder="nome do preset…"
+                class="w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5 text-sm"
+              />
+              <button
+                type="submit"
+                class="whitespace-nowrap rounded border border-cx-teal px-3 py-1.5 text-sm text-cx-teal"
+              >
+                salvar ajustes
+              </button>
+            </form>
+
+            <ul :if={@user_presets != []} class="mt-2 space-y-1 text-sm">
+              <li :for={p <- @user_presets} class="flex items-center gap-2" data-user-preset={p["id"]}>
+                <button
+                  type="button"
+                  phx-click="apply_preset"
+                  phx-value-id={p["id"]}
+                  class="flex-1 truncate rounded px-2 py-1 text-left hover:bg-cx-bg"
+                  title={"aplicar #{p["name"]}"}
+                >
+                  {p["name"]}
+                  <span class="text-xs text-cx-text-dim">· {p["preset"]}</span>
+                </button>
+                <button
+                  type="button"
+                  phx-click={JS.push("delete_preset", value: %{id: p["id"]})}
+                  data-confirm={"Apagar o preset #{p["name"]}?"}
+                  aria-label={"apagar preset #{p["name"]}"}
+                  class="text-cx-text-dim hover:text-red-300"
+                >
+                  ✕
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
     </section>
     """

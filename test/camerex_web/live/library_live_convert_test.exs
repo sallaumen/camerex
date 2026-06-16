@@ -139,7 +139,7 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert item["output_file"] == nil
       # importado, painel volta ao placeholder e o card aparece
       assert has_element?(view, "#item-#{item["id"]}")
-      assert render(view) =~ "right-placeholder"
+      refute render(view) =~ "convert-panel"
     end
   end
 

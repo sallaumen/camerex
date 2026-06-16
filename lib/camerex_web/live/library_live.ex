@@ -562,6 +562,47 @@ defmodule CamerexWeb.LibraryLive do
             </div>
           </div>
 
+          <%!-- destaque: detalhe (antes|depois grande) ou conversão, em cima;
+                a biblioteca (galeria) fica logo abaixo, largura cheia --%>
+          <section
+            :if={@current_item || @reconvert_item || @convert_open}
+            id="focus-zone"
+            class="rounded-lg border border-cx-border bg-cx-surface p-4"
+          >
+            <%= cond do %>
+              <% @current_item && @reconvert_item == nil -> %>
+                <.detail_panel item={@current_item} progress={@progress[@current_item["id"]]} />
+              <% true -> %>
+                <.convert_panel
+                  uploads={@uploads}
+                  presets={@presets}
+                  preset_id={@preset_id}
+                  halo={@halo}
+                  bloom={@bloom}
+                  chroma={@chroma}
+                  layered={@layered}
+                  layer_colors={@layer_colors}
+                  fill={@fill}
+                  fill_color={@fill_color}
+                  fill_texture={@fill_texture}
+                  floor={@floor}
+                  glow={@glow}
+                  spread={@spread}
+                  trail={@trail}
+                  detail={@detail}
+                  swap_sides={@swap_sides}
+                  calib={@calib}
+                  calib_url={@calib_url}
+                  calib_error={@calib_error}
+                  folder_count={length(@items)}
+                  selected_count={MapSet.size(@selected)}
+                  reconvert_item={@reconvert_item}
+                  user_presets={@user_presets}
+                  preset_name={@preset_name}
+                />
+            <% end %>
+          </section>
+
           <.filter_bar
             :if={@items != []}
             query={@query}
@@ -615,53 +656,6 @@ defmodule CamerexWeb.LibraryLive do
             </button>
           </div>
         </main>
-
-        <aside class="w-[400px] shrink-0 rounded-lg border border-cx-border bg-cx-surface p-4">
-          <%= cond do %>
-            <% @current_item && @reconvert_item == nil -> %>
-              <.detail_panel item={@current_item} progress={@progress[@current_item["id"]]} />
-            <% @reconvert_item || @convert_open -> %>
-              <.convert_panel
-                uploads={@uploads}
-                presets={@presets}
-                preset_id={@preset_id}
-                halo={@halo}
-                bloom={@bloom}
-                chroma={@chroma}
-                layered={@layered}
-                layer_colors={@layer_colors}
-                fill={@fill}
-                fill_color={@fill_color}
-                fill_texture={@fill_texture}
-                floor={@floor}
-                glow={@glow}
-                spread={@spread}
-                trail={@trail}
-                detail={@detail}
-                swap_sides={@swap_sides}
-                calib={@calib}
-                calib_url={@calib_url}
-                calib_error={@calib_error}
-                folder_count={length(@items)}
-                selected_count={MapSet.size(@selected)}
-                reconvert_item={@reconvert_item}
-                user_presets={@user_presets}
-                preset_name={@preset_name}
-              />
-            <% true -> %>
-              <div
-                id="right-placeholder"
-                class="flex h-full min-h-[60vh] flex-col items-center justify-center gap-4 text-center"
-              >
-                <p class="text-sm text-cx-text-dim">
-                  escolha uma conversão na galeria<br />ou comece uma nova
-                </p>
-                <button type="button" id="placeholder-new" phx-click="open_convert" class="neon-cta">
-                  + nova conversão
-                </button>
-              </div>
-          <% end %>
-        </aside>
       </div>
 
       <%!-- sem phx-click no overlay: cliques DENTRO do painel borbulham até aqui

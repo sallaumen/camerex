@@ -67,12 +67,12 @@ defmodule CamerexWeb.LibraryLiveTest do
   end
 
   describe "detalhe in-place" do
-    test "padrão é placeholder; card abre o detalhe; fechar volta ao placeholder",
+    test "padrão sem destaque; card abre o detalhe; fechar volta à galeria",
          %{conn: conn, tmp: tmp} do
       id = create_photo_item!(tmp, %{status: "done"})
 
       {:ok, lv, html} = live(conn, "/")
-      assert html =~ "right-placeholder"
+      refute html =~ "focus-zone"
       refute html =~ "detail-panel"
 
       lv |> element("#item-#{id} button[phx-click=open_item]") |> render_click()
@@ -81,10 +81,10 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       lv |> element("#close-detail") |> render_click()
       assert_patch(lv)
-      assert render(lv) =~ "right-placeholder"
+      refute render(lv) =~ "focus-zone"
     end
 
-    test "+ nova conversão abre o painel; ✕ fecha de volta ao placeholder", %{conn: conn} do
+    test "+ nova conversão abre o painel; ✕ fecha de volta à galeria", %{conn: conn} do
       {:ok, lv, html} = live(conn, "/")
       refute html =~ "convert-panel"
 
@@ -92,7 +92,7 @@ defmodule CamerexWeb.LibraryLiveTest do
       assert render(lv) =~ "convert-panel"
 
       lv |> element("#close-convert") |> render_click()
-      assert render(lv) =~ "right-placeholder"
+      refute render(lv) =~ "convert-panel"
     end
 
     test "clicar em outra imagem durante o reprocesso troca o painel para ela",
@@ -402,7 +402,7 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       lv |> element("#library-root") |> render_keydown()
       assert_patch(lv)
-      assert render(lv) =~ "right-placeholder"
+      refute render(lv) =~ "detail-panel"
     end
   end
 

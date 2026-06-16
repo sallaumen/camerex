@@ -17,7 +17,7 @@ defmodule CamerexWeb.DetailPanel do
     ~H"""
     <section id="detail-panel" class="space-y-4">
       <header class="flex items-start justify-between gap-2">
-        <div>
+        <div class="min-w-0">
           <h2 class="truncate text-lg font-semibold">{@item["original_filename"]}</h2>
           <div class="mt-1 flex items-center gap-2 text-xs">
             <.status_badge status={@item["status"]} />
@@ -46,7 +46,7 @@ defmodule CamerexWeb.DetailPanel do
             controls
             preload="metadata"
             data-role="video-original"
-            class="w-full rounded-lg border border-cx-border"
+            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
             src={Workspace.media_url(@item["id"], @item["original_file"])}
           ></video>
         </figure>
@@ -56,7 +56,7 @@ defmodule CamerexWeb.DetailPanel do
             controls
             preload="metadata"
             data-role="video-neon"
-            class="w-full rounded-lg border border-cx-border"
+            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
             src={versioned_media_url(@item, @item["output_file"])}
           ></video>
         </figure>
@@ -68,7 +68,7 @@ defmodule CamerexWeb.DetailPanel do
             id="before"
             src={Workspace.media_url(@item["id"], @item["original_file"])}
             alt="antes"
-            class="w-full rounded-lg border border-cx-border"
+            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
           />
           <figcaption class="mt-1 text-xs text-cx-text-dim">antes</figcaption>
         </figure>
@@ -77,7 +77,7 @@ defmodule CamerexWeb.DetailPanel do
             id="after"
             src={versioned_media_url(@item, @item["output_file"])}
             alt="depois"
-            class="w-full rounded-lg border border-cx-border"
+            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
           />
           <figcaption class="mt-1 text-xs text-cx-text-dim">depois (neon)</figcaption>
         </figure>
