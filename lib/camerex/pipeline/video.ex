@@ -8,7 +8,7 @@ defmodule Camerex.Pipeline.Video do
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
   alias Camerex.Neon.{Layered, Palette}
-  alias Camerex.Parser.Layers
+  alias Camerex.Parser.{Layers, Object}
   alias Camerex.Video.{Decoder, Encoder, Probe}
 
   @work_width 640
@@ -152,6 +152,7 @@ defmodule Camerex.Pipeline.Video do
   # das partes do parser. Parsear todo frame é caro; é o preço da qualidade.
   defp process_frame(frame, state, %{layered: true} = opts, enc) do
     with {:ok, labels} <- Parser.parse(frame) do
+      labels = object_labels(frame, labels, opts)
       {_h, w, _} = Nx.shape(frame)
       line = Layered.line_art(frame, labels, detail: opts.detail)
 
@@ -334,11 +335,24 @@ defmodule Camerex.Pipeline.Video do
       colors: colors,
       layered: p["layered"] == true,
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
+      detect_object: p["detect_object"] == true,
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
       fill_texture: p["fill_texture"] || 0.15
     }
   end
+
+  # opt-in por frame: roda o U²-Net e injeta o objeto (instrumento etc.) como a
+  # classe 18 (ver Camerex.Parser.Object). Custa uma passada a mais do segmenter
+  # por frame — aceitável pelo ganho de qualidade (paraleliza-se depois).
+  defp object_labels(frame, labels, %{detect_object: true} = opts) do
+    case opts.segmenter.segment(frame, model: opts.model) do
+      {:ok, raw} -> Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
+      _ -> labels
+    end
+  end
+
+  defp object_labels(_frame, labels, _opts), do: labels
 
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(reason), do: inspect(reason)

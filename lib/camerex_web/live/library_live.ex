@@ -49,6 +49,7 @@ defmodule CamerexWeb.LibraryLive do
         chroma: 0.5,
         layered: false,
         layer_colors: Layers.default_colors(),
+        detect_object: false,
         fill: false,
         fill_color: 0.45,
         fill_texture: 0.15,
@@ -582,6 +583,7 @@ defmodule CamerexWeb.LibraryLive do
                   chroma={@chroma}
                   layered={@layered}
                   layer_colors={@layer_colors}
+                  detect_object={@detect_object}
                   fill={@fill}
                   fill_color={@fill_color}
                   fill_texture={@fill_texture}
@@ -973,6 +975,7 @@ defmodule CamerexWeb.LibraryLive do
       swap_sides: params["swap_sides"] == "true",
       layered: params["layered"] == "true",
       layer_colors: parse_layer_colors(params, socket.assigns.layer_colors),
+      detect_object: params["detect_object"] == "true",
       fill: params["fill"] == "true",
       fill_color: parse_slider(params["fill_color"], socket.assigns.fill_color),
       fill_texture: parse_slider(params["fill_texture"], socket.assigns.fill_texture),
@@ -997,6 +1000,7 @@ defmodule CamerexWeb.LibraryLive do
       swap_sides: params["swap_sides"] || false,
       layered: params["layered"] || false,
       layer_colors: Layers.normalize_colors(params["layer_colors"]),
+      detect_object: params["detect_object"] || false,
       fill: params["fill"] || false,
       floor: params["floor"] || false
     )
@@ -1039,6 +1043,7 @@ defmodule CamerexWeb.LibraryLive do
       "swap_sides" => socket.assigns.swap_sides,
       "layered" => socket.assigns.layered,
       "layer_colors" => serialize_layer_colors(socket.assigns.layer_colors),
+      "detect_object" => socket.assigns.detect_object,
       "fill" => socket.assigns.fill,
       "fill_color" => socket.assigns.fill_color,
       "fill_texture" => socket.assigns.fill_texture,

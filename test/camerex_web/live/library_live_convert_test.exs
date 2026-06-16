@@ -187,5 +187,27 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert has_element?(view, "#convert-form input[name=fill_color]")
       assert has_element?(view, "#convert-form input[name=fill_texture]")
     end
+
+    test "objeto/instrumento: toggle só com layered; picker de cor ao ligar", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      # sem layered: nem o toggle nem o picker do objeto existem
+      refute has_element?(view, "#object-toggle")
+      refute has_element?(view, "#convert-form input[name=layer_object]")
+
+      view |> form("#convert-form", %{"layered" => "true"}) |> render_change()
+      # com layered: o toggle aparece, mas o picker do objeto ainda não
+      assert has_element?(view, "#object-toggle")
+      refute has_element?(view, "#convert-form input[name=layer_object]")
+
+      view
+      |> form("#convert-form", %{"layered" => "true", "detect_object" => "true"})
+      |> render_change()
+
+      # objeto ligado: entra o picker de cor da camada do objeto
+      assert has_element?(view, "#object-color")
+      assert has_element?(view, "#convert-form input[name=layer_object]")
+    end
   end
 end

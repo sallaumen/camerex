@@ -22,6 +22,7 @@ defmodule CamerexWeb.ConvertPanel do
   attr :chroma, :float, required: true
   attr :layered, :boolean, default: false
   attr :layer_colors, :map, default: %{}
+  attr :detect_object, :boolean, default: false
   attr :fill, :boolean, default: false
   attr :fill_color, :float, default: 0.45
   attr :fill_texture, :float, default: 0.15
@@ -233,7 +234,7 @@ defmodule CamerexWeb.ConvertPanel do
             <div :if={@layered} id="layer-pickers" class="mt-2 space-y-2">
               <p class="text-xs text-cx-text-dim">cor de cada parte</p>
               <div class="grid grid-cols-2 gap-2 text-sm">
-                <label :for={group <- Layers.groups()} class="flex items-center gap-2">
+                <label :for={group <- base_groups()} class="flex items-center gap-2">
                   <input
                     type="color"
                     name={"layer_#{group.key}"}
@@ -245,6 +246,27 @@ defmodule CamerexWeb.ConvertPanel do
                   {group.label}
                 </label>
               </div>
+
+              <label id="object-toggle" class="mt-3 flex items-center gap-2">
+                <input type="hidden" name="detect_object" value="false" />
+                <input type="checkbox" name="detect_object" value="true" checked={@detect_object} />
+                detectar objeto/instrumento na mão
+              </label>
+              <p class="text-xs text-cx-text-dim">
+                usa um 2º modelo (U²-Net) p/ o que a pessoa segura — instrumento, microfone…
+              </p>
+
+              <label :if={@detect_object} id="object-color" class="flex items-center gap-2 text-sm">
+                <input
+                  type="color"
+                  name={"layer_#{object_group().key}"}
+                  value={Palette.hex(Map.get(@layer_colors, :object, object_group().default))}
+                  phx-debounce="200"
+                  aria-label={"cor da camada #{object_group().label}"}
+                  class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
+                />
+                {object_group().label}
+              </label>
 
               <label id="fill-toggle" class="mt-3 flex items-center gap-2">
                 <input type="hidden" name="fill" value="false" />
@@ -411,6 +433,11 @@ defmodule CamerexWeb.ConvertPanel do
   defp duotone?(preset_id) do
     match?(%{mode: :duotone}, Palette.get(preset_id))
   end
+
+  # o objeto é uma camada opt-in (2º modelo): some do grid de cores fixas e
+  # ganha seu picker próprio só quando ligado, p/ não sugerir que sempre existe
+  defp base_groups, do: Enum.reject(Layers.groups(), &(&1.key == :object))
+  defp object_group, do: Enum.find(Layers.groups(), &(&1.key == :object))
 
   # rastro só afeta vídeo (decaimento entre frames); num reprocesso de foto é
   # no-op, então some — não confunde com um controle que não faz nada.

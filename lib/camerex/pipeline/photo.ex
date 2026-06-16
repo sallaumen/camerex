@@ -8,7 +8,7 @@ defmodule Camerex.Pipeline.Photo do
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
   alias Camerex.Neon.{Layered, Palette, Scene}
-  alias Camerex.Parser.Layers
+  alias Camerex.Parser.{Layers, Object}
 
   @spec render(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
   def render(rgb, opts \\ []) do
@@ -56,7 +56,25 @@ defmodule Camerex.Pipeline.Photo do
   @spec render_layered(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
   def render_layered(rgb, opts \\ []) do
     with {:ok, labels} <- Parser.parse(rgb) do
-      {:ok, render_with_labels(rgb, labels, opts)}
+      {:ok, render_with_labels(rgb, maybe_detect_object(rgb, labels, opts), opts)}
+    end
+  end
+
+  # opt-in: roda o U²-Net e injeta o objeto na mão (instrumento etc.) como a
+  # classe 18 (ver Camerex.Parser.Object). Custa uma passada a mais do segmenter.
+  defp maybe_detect_object(rgb, labels, opts) do
+    if Keyword.get(opts, :detect_object, false) do
+      segmenter = Application.fetch_env!(:camerex, :segmenter)
+
+      case segmenter.segment(rgb, model: "u2net") do
+        {:ok, raw} ->
+          Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
+
+        _ ->
+          labels
+      end
+    else
+      labels
     end
   end
 
@@ -176,6 +194,7 @@ defmodule Camerex.Pipeline.Photo do
       model: p["model"],
       layered: p["layered"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
+      detect_object: p["detect_object"],
       fill: p["fill"],
       fill_color: p["fill_color"],
       fill_texture: p["fill_texture"],

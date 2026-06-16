@@ -14,7 +14,11 @@ defmodule Camerex.Parser.Layers do
     %{key: :hair, label: "cabelo", ids: [2], default: {255, 90, 30}},
     %{key: :hat, label: "boné/chapéu", ids: [1], default: {255, 205, 50}},
     %{key: :clothing, label: "roupa", ids: [4, 5, 6, 7, 8, 17], default: {43, 196, 178}},
-    %{key: :accessories, label: "acessórios", ids: [3, 9, 10, 16], default: {127, 119, 240}}
+    %{key: :accessories, label: "acessórios", ids: [3, 9, 10, 16], default: {127, 119, 240}},
+    # objeto na mão (instrumento etc.): classe VIRTUAL 18 — não vem do ATR, é
+    # injetada pelo `Camerex.Parser.Object` (U²-Net foreground − pessoa) quando a
+    # detecção de objeto está ligada. Sem essa etapa, a classe 18 nunca aparece.
+    %{key: :object, label: "objeto/instrumento", ids: [18], default: {90, 200, 255}}
   ]
 
   @type group :: %{key: atom(), label: String.t(), ids: [0..17], default: Palette.color()}

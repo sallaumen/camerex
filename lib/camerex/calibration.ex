@@ -8,7 +8,7 @@ defmodule Camerex.Calibration do
   """
 
   alias Camerex.{Mask, Parser}
-  alias Camerex.Parser.Layers
+  alias Camerex.Parser.{Layers, Object}
   alias Camerex.Pipeline.{FramePreview, Photo}
 
   @preview_width 480
@@ -60,8 +60,14 @@ defmodule Camerex.Calibration do
   end
 
   # modo "cor por camada" (parser pronto na sessão) vs. modo normal (máscara)
-  defp render_neon(%{rgb: rgb, labels: labels}, %{"layered" => true} = params)
+  defp render_neon(%{rgb: rgb, mask: mask, labels: labels}, %{"layered" => true} = params)
        when labels != nil do
+    # objeto reusa a máscara U²-Net que a sessão já tem (sem rodar de novo)
+    labels =
+      if params["detect_object"],
+        do: Object.into_labels(labels, Object.detect(mask, labels)),
+        else: labels
+
     opts =
       [
         halo: params["halo"],
