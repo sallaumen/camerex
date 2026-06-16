@@ -42,6 +42,8 @@ defmodule CamerexWeb.LibraryLive do
         import_path: "",
         import_scan: nil,
         new_folder_name: "",
+        colors_json: "",
+        colors_json_error: nil,
         presets: Palette.all(),
         preset_id: "forro-laranja",
         halo: 0.6,
@@ -206,6 +208,31 @@ defmodule CamerexWeb.LibraryLive do
 
   def handle_event("open_modal", %{"modal" => "new_folder"}, socket) do
     {:noreply, assign(socket, modal: :new_folder, new_folder_name: "")}
+  end
+
+  # abre a modal de cores em lote já preenchida com o JSON das cores atuais
+  def handle_event("open_modal", %{"modal" => "colors_json"}, socket) do
+    {:noreply,
+     assign(socket,
+       modal: :colors_json,
+       colors_json: colors_to_json(socket.assigns.layer_colors),
+       colors_json_error: nil
+     )}
+  end
+
+  # aplica o JSON colado: parse → atualiza as cores por parte (e a prévia). Erro
+  # mantém o texto digitado e mostra a mensagem.
+  def handle_event("apply_colors_json", %{"json" => json}, socket) do
+    case parse_colors_json(json) do
+      {:ok, colors} ->
+        {:noreply,
+         socket
+         |> assign(layer_colors: colors, modal: nil, colors_json_error: nil)
+         |> rerender_calibration()}
+
+      {:error, msg} ->
+        {:noreply, assign(socket, colors_json: json, colors_json_error: msg)}
+    end
   end
 
   def handle_event("close_modal", _params, socket) do
@@ -755,6 +782,50 @@ defmodule CamerexWeb.LibraryLive do
               </button>
             </form>
           </div>
+
+          <div
+            :if={@modal == :colors_json}
+            id="colors-json-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="colors-json-title"
+            class="space-y-3"
+          >
+            <h2 id="colors-json-title" class="text-lg font-semibold">cores por parte (JSON)</h2>
+            <p class="text-sm text-cx-text-dim">
+              cole as cores em hex (<code>"#RRGGBB"</code>) ou <code>[r, g, b]</code>. partes ausentes
+              ficam no padrão; chaves desconhecidas são ignoradas.
+            </p>
+            <form id="colors-json-form" phx-submit="apply_colors_json" class="space-y-2">
+              <textarea
+                name="json"
+                rows="12"
+                spellcheck="false"
+                phx-mounted={JS.focus()}
+                class="w-full rounded border border-cx-border bg-cx-bg p-2 font-mono text-sm text-cx-text"
+              >{@colors_json}</textarea>
+              <p
+                :if={@colors_json_error}
+                id="colors-json-error"
+                role="alert"
+                class="text-sm text-cx-orange"
+              >
+                {@colors_json_error}
+              </p>
+              <div class="flex items-center gap-2">
+                <button type="submit" class="rounded bg-cx-teal px-4 py-2 font-medium text-cx-bg">
+                  aplicar cores
+                </button>
+                <button
+                  type="button"
+                  phx-click="close_modal"
+                  class="rounded border border-cx-border px-3 py-1.5 text-sm text-cx-text-dim hover:text-cx-text"
+                >
+                  cancelar
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </Layouts.app>
@@ -1058,6 +1129,56 @@ defmodule CamerexWeb.LibraryLive do
   defp serialize_layer_colors(colors) do
     Map.new(colors, fn {k, {r, g, b}} -> {Atom.to_string(k), [r, g, b]} end)
   end
+
+  # cores atuais -> JSON hex legível e ORDENADO pelos grupos (pra editar na modal)
+  defp colors_to_json(colors) do
+    body =
+      Enum.map_join(Layers.groups(), ",\n", fn %{key: key, default: default} ->
+        hex = colors |> Map.get(key, default) |> Palette.hex()
+        ~s(  "#{key}": "#{hex}")
+      end)
+
+    "{\n" <> body <> "\n}"
+  end
+
+  # JSON colado -> %{atom => {r,g,b}} mesclado sobre os defaults. Aceita "#RRGGBB"
+  # ou [r,g,b]; ignora partes desconhecidas; cor malformada vira erro legível.
+  defp parse_colors_json(json) do
+    case JSON.decode(json) do
+      {:ok, map} when is_map(map) -> build_layer_colors(map)
+      {:ok, _other} -> {:error, ~s(o JSON precisa ser um objeto, ex: {"roupa": "#2BC4B2"})}
+      {:error, _} -> {:error, "JSON inválido — confira aspas, vírgulas e chaves { }"}
+    end
+  end
+
+  defp build_layer_colors(map) do
+    known = Map.new(Layers.groups(), fn g -> {Atom.to_string(g.key), g.key} end)
+
+    Enum.reduce_while(map, {:ok, Layers.default_colors()}, fn {raw_key, raw_val}, {:ok, acc} ->
+      case {Map.get(known, raw_key), json_color(raw_val)} do
+        {nil, _} ->
+          {:cont, {:ok, acc}}
+
+        {key, {:ok, rgb}} ->
+          {:cont, {:ok, Map.put(acc, key, rgb)}}
+
+        {_key, :error} ->
+          {:halt, {:error, ~s(cor inválida em "#{raw_key}": use "#RRGGBB" ou [r,g,b])}}
+      end
+    end)
+  end
+
+  defp json_color("#" <> _ = hex) do
+    if String.match?(hex, ~r/^#[0-9a-fA-F]{6}$/), do: {:ok, hex_to_rgb(hex)}, else: :error
+  end
+
+  defp json_color([r, g, b])
+       when is_integer(r) and is_integer(g) and is_integer(b) and
+              r in 0..255 and g in 0..255 and b in 0..255 do
+    {:ok, {r, g, b}}
+  end
+
+  defp json_color(_), do: :error
 
   defp bulk_process(socket, params) do
     params = Map.put_new(params, "preset", socket.assigns.preset_id)

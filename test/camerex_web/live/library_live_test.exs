@@ -506,6 +506,48 @@ defmodule CamerexWeb.LibraryLiveTest do
     end
   end
 
+  describe "cores por parte em lote (JSON)" do
+    setup %{conn: conn} do
+      {:ok, lv, _} = live(conn, "/")
+      lv |> element("#new-conversion") |> render_click()
+      lv |> form("#convert-form", %{"layered" => "true"}) |> render_change()
+      lv |> element("#edit-colors-json") |> render_click()
+      %{lv: lv}
+    end
+
+    test "modal abre com o JSON das cores atuais (todas as partes)", %{lv: lv} do
+      html = render(lv)
+      assert html =~ "colors-json-modal"
+
+      # textarea escapa as aspas (&quot;); o nome de cada parte aparece como substring
+      for key <- ~w(skin hair hat clothing accessories object) do
+        assert html =~ key
+      end
+    end
+
+    test "aplica JSON hex válido (roupa azul) e fecha a modal", %{lv: lv} do
+      lv |> form("#colors-json-form", %{"json" => ~s({"clothing": "#0000FF"})}) |> render_submit()
+
+      refute render(lv) =~ "colors-json-modal"
+      # Palette.hex devolve hex MAIÚSCULO
+      assert has_element?(lv, ~s(input[name=layer_clothing][value="#0000FF"]))
+    end
+
+    test "também aceita [r, g, b] além de hex", %{lv: lv} do
+      lv |> form("#colors-json-form", %{"json" => ~s({"hair": [0, 255, 0]})}) |> render_submit()
+
+      assert has_element?(lv, ~s(input[name=layer_hair][value="#00FF00"]))
+    end
+
+    test "JSON inválido mostra erro e mantém a modal aberta", %{lv: lv} do
+      lv |> form("#colors-json-form", %{"json" => "{ não é json"}) |> render_submit()
+
+      html = render(lv)
+      assert html =~ "colors-json-error"
+      assert html =~ "colors-json-modal"
+    end
+  end
+
   describe "presets do usuário na UI" do
     test "salvar ajustes atuais e aplicar de volta", %{conn: conn} do
       {:ok, lv, _} = live(conn, "/")

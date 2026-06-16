@@ -247,6 +247,16 @@ defmodule CamerexWeb.ConvertPanel do
                 </label>
               </div>
 
+              <button
+                type="button"
+                id="edit-colors-json"
+                phx-click="open_modal"
+                phx-value-modal="colors_json"
+                class="text-sm text-cx-teal underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-cx-teal"
+              >
+                editar todas as cores como JSON
+              </button>
+
               <label id="object-toggle" class="mt-3 flex items-center gap-2">
                 <input type="hidden" name="detect_object" value="false" />
                 <input type="checkbox" name="detect_object" value="true" checked={@detect_object} />
