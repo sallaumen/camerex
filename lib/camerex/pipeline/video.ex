@@ -2,8 +2,21 @@ defmodule Camerex.Pipeline.Video do
   @moduledoc """
   Pipeline de vídeo neon: probe → decode → por frame (segmentação com
   componente consistente, EMA anti-flicker, rastro de luz, duotone com
-  split estabilizado) → encode H.264. O estado temporal atravessa os
-  frames num reduce; o stream do decoder mantém memória O(1 frame).
+  split estabilizado) → encode H.264.
+
+  **Map paralelo + scan sequencial.** A parte cara de cada frame (inferência
+  ATR/U²-Net, arte-de-linha, campo de cor) é independente entre frames, então
+  roda em paralelo via `Task.Supervisor.async_stream_nolink` (inferência ONNX é
+  thread-safe — ver `Camerex.Segmenter.Ortex`). O estado temporal (rastro, EMAs
+  de máscara/campo, split duotone) atravessa os frames num scan **sequencial e
+  em ordem** — `compose_step/4` — então a saída é idêntica à do reduce serial,
+  só mais rápida. `ordered: true` + `max_concurrency` mantêm a memória limitada
+  a ~`frame_concurrency` frames em voo.
+
+  Os tensores são materializados em `Nx.BinaryBackend` na fronteira das tasks:
+  o frame vem do decoder no backend default (EXLA, device-resident) e cruzar
+  processos com isso é frágil — e a composição já é toda Evision/binária, então
+  hospedar é seguro e neutro em custo.
   """
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
@@ -114,13 +127,27 @@ defmodule Camerex.Pipeline.Video do
   defp encode_frames(in_path, enc, fps, height, total_estimate, opts, progress_cb) do
     initial = %{mask_f: nil, trail: nil, split_ema: nil, field: nil, count: 0, first: nil}
 
-    in_path
-    |> Decoder.stream!(%{width: @work_width, height: height, fps: fps})
-    |> Enum.reduce_while(initial, &encode_step(&1, &2, opts, enc, total_estimate, progress_cb))
+    # frame vem em EXLA (Nx.from_binary); hospeda no BEAM antes de cruzar p/ as
+    # tasks (device-resident não atravessa processo com segurança)
+    frames =
+      in_path
+      |> Decoder.stream!(%{width: @work_width, height: height, fps: fps})
+      |> Stream.map(&to_host(&1))
+
+    Camerex.TaskSupervisor
+    |> Task.Supervisor.async_stream_nolink(frames, &prepare_frame(&1, opts),
+      max_concurrency: opts.frame_concurrency,
+      ordered: true,
+      timeout: :infinity
+    )
+    |> Enum.reduce_while(initial, &compose_reduce(&1, &2, opts, enc, total_estimate, progress_cb))
   end
 
-  defp encode_step(frame, state, opts, enc, total_estimate, progress_cb) do
-    case process_frame(frame, state, opts, enc) do
+  # scan SEQUENCIAL e em ordem sobre os frames já preparados em paralelo: aplica
+  # o estado temporal, compõe e grava. async_stream entrega {:ok, valor} ou
+  # {:exit, motivo} (crash da task); prepare_frame devolve {:ok, _} | {:error, _}.
+  defp compose_reduce({:ok, {:ok, prepared}}, state, opts, enc, total_estimate, progress_cb) do
+    case compose_step(prepared, state, opts, enc) do
       {:ok, new_state} ->
         progress_cb.(new_state.count, max(total_estimate, new_state.count))
         {:cont, new_state}
@@ -129,6 +156,12 @@ defmodule Camerex.Pipeline.Video do
         {:halt, {:error, reason}}
     end
   end
+
+  defp compose_reduce({:ok, {:error, reason}}, _state, _o, _e, _t, _cb),
+    do: {:halt, {:error, reason}}
+
+  defp compose_reduce({:exit, reason}, _state, _o, _e, _t, _cb),
+    do: {:halt, {:error, reason}}
 
   defp finish_render({:error, reason}, enc, _fps, _height) do
     _ = Encoder.close(enc)
@@ -150,84 +183,112 @@ defmodule Camerex.Pipeline.Video do
   # regra da foto), parseados por frame e estabilizados no tempo — rastro na
   # arte-de-linha, EMA no campo de cor. Não usa U²-Net: a silhueta vem da união
   # das partes do parser. Parsear todo frame é caro; é o preço da qualidade.
-  defp process_frame(frame, state, %{layered: true} = opts, enc) do
+  # ── ESTÁGIO PARALELO ──────────────────────────────────────────────────────
+  # parte cara e independente por frame. Roda numa task; materializa tudo em
+  # BinaryBackend p/ cruzar de volta ao processo do scan com segurança.
+
+  defp prepare_frame(frame, %{layered: true} = opts) do
     with {:ok, labels} <- Parser.parse(frame) do
       labels = object_labels(frame, labels, opts)
       {_h, w, _} = Nx.shape(frame)
       line = Layered.line_art(frame, labels, detail: opts.detail)
+      raw_field = Layered.color_field(labels, opts.layer_colors, w)
 
-      field =
-        Mask.ema(Layered.color_field(labels, opts.layer_colors, w), state.field, @field_ema_alpha)
-
-      trail =
-        case state.trail do
-          nil -> line
-          prev -> Nx.max(line, Nx.multiply(prev, opts.trail_decay))
-        end
-
-      neon =
-        Neon.compose(trail, [{0, 0, 0}],
-          halo: opts.halo,
-          bloom: opts.bloom,
-          color_field: field,
-          current_edges: line
-        )
-        |> fill_frame(opts, frame, labels, field)
-
-      with :ok <- Encoder.write_frame(enc, neon) do
-        {:ok,
-         %{
-           state
-           | trail: trail,
-             field: field,
-             count: state.count + 1,
-             first: state.first || {frame, neon}
-         }}
-      end
+      {:ok,
+       %{
+         kind: :layered,
+         frame: to_host(frame),
+         labels: to_host(labels),
+         line: to_host(line),
+         raw_field: to_host(raw_field)
+       }}
     end
   end
 
-  defp process_frame(frame, state, opts, enc) do
+  defp prepare_frame(frame, opts) do
     with {:ok, raw_mask} <- segment(frame, opts) do
-      prev_bin = binarize(state.mask_f)
-      component = Mask.consistent_component(raw_mask, prev_bin)
-      mask_f = component |> to_unit_f32() |> Mask.ema(state.mask_f, @mask_ema_alpha)
-      mask_bin = binarize(mask_f)
-
-      edges =
-        frame
-        |> Neon.trace_edges(mask_bin, detail: opts.detail, chroma: opts.chroma)
-        |> to_unit_f32()
-
-      trail =
-        case state.trail do
-          nil -> edges
-          prev -> Nx.max(edges, Nx.multiply(prev, opts.trail_decay))
-        end
-
-      {split_ema, weights} = color_weights(mask_bin, state.split_ema, opts)
-
-      neon =
-        Neon.compose(trail, opts.colors,
-          halo: opts.halo,
-          bloom: opts.bloom,
-          duotone_weights: weights,
-          current_edges: edges
-        )
-
-      with :ok <- Encoder.write_frame(enc, neon) do
-        {:ok,
-         %{
-           state
-           | mask_f: mask_f,
-             trail: trail,
-             split_ema: split_ema,
-             count: state.count + 1,
-             first: state.first || {frame, neon}
-         }}
-      end
+      {:ok, %{kind: :plain, frame: to_host(frame), raw_mask: to_host(raw_mask)}}
     end
   end
+
+  # ── ESTÁGIO SEQUENCIAL ────────────────────────────────────────────────────
+  # estado temporal + composição + gravação, em ordem (mesma matemática do
+  # reduce serial de antes — só a parte cara saiu para o estágio paralelo).
+
+  defp compose_step(%{kind: :layered} = p, state, opts, enc) do
+    field = Mask.ema(p.raw_field, state.field, @field_ema_alpha)
+
+    trail =
+      case state.trail do
+        nil -> p.line
+        prev -> Nx.max(p.line, Nx.multiply(prev, opts.trail_decay))
+      end
+
+    neon =
+      Neon.compose(trail, [{0, 0, 0}],
+        halo: opts.halo,
+        bloom: opts.bloom,
+        color_field: field,
+        current_edges: p.line
+      )
+      |> fill_frame(opts, p.frame, p.labels, field)
+
+    with :ok <- Encoder.write_frame(enc, neon) do
+      {:ok,
+       %{
+         state
+         | trail: trail,
+           field: field,
+           count: state.count + 1,
+           first: state.first || {p.frame, neon}
+       }}
+    end
+  end
+
+  defp compose_step(%{kind: :plain} = p, state, opts, enc) do
+    prev_bin = binarize(state.mask_f)
+    component = Mask.consistent_component(p.raw_mask, prev_bin)
+    mask_f = component |> to_unit_f32() |> Mask.ema(state.mask_f, @mask_ema_alpha)
+    mask_bin = binarize(mask_f)
+
+    edges =
+      p.frame
+      |> Neon.trace_edges(mask_bin, detail: opts.detail, chroma: opts.chroma)
+      |> to_unit_f32()
+
+    trail =
+      case state.trail do
+        nil -> edges
+        prev -> Nx.max(edges, Nx.multiply(prev, opts.trail_decay))
+      end
+
+    {split_ema, weights} = color_weights(mask_bin, state.split_ema, opts)
+
+    neon =
+      Neon.compose(trail, opts.colors,
+        halo: opts.halo,
+        bloom: opts.bloom,
+        duotone_weights: weights,
+        current_edges: edges
+      )
+
+    with :ok <- Encoder.write_frame(enc, neon) do
+      {:ok,
+       %{
+         state
+         | mask_f: mask_f,
+           trail: trail,
+           split_ema: split_ema,
+           count: state.count + 1,
+           first: state.first || {p.frame, neon}
+       }}
+    end
+  end
+
+  # hospeda o tensor no BEAM (BinaryBackend): no-op se já estiver lá; senão copia
+  # do device (EXLA) p/ poder trafegar entre processos. Barato — a composição já
+  # é toda Evision/binária.
+  defp to_host(tensor), do: Nx.backend_transfer(tensor, Nx.BinaryBackend)
 
   # preenchimento texturizado SOB as linhas no cor-por-parte (mesma regra da
   # foto). field aqui já é o campo de cor com EMA; a textura vem do frame.
@@ -338,8 +399,22 @@ defmodule Camerex.Pipeline.Video do
       detect_object: p["detect_object"] == true,
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
-      fill_texture: p["fill_texture"] || 0.15
+      fill_texture: p["fill_texture"] || 0.15,
+      frame_concurrency: frame_concurrency(p)
     }
+  end
+
+  # quantos frames preparar em paralelo. Default = nº de schedulers (1 vídeo
+  # satura a máquina); configurável via `:video_frame_concurrency` (p/ baixar
+  # quando vários vídeos rodam juntos) ou param `frame_concurrency` por item.
+  defp frame_concurrency(p) do
+    case p["frame_concurrency"] do
+      n when is_integer(n) and n > 0 ->
+        n
+
+      _ ->
+        Application.get_env(:camerex, :video_frame_concurrency) || System.schedulers_online()
+    end
   end
 
   # opt-in por frame: roda o U²-Net e injeta o objeto (instrumento etc.) como a

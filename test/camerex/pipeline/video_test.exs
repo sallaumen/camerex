@@ -120,4 +120,34 @@ defmodule Camerex.Pipeline.VideoTest do
     assert manifest["status"] == "failed"
     assert is_binary(manifest["error"]) and manifest["error"] != ""
   end
+
+  test "frame_concurrency não altera a saída: serial e paralelo dão bytes idênticos",
+       %{tmp_dir: tmp_dir} do
+    src = Path.join(tmp_dir, "clip.mp4")
+
+    {_, 0} =
+      System.cmd(
+        "ffmpeg",
+        ~w(-y -v error -f lavfi -i testsrc=duration=1:size=64x48:rate=8 #{src})
+      )
+
+    serial = Path.join(tmp_dir, "serial.mp4")
+    parallel = Path.join(tmp_dir, "parallel.mp4")
+    opts = [preset: "forro-duotone", detail: 0.5, trail: 0.7, model: "u2netp"]
+
+    assert :ok =
+             Pipeline.Video.render_file(src, serial, [{:frame_concurrency, 1} | opts], fn _, _ ->
+               :ok
+             end)
+
+    assert :ok =
+             Pipeline.Video.render_file(src, parallel, [{:frame_concurrency, 4} | opts], fn _,
+                                                                                            _ ->
+               :ok
+             end)
+
+    # map paralelo + scan sequencial preservam a matemática E a ordem dos frames,
+    # então o stream que chega ao encoder é o mesmo -> saída byte a byte igual
+    assert File.read!(serial) == File.read!(parallel)
+  end
 end
