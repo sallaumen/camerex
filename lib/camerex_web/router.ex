@@ -18,6 +18,8 @@ defmodule CamerexWeb.Router do
     pipe_through :browser
 
     live "/", LibraryLive
+    # download em massa: zip dos resultados prontos de uma pasta
+    get "/export/folder", ExportController, :folder
     # deep-links da v1 continuam funcionando
     get "/item/:id", RedirectController, :legacy_item
   end

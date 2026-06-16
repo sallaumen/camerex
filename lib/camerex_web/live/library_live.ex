@@ -617,6 +617,15 @@ defmodule CamerexWeb.LibraryLive do
               >
                 selecionar tudo
               </button>
+              <a
+                :if={Enum.any?(@items, &(&1["status"] == "done"))}
+                id="export-folder"
+                href={~p"/export/folder?folder=#{@folder}"}
+                download
+                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
+              >
+                baixar tudo (.zip)
+              </a>
             </div>
           </div>
 
