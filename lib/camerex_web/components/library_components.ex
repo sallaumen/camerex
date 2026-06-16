@@ -135,6 +135,10 @@ defmodule CamerexWeb.LibraryComponents do
         <.status_badge status={@item["status"]} />
       </div>
 
+      <p class="mt-1 truncate text-sm text-cx-text" title={@item["original_filename"]}>
+        {@item["original_filename"]}
+      </p>
+
       <div :if={@item["status"] == "processing"} data-role="job-progress" class="mt-1.5">
         <%= if @progress do %>
           <div class="h-1.5 rounded bg-cx-border">

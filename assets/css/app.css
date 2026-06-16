@@ -16,9 +16,16 @@
   --color-cx-surface: #16281f;
   --color-cx-border: #2a4a3c;
   --color-cx-text: #c9e5d8;
-  --color-cx-text-dim: #7fa293;
+  /* um pouco mais claro que o original (#7fa293) p/ legibilidade do texto secundário */
+  --color-cx-text-dim: #95b6a7;
   --color-cx-teal: #2bc4b2;
   --color-cx-orange: #ff8a5c;
+}
+
+/* base maior: como tudo no Tailwind é em rem, isto escala fontes E espaçamentos
+   juntos — leitura confortável sem precisar dar zoom no navegador (~112%) */
+html {
+  font-size: 18px;
 }
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
