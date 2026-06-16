@@ -11,7 +11,17 @@ defmodule CamerexWeb.LibraryLive do
   import CamerexWeb.DetailPanel
   import CamerexWeb.LibraryComponents
 
-  alias Camerex.{Calibration, Jobs, Library, Settings, SystemStats, UserPresets, Workspace}
+  alias Camerex.{
+    Calibration,
+    Jobs,
+    Library,
+    RenderParams,
+    Settings,
+    SystemStats,
+    UserPresets,
+    Workspace
+  }
+
   alias Camerex.Library.Import, as: LibraryImport
   alias Camerex.Neon.Palette
   alias Camerex.Parser.Layers
@@ -54,24 +64,7 @@ defmodule CamerexWeb.LibraryLive do
         colors_json: "",
         colors_json_error: nil,
         presets: Palette.all(),
-        preset_id: "forro-laranja",
-        halo: 0.6,
-        bloom: 0.4,
-        chroma: 0.5,
-        layered: false,
-        layer_colors: Layers.default_colors(),
-        detect_object: false,
-        bg_opacity: 0.0,
-        transparent_bg: false,
-        fill: false,
-        fill_color: 0.45,
-        fill_texture: 0.15,
-        floor: false,
-        glow: 0.85,
-        spread: 0.5,
-        trail: 0.7,
-        detail: 0.5,
-        swap_sides: false,
+        render_params: RenderParams.default(),
         preset_name: "",
         user_presets: UserPresets.all(),
         concurrency: Settings.get("concurrency", 3),
@@ -232,7 +225,7 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply,
      assign(socket,
        modal: :colors_json,
-       colors_json: colors_to_json(socket.assigns.layer_colors),
+       colors_json: colors_to_json(socket.assigns.render_params.layer_colors),
        colors_json_error: nil
      )}
   end
@@ -244,7 +237,8 @@ defmodule CamerexWeb.LibraryLive do
       {:ok, colors} ->
         {:noreply,
          socket
-         |> assign(layer_colors: colors, modal: nil, colors_json_error: nil)
+         |> put_render_params(layer_colors: colors)
+         |> assign(modal: nil, colors_json_error: nil)
          |> rerender_calibration()}
 
       {:error, msg} ->
@@ -303,8 +297,10 @@ defmodule CamerexWeb.LibraryLive do
   ## Painel de conversão (upload novo)
 
   def handle_event("select_preset", %{"id" => id}, socket) do
-    swap = if duotone?(id), do: socket.assigns.swap_sides, else: false
-    {:noreply, socket |> assign(preset_id: id, swap_sides: swap) |> rerender_calibration()}
+    swap = if duotone?(id), do: socket.assigns.render_params.swap_sides, else: false
+
+    {:noreply,
+     socket |> put_render_params(preset_id: id, swap_sides: swap) |> rerender_calibration()}
   end
 
   def handle_event("validate", params, socket) do
@@ -436,7 +432,7 @@ defmodule CamerexWeb.LibraryLive do
     attrs =
       socket
       |> panel_params()
-      |> Map.merge(%{"name" => name, "preset" => socket.assigns.preset_id})
+      |> Map.merge(%{"name" => name, "preset" => socket.assigns.render_params.preset_id})
 
     case UserPresets.save(attrs) do
       {:ok, _} ->
@@ -644,24 +640,24 @@ defmodule CamerexWeb.LibraryLive do
                 <.convert_panel
                   uploads={@uploads}
                   presets={@presets}
-                  preset_id={@preset_id}
-                  halo={@halo}
-                  bloom={@bloom}
-                  chroma={@chroma}
-                  layered={@layered}
-                  layer_colors={@layer_colors}
-                  detect_object={@detect_object}
-                  bg_opacity={@bg_opacity}
-                  transparent_bg={@transparent_bg}
-                  fill={@fill}
-                  fill_color={@fill_color}
-                  fill_texture={@fill_texture}
-                  floor={@floor}
-                  glow={@glow}
-                  spread={@spread}
-                  trail={@trail}
-                  detail={@detail}
-                  swap_sides={@swap_sides}
+                  preset_id={@render_params.preset_id}
+                  halo={@render_params.halo}
+                  bloom={@render_params.bloom}
+                  chroma={@render_params.chroma}
+                  layered={@render_params.layered}
+                  layer_colors={@render_params.layer_colors}
+                  detect_object={@render_params.detect_object}
+                  bg_opacity={@render_params.bg_opacity}
+                  transparent_bg={@render_params.transparent_bg}
+                  fill={@render_params.fill}
+                  fill_color={@render_params.fill_color}
+                  fill_texture={@render_params.fill_texture}
+                  floor={@render_params.floor}
+                  glow={@render_params.glow}
+                  spread={@render_params.spread}
+                  trail={@render_params.trail}
+                  detail={@render_params.detail}
+                  swap_sides={@render_params.swap_sides}
                   calib={@calib}
                   calib_url={@calib_url}
                   calib_error={@calib_error}
@@ -959,7 +955,7 @@ defmodule CamerexWeb.LibraryLive do
   ## Internas — conversão
 
   defp convert_upload(socket) do
-    case import_uploads(socket, socket.assigns.preset_id) do
+    case import_uploads(socket, socket.assigns.render_params.preset_id) do
       [] ->
         {:noreply, put_flash(socket, :error, "Escolha uma foto ou vídeo para converter.")}
 
@@ -984,7 +980,7 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   defp reprocess_item(socket, item) do
-    params = Map.put(panel_params(socket), "preset", socket.assigns.preset_id)
+    params = Map.put(panel_params(socket), "preset", socket.assigns.render_params.preset_id)
     Library.process_items([item["id"]], params)
 
     {:noreply,
@@ -1017,7 +1013,7 @@ defmodule CamerexWeb.LibraryLive do
   defp rerender_calibration(%{assigns: %{calib: %{} = session}} = socket) do
     lv = self()
     ref = make_ref()
-    params = Map.put(panel_params(socket), "preset", socket.assigns.preset_id)
+    params = Map.put(panel_params(socket), "preset", socket.assigns.render_params.preset_id)
 
     {:ok, _pid} =
       Task.start(fn -> send(lv, {:calib_render, ref, safe_render(session, params)}) end)
@@ -1032,7 +1028,7 @@ defmodule CamerexWeb.LibraryLive do
   # manifest (apply_item_params) mandam — não sobrescreve.
   defp suggest_layer_colors(socket, %{labels: labels, rgb: rgb}) when labels != nil do
     if socket.assigns.reconvert_item == nil do
-      assign(socket, :layer_colors, Layers.suggest_colors(rgb, labels))
+      put_render_params(socket, layer_colors: Layers.suggest_colors(rgb, labels))
     else
       socket
     end
@@ -1079,68 +1075,18 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   defp assign_controls(socket, params) do
-    assign(socket,
-      halo: parse_slider(params["halo"], socket.assigns.halo),
-      bloom: parse_slider(params["bloom"], socket.assigns.bloom),
-      chroma: parse_slider(params["chroma"], socket.assigns.chroma),
-      trail: parse_slider(params["trail"], socket.assigns.trail),
-      detail: parse_slider(params["detail"], socket.assigns.detail),
-      swap_sides: params["swap_sides"] == "true",
-      layered: params["layered"] == "true",
-      layer_colors: parse_layer_colors(params, socket.assigns.layer_colors),
-      detect_object: params["detect_object"] == "true",
-      bg_opacity: parse_slider(params["bg_opacity"], socket.assigns.bg_opacity),
-      transparent_bg: params["transparent_bg"] == "true",
-      fill: params["fill"] == "true",
-      fill_color: parse_slider(params["fill_color"], socket.assigns.fill_color),
-      fill_texture: parse_slider(params["fill_texture"], socket.assigns.fill_texture),
-      floor: params["floor"] == "true",
-      glow: parse_slider(params["glow"], socket.assigns.glow),
-      spread: parse_slider(params["spread"], socket.assigns.spread)
-    )
+    assign(socket, :render_params, RenderParams.from_form(params, socket.assigns.render_params))
   end
 
-  @slider_keys ~w(halo bloom chroma trail detail bg_opacity fill_color fill_texture glow spread)a
-
   defp apply_item_params(socket, %{"params" => params} = item) when is_map(params) do
-    sliders =
-      Enum.map(@slider_keys, fn k ->
-        {k, params[Atom.to_string(k)] || Map.fetch!(socket.assigns, k)}
-      end)
-
-    socket
-    |> assign(sliders)
-    |> assign(
-      preset_id: item["preset"] || socket.assigns.preset_id,
-      swap_sides: params["swap_sides"] || false,
-      layered: params["layered"] || false,
-      layer_colors: Layers.normalize_colors(params["layer_colors"]),
-      detect_object: params["detect_object"] || false,
-      transparent_bg: params["transparent_bg"] || false,
-      fill: params["fill"] || false,
-      floor: params["floor"] || false
-    )
+    assign(socket, :render_params, RenderParams.from_manifest(item, socket.assigns.render_params))
   end
 
   defp apply_item_params(socket, _item), do: socket
 
-  defp parse_slider(nil, fallback), do: fallback
-
-  defp parse_slider(value, fallback) do
-    case Float.parse(value) do
-      {f, _rest} -> f
-      :error -> fallback
-    end
-  end
-
-  # lê os 4 pickers de cor (hex dos <input type=color>) sobre o estado atual
-  defp parse_layer_colors(params, current) do
-    Enum.reduce(Layers.groups(), current, fn %{key: key}, acc ->
-      case params["layer_#{key}"] do
-        "#" <> _ = hex -> Map.put(acc, key, hex_to_rgb(hex))
-        _ -> acc
-      end
-    end)
+  # escritas pontuais de campos do %RenderParams{} a partir dos handlers
+  defp put_render_params(socket, fields) do
+    assign(socket, :render_params, struct(socket.assigns.render_params, fields))
   end
 
   defp hex_to_rgb("#" <> <<r::binary-2, g::binary-2, b::binary-2>>) do
@@ -1150,31 +1096,9 @@ defmodule CamerexWeb.LibraryLive do
   defp panel_params(socket), do: panel_params_for(socket, :photo)
 
   defp panel_params_for(socket, type) do
-    %{
-      "halo" => socket.assigns.halo,
-      "bloom" => socket.assigns.bloom,
-      "chroma" => socket.assigns.chroma,
-      "trail" => socket.assigns.trail,
-      "detail" => socket.assigns.detail,
-      "swap_sides" => socket.assigns.swap_sides,
-      "layered" => socket.assigns.layered,
-      "layer_colors" => serialize_layer_colors(socket.assigns.layer_colors),
-      "detect_object" => socket.assigns.detect_object,
-      "bg_opacity" => socket.assigns.bg_opacity,
-      "transparent_bg" => socket.assigns.transparent_bg,
-      "fill" => socket.assigns.fill,
-      "fill_color" => socket.assigns.fill_color,
-      "fill_texture" => socket.assigns.fill_texture,
-      "floor" => socket.assigns.floor,
-      "glow" => socket.assigns.glow,
-      "spread" => socket.assigns.spread,
-      "model" => default_model(type)
-    }
-  end
-
-  # %{skin: {r,g,b}, ...} -> %{"skin" => [r,g,b], ...} (JSON-safe pro manifest)
-  defp serialize_layer_colors(colors) do
-    Map.new(colors, fn {k, {r, g, b}} -> {Atom.to_string(k), [r, g, b]} end)
+    socket.assigns.render_params
+    |> RenderParams.to_manifest()
+    |> Map.put("model", default_model(type))
   end
 
   # cores atuais -> JSON hex legível e ORDENADO pelos grupos (pra editar na modal)
@@ -1228,7 +1152,7 @@ defmodule CamerexWeb.LibraryLive do
   defp json_color(_), do: :error
 
   defp bulk_process(socket, params) do
-    params = Map.put_new(params, "preset", socket.assigns.preset_id)
+    params = Map.put_new(params, "preset", socket.assigns.render_params.preset_id)
     result = Library.process_items(MapSet.to_list(socket.assigns.selected), params)
 
     {:noreply,
@@ -1239,7 +1163,7 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   defp apply_calibration_to(socket, ids) do
-    params = Map.put(panel_params(socket), "preset", socket.assigns.preset_id)
+    params = Map.put(panel_params(socket), "preset", socket.assigns.render_params.preset_id)
     result = Library.process_items(ids, params)
 
     {:noreply,

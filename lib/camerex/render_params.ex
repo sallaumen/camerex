@@ -1,6 +1,6 @@
 defmodule Camerex.RenderParams do
   @moduledoc """
-  Todos os controles de render do painel de conversão num struct (princípio
+  Reúne num struct os controles de render do painel de conversão (princípio
   *Data*): preset/cores por camada, composição (halo/bloom/cor/detalhe), fundo,
   preenchimento, objeto, chão e rastro.
 

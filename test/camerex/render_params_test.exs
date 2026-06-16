@@ -27,7 +27,7 @@ defmodule Camerex.RenderParamsTest do
       assert out.bloom == d.bloom
     end
 
-    test "booleano vem de == \"true\" (ausente ou \"false\" => false)" do
+    test "booleano vem de igualdade com 'true' (ausente ou 'false' vira false)" do
       d = RenderParams.default()
       assert RenderParams.from_form(%{"layered" => "true"}, d).layered == true
       assert RenderParams.from_form(%{"layered" => "false"}, d).layered == false
