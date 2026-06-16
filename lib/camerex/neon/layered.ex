@@ -70,6 +70,14 @@ defmodule Camerex.Neon.Layered do
   # cores nas fronteiras. Estreito o bastante pra a cor não vazar de uma parte
   # pra outra (ex.: pele clara invadindo o cabelo), mas ainda com transição suave.
   @field_blur_div 200
+  # suavização "tubo de LED": o Canny cru sai em escada de pixel, quebrado e em
+  # zigue-zague (cara de caneta riscando). close fecha as quebras, dilate dá um
+  # CORPO ao traço, e o blur anti-aliasa a escada → tubos fluidos e contínuos.
+  # norm levanta o brilho do núcleo do tubo (o blur espalha a energia).
+  @tube_close 3
+  @tube_dilate 3
+  @tube_blur 1.2
+  @tube_norm 0.8
 
   @doc """
   Arte-de-linha `{h, w}` f32 em [0, 1]: combina por máximo duas camadas —
@@ -90,7 +98,21 @@ defmodule Camerex.Neon.Layered do
     labels
     |> semantic_contours(w)
     |> Nx.max(internal_detail(rgb, labels, detail))
-    |> to_unit_f32()
+    |> smooth_tube()
+  end
+
+  # transforma os traços (u8 0/255) em TUBOS fluidos f32 0..1: fecha quebras,
+  # engrossa num corpo e anti-aliasa a escada de pixel do Canny.
+  defp smooth_tube(line_u8) do
+    line_u8
+    |> Evision.Mat.from_nx()
+    |> Evision.morphologyEx(Evision.Constant.cv_MORPH_CLOSE(), kernel(@tube_close))
+    |> Evision.dilate(kernel(@tube_dilate))
+    |> Evision.gaussianBlur({0, 0}, @tube_blur)
+    |> Evision.Mat.to_nx(Nx.BinaryBackend)
+    |> Nx.as_type(:f32)
+    |> Nx.divide(255.0 * @tube_norm)
+    |> Nx.min(1.0)
   end
 
   # contorno de cada rótulo presente (limpo de ilhas e suavizado) somado por
