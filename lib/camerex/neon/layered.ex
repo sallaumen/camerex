@@ -36,7 +36,7 @@ defmodule Camerex.Neon.Layered do
   # traça só fronteiras de região (cabelo em mechas, vincos, perfis), sem os
   # "quadrados". Roda numa versão reduzida (o mean-shift é caro). Parâmetros
   # FIXOS — o mapa de traços é sempre o mesmo, rico.
-  @ms_work_width 600
+  @ms_work_width 1600
   @ms_spatial 16
   @ms_color 20
   @canny_lo 50
@@ -47,7 +47,7 @@ defmodule Camerex.Neon.Layered do
   # muitos traços de tamanhos variados, o número cresce gradual (não é opacidade,
   # é quantidade). curva > 1 = entra devagar no começo. O mínimo é FRAÇÃO da área
   # da imagem (invariante à resolução).
-  @stroke_max_frac 0.0011
+  @stroke_max_frac 0.0006
   @stroke_curve 1.3
   # CLAHE no canal de valor (V) antes do mean-shift: realça o micro-contraste
   # LOCAL, então os vincos de roupa preta (e o boné) — que o tecido escuro
