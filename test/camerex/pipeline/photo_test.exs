@@ -199,6 +199,33 @@ defmodule Camerex.Pipeline.PhotoTest do
       miolo = fn out -> out[[9..12, 14..25, ..]] |> Nx.sum() |> Nx.to_number() end
       assert miolo.(com) > miolo.(sem)
     end
+
+    test "bg_opacity acende o fundo com o original atenuado" do
+      labels = blocks_labels()
+      scene = gray_scene(40, 40)
+      canto = fn out -> out[[0..2, 0..2, ..]] |> Nx.sum() |> Nx.to_number() end
+
+      sem = Photo.render_with_labels(scene, labels, bg_opacity: 0.0)
+      com = Photo.render_with_labels(scene, labels, bg_opacity: 0.5)
+
+      # o original atenuado aparece atrás -> o fundo (canto) fica mais aceso
+      assert canto.(com) > canto.(sem)
+    end
+
+    test "transparent_bg devolve RGBA: traço opaco, fundo bem mais transparente" do
+      out = Photo.render_with_labels(gray_scene(40, 40), blocks_labels(), transparent_bg: true)
+      assert Nx.shape(out) == {40, 40, 4}
+
+      alpha = out[[.., .., 3]]
+      # há conteúdo opaco (o traço) e o canto de fundo é bem mais transparente que ele
+      assert Nx.to_number(Nx.reduce_max(alpha)) > 200
+      assert Nx.to_number(out[0][0][3]) < 200
+    end
+  end
+
+  test "modo normal (render/2) também respeita o fundo transparente (RGBA)" do
+    {:ok, out} = Photo.render(gray_scene(48, 48), preset: "forro-teal", transparent_bg: true)
+    assert Nx.shape(out) == {48, 48, 4}
   end
 
   test "swap_sides inverte as cores do duotone" do

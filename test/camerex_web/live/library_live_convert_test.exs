@@ -209,5 +209,20 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert has_element?(view, "#object-color")
       assert has_element?(view, "#convert-form input[name=layer_object]")
     end
+
+    test "fundo: controles sempre presentes (slider de opacidade + toggle transparente)",
+         %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      # controles de fundo são globais (valem no modo normal e no cor-por-parte)
+      assert has_element?(view, "#background-controls")
+      assert has_element?(view, "#convert-form input[name=bg_opacity]")
+      assert has_element?(view, "#transparent-toggle")
+
+      # liga o fundo transparente e confirma que o estado persiste no checkbox
+      view |> form("#convert-form", %{"transparent_bg" => "true"}) |> render_change()
+      assert has_element?(view, "#transparent-toggle input[type=checkbox][checked]")
+    end
   end
 end

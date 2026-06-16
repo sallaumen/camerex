@@ -23,6 +23,8 @@ defmodule CamerexWeb.ConvertPanel do
   attr :layered, :boolean, default: false
   attr :layer_colors, :map, default: %{}
   attr :detect_object, :boolean, default: false
+  attr :bg_opacity, :float, default: 0.0
+  attr :transparent_bg, :boolean, default: false
   attr :fill, :boolean, default: false
   attr :fill_color, :float, default: 0.45
   attr :fill_texture, :float, default: 0.15
@@ -311,6 +313,31 @@ defmodule CamerexWeb.ConvertPanel do
                   />
                 </label>
               </div>
+            </div>
+
+            <div
+              id="background-controls"
+              class="mt-4 space-y-3 border-t border-cx-border pt-3 text-sm"
+            >
+              <label class="block">
+                opacidade do fundo ({@bg_opacity})
+                <input
+                  type="range"
+                  name="bg_opacity"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={@bg_opacity}
+                  phx-debounce="150"
+                  class="w-full"
+                />
+                <span class="text-xs text-cx-text-dim">a foto original aparece atenuada atrás do neon</span>
+              </label>
+              <label id="transparent-toggle" class="flex items-center gap-2">
+                <input type="hidden" name="transparent_bg" value="false" />
+                <input type="checkbox" name="transparent_bg" value="true" checked={@transparent_bg} />
+                fundo transparente <span class="text-xs text-cx-text-dim">(só foto/PNG)</span>
+              </label>
             </div>
 
             <label id="floor-toggle" class="mt-3 flex items-center gap-2 text-sm">

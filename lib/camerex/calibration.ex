@@ -78,7 +78,7 @@ defmodule Camerex.Calibration do
         fill: params["fill"] || false,
         fill_color: params["fill_color"] || 0.45,
         fill_texture: params["fill_texture"] || 0.15
-      ] ++ floor_opts(params)
+      ] ++ bg_opts(params) ++ floor_opts(params)
 
     {:ok, Photo.render_with_labels(rgb, labels, opts)}
   end
@@ -92,9 +92,16 @@ defmodule Camerex.Calibration do
         detail: params["detail"],
         chroma: params["chroma"] || 0.0,
         swap_sides: params["swap_sides"] || false
-      ] ++ floor_opts(params)
+      ] ++ bg_opts(params) ++ floor_opts(params)
 
     Photo.render_with_mask(rgb, mask, opts)
+  end
+
+  defp bg_opts(params) do
+    [
+      bg_opacity: params["bg_opacity"] || 0.0,
+      transparent_bg: params["transparent_bg"] || false
+    ]
   end
 
   defp floor_opts(params) do
@@ -137,11 +144,18 @@ defmodule Camerex.Calibration do
     end
   end
 
-  defp encode_data_url(rgb_tensor) do
-    bgr =
-      Evision.cvtColor(Evision.Mat.from_nx_2d(rgb_tensor), Evision.Constant.cv_COLOR_RGB2BGR())
+  # RGBA (fundo transparente) vira PNG com alpha; RGB vira PNG normal — o
+  # <img> da prévia mostra a transparência sobre o fundo do painel
+  defp encode_data_url(tensor) do
+    mat = Evision.Mat.from_nx_2d(tensor)
 
-    case Evision.imencode(".png", bgr) do
+    out =
+      case Nx.shape(tensor) do
+        {_h, _w, 4} -> Evision.cvtColor(mat, Evision.Constant.cv_COLOR_RGBA2BGRA())
+        _ -> Evision.cvtColor(mat, Evision.Constant.cv_COLOR_RGB2BGR())
+      end
+
+    case Evision.imencode(".png", out) do
       bin when is_binary(bin) -> {:ok, "data:image/png;base64," <> Base.encode64(bin)}
       other -> {:error, other}
     end

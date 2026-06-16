@@ -52,6 +52,8 @@ defmodule CamerexWeb.LibraryLive do
         layered: false,
         layer_colors: Layers.default_colors(),
         detect_object: false,
+        bg_opacity: 0.0,
+        transparent_bg: false,
         fill: false,
         fill_color: 0.45,
         fill_texture: 0.15,
@@ -611,6 +613,8 @@ defmodule CamerexWeb.LibraryLive do
                   layered={@layered}
                   layer_colors={@layer_colors}
                   detect_object={@detect_object}
+                  bg_opacity={@bg_opacity}
+                  transparent_bg={@transparent_bg}
                   fill={@fill}
                   fill_color={@fill_color}
                   fill_texture={@fill_texture}
@@ -1047,6 +1051,8 @@ defmodule CamerexWeb.LibraryLive do
       layered: params["layered"] == "true",
       layer_colors: parse_layer_colors(params, socket.assigns.layer_colors),
       detect_object: params["detect_object"] == "true",
+      bg_opacity: parse_slider(params["bg_opacity"], socket.assigns.bg_opacity),
+      transparent_bg: params["transparent_bg"] == "true",
       fill: params["fill"] == "true",
       fill_color: parse_slider(params["fill_color"], socket.assigns.fill_color),
       fill_texture: parse_slider(params["fill_texture"], socket.assigns.fill_texture),
@@ -1056,7 +1062,7 @@ defmodule CamerexWeb.LibraryLive do
     )
   end
 
-  @slider_keys ~w(halo bloom chroma trail detail fill_color fill_texture glow spread)a
+  @slider_keys ~w(halo bloom chroma trail detail bg_opacity fill_color fill_texture glow spread)a
 
   defp apply_item_params(socket, %{"params" => params} = item) when is_map(params) do
     sliders =
@@ -1072,6 +1078,7 @@ defmodule CamerexWeb.LibraryLive do
       layered: params["layered"] || false,
       layer_colors: Layers.normalize_colors(params["layer_colors"]),
       detect_object: params["detect_object"] || false,
+      transparent_bg: params["transparent_bg"] || false,
       fill: params["fill"] || false,
       floor: params["floor"] || false
     )
@@ -1115,6 +1122,8 @@ defmodule CamerexWeb.LibraryLive do
       "layered" => socket.assigns.layered,
       "layer_colors" => serialize_layer_colors(socket.assigns.layer_colors),
       "detect_object" => socket.assigns.detect_object,
+      "bg_opacity" => socket.assigns.bg_opacity,
+      "transparent_bg" => socket.assigns.transparent_bg,
       "fill" => socket.assigns.fill,
       "fill_color" => socket.assigns.fill_color,
       "fill_texture" => socket.assigns.fill_texture,

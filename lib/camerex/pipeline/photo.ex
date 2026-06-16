@@ -44,7 +44,7 @@ defmodule Camerex.Pipeline.Photo do
       neon =
         Neon.compose(edges, colors(preset, swap_sides), compose_opts(preset, mask, halo, bloom))
 
-      {:ok, with_floor(neon, opts)}
+      {:ok, neon |> with_background(rgb, opts) |> with_floor(opts) |> with_alpha(opts)}
     end
   end
 
@@ -97,7 +97,9 @@ defmodule Camerex.Pipeline.Photo do
 
     Neon.compose(line, [{0, 0, 0}], halo: halo, bloom: bloom, color_field: field)
     |> with_fill(rgb, field, labels, opts)
+    |> with_background(rgb, opts)
     |> with_floor(opts)
+    |> with_alpha(opts)
   end
 
   # preenchimento texturizado SOB as linhas (opt-in): a cor de cada parte com
@@ -112,6 +114,32 @@ defmodule Camerex.Pipeline.Photo do
         )
 
       neon |> Nx.as_type(:f32) |> Nx.max(fill) |> Nx.clip(0, 255) |> Nx.as_type(:u8)
+    else
+      neon
+    end
+  end
+
+  # compõe o ORIGINAL atenuado ATRÁS do neon (opt-in via bg_opacity > 0): por
+  # máximo, o neon brilhante domina e o original só preenche onde o fundo era
+  # escuro — a cena real aparece "fantasma" sob o traço. Em 0 = preto puro.
+  defp with_background(neon, rgb, opts) do
+    op = Keyword.get(opts, :bg_opacity, 0.0) || 0.0
+
+    if op > 0.0 do
+      bg = rgb |> Nx.as_type(:f32) |> Nx.multiply(op)
+      neon |> Nx.as_type(:f32) |> Nx.max(bg) |> Nx.clip(0, 255) |> Nx.as_type(:u8)
+    else
+      neon
+    end
+  end
+
+  # fundo transparente (opt-in, só foto/PNG): deriva o canal alpha do brilho do
+  # conteúdo (máximo dos canais) — neon/original viram opacos, preto absoluto
+  # vira transparente. Recorte limpo do neon pra compor em qualquer fundo.
+  defp with_alpha(neon, opts) do
+    if Keyword.get(opts, :transparent_bg, false) do
+      alpha = neon |> Nx.reduce_max(axes: [2]) |> Nx.new_axis(-1)
+      Nx.concatenate([neon, alpha], axis: 2)
     else
       neon
     end
@@ -195,6 +223,8 @@ defmodule Camerex.Pipeline.Photo do
       layered: p["layered"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"],
+      bg_opacity: p["bg_opacity"],
+      transparent_bg: p["transparent_bg"],
       fill: p["fill"],
       fill_color: p["fill_color"],
       fill_texture: p["fill_texture"],
@@ -223,13 +253,22 @@ defmodule Camerex.Pipeline.Photo do
     end
   end
 
-  defp write_png!(path, rgb_tensor) do
-    bgr =
-      Evision.cvtColor(Evision.Mat.from_nx_2d(rgb_tensor), Evision.Constant.cv_COLOR_RGB2BGR())
+  # RGBA (fundo transparente) grava PNG com alpha; RGB grava normal
+  defp write_png!(path, tensor) do
+    out = to_bgr_mat(tensor)
 
-    case Evision.imwrite(path, bgr) do
+    case Evision.imwrite(path, out) do
       true -> :ok
       other -> raise "falha ao gravar #{Path.basename(path)}: #{inspect(other)}"
+    end
+  end
+
+  defp to_bgr_mat(tensor) do
+    mat = Evision.Mat.from_nx_2d(tensor)
+
+    case Nx.shape(tensor) do
+      {_h, _w, 4} -> Evision.cvtColor(mat, Evision.Constant.cv_COLOR_RGBA2BGRA())
+      _ -> Evision.cvtColor(mat, Evision.Constant.cv_COLOR_RGB2BGR())
     end
   end
 
