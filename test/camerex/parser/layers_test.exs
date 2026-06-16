@@ -3,10 +3,16 @@ defmodule Camerex.Parser.LayersTest do
 
   alias Camerex.Parser.Layers
 
-  test "groups/0 cobre as 4 camadas com cores default" do
+  test "groups/0 cobre as camadas com cores default; boné separado do cabelo" do
     keys = Enum.map(Layers.groups(), & &1.key)
-    assert keys == [:skin, :hair, :clothing, :accessories]
+    assert keys == [:skin, :hair, :hat, :clothing, :accessories]
     assert Layers.default_colors().clothing == {43, 196, 178}
+
+    # Hat (classe 1) só no grupo do boné; cabelo é só a classe 2
+    hat = Enum.find(Layers.groups(), &(&1.key == :hat))
+    hair = Enum.find(Layers.groups(), &(&1.key == :hair))
+    assert hat.ids == [1]
+    assert hair.ids == [2]
   end
 
   test "suggest_colors/2 detecta a cor da parte (vermelho na roupa) e realça" do

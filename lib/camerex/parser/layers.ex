@@ -1,15 +1,18 @@
 defmodule Camerex.Parser.Layers do
   @moduledoc """
-  Agrupa as 18 classes ATR do parser em 4 camadas semânticas (pele, cabelo,
-  roupa, acessórios), cada uma com uma cor default, e extrai a máscara binária
-  de uma camada suavizando as bordas em escada do upsample (close 5×5).
+  Agrupa as 18 classes ATR do parser em camadas semânticas (pele, cabelo,
+  boné/chapéu, roupa, acessórios), cada uma com uma cor default, e extrai a
+  máscara binária de uma camada suavizando as bordas em escada do upsample
+  (close 5×5). O boné (Hat, classe 1) fica separado do cabelo (classe 2) — o
+  modelo os distingue, então um boné não vira "cabelo colorido".
   """
 
   alias Camerex.Neon.Palette
 
   @groups [
     %{key: :skin, label: "pele", ids: [11, 12, 13, 14, 15], default: {255, 170, 120}},
-    %{key: :hair, label: "cabelo", ids: [1, 2], default: {255, 90, 30}},
+    %{key: :hair, label: "cabelo", ids: [2], default: {255, 90, 30}},
+    %{key: :hat, label: "boné/chapéu", ids: [1], default: {255, 205, 50}},
     %{key: :clothing, label: "roupa", ids: [4, 5, 6, 7, 8, 17], default: {43, 196, 178}},
     %{key: :accessories, label: "acessórios", ids: [3, 9, 10, 16], default: {127, 119, 240}}
   ]
