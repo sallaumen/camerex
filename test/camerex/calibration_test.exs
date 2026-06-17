@@ -1,5 +1,5 @@
 defmodule Camerex.CalibrationTest do
-  # depende do :segmenter Fixture global configurado em config/test.exs
+  # depende do :segmenter/:parser Fixture global configurado em config/test.exs
   use ExUnit.Case, async: false
 
   alias Camerex.Calibration
@@ -7,10 +7,7 @@ defmodule Camerex.CalibrationTest do
   defp scene(h, w), do: Nx.broadcast(Nx.u8(127), {h, w, 3})
 
   defp params(overrides \\ %{}) do
-    Map.merge(
-      %{"preset" => "forro-teal", "halo" => 0.6, "detail" => 0.5, "swap_sides" => false},
-      overrides
-    )
+    Map.merge(%{"halo" => 0.6, "detail" => 0.5}, overrides)
   end
 
   test "prepare reduz para largura 480 preservando proporção e segmenta" do
@@ -31,15 +28,13 @@ defmodule Camerex.CalibrationTest do
     assert <<137, "PNG", _rest::binary>> = Base.decode64!(b64)
   end
 
-  test "halo muda o resultado; preset muda a cor" do
+  test "halo muda a prévia renderizada" do
     {:ok, session} = Calibration.prepare(scene(64, 64))
 
-    {:ok, halo_fraco} = Calibration.render(session, params(%{"halo" => 0.1}))
-    {:ok, halo_forte} = Calibration.render(session, params(%{"halo" => 0.9}))
-    {:ok, ouro} = Calibration.render(session, params(%{"preset" => "ouro"}))
+    {:ok, fraco} = Calibration.render(session, params(%{"halo" => 0.1}))
+    {:ok, forte} = Calibration.render(session, params(%{"halo" => 0.9}))
 
-    assert halo_fraco != halo_forte
-    assert ouro != halo_fraco
+    assert fraco != forte
   end
 
   test "bloom muda a prévia renderizada" do
@@ -51,30 +46,7 @@ defmodule Camerex.CalibrationTest do
     assert sem != com
   end
 
-  test "chroma muda a prévia renderizada" do
-    # cena com contraste de COR (quadrado saturado), não só cinza
-    rows = Nx.iota({64, 64}, axis: 0)
-    cols = Nx.iota({64, 64}, axis: 1)
-
-    inside =
-      Nx.logical_and(
-        Nx.logical_and(Nx.greater_equal(rows, 20), Nx.less(rows, 44)),
-        Nx.logical_and(Nx.greater_equal(cols, 20), Nx.less(cols, 44))
-      )
-
-    bg = Nx.tensor([81, 81, 81], type: :u8) |> Nx.broadcast({64, 64, 3})
-    sq = Nx.tensor([200, 30, 30], type: :u8) |> Nx.broadcast({64, 64, 3})
-    colored = Nx.select(Nx.new_axis(inside, -1) |> Nx.broadcast({64, 64, 3}), sq, bg)
-
-    {:ok, session} = Calibration.prepare(colored)
-
-    {:ok, sem} = Calibration.render(session, params())
-    {:ok, com} = Calibration.render(session, params(%{"chroma" => 0.8}))
-
-    assert sem != com
-  end
-
-  test "modo layered: trocar a cor de uma camada muda a prévia" do
+  test "trocar a cor de uma camada muda a prévia" do
     # cena com uma borda interna (quadrado claro) — uniforme não geraria bordas
     rows = Nx.iota({64, 64}, axis: 0)
     cols = Nx.iota({64, 64}, axis: 1)
@@ -95,7 +67,7 @@ defmodule Camerex.CalibrationTest do
     {:ok, session} = Calibration.prepare(featured)
     assert session.labels != nil
 
-    base = params(%{"layered" => true, "layer_colors" => %{"clothing" => [43, 196, 178]}})
+    base = params(%{"layer_colors" => %{"clothing" => [43, 196, 178]}})
     {:ok, teal} = Calibration.render(session, base)
 
     {:ok, azul} =
@@ -111,12 +83,5 @@ defmodule Camerex.CalibrationTest do
     {:ok, com} = Calibration.render(session, params(%{"floor" => true}))
 
     assert sem != com
-  end
-
-  test "preset desconhecido devolve erro" do
-    {:ok, session} = Calibration.prepare(scene(32, 32))
-
-    assert {:error, {:unknown_preset, "vaporwave"}} =
-             Calibration.render(session, params(%{"preset" => "vaporwave"}))
   end
 end

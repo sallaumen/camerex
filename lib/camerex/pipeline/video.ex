@@ -20,7 +20,7 @@ defmodule Camerex.Pipeline.Video do
   """
 
   alias Camerex.{Mask, Neon, Parser, Settings, Workspace}
-  alias Camerex.Neon.{Background, Layered, Palette}
+  alias Camerex.Neon.{Background, Layered}
   alias Camerex.Parser.{Layers, Object}
   alias Camerex.Video.{Audio, Decoder, Encoder, Probe}
 
@@ -28,14 +28,9 @@ defmodule Camerex.Pipeline.Video do
   # cadência "shot on twos" da animação à mão: até 12 desenhos/s, cada um
   # segurado por 2 frames no container (playback = 2 × desenhos)
   @drawing_fps 12.0
-  @mask_ema_alpha 0.45
-  @mask_bin_threshold 0.45
-  @split_ema_prev 0.9
-  @split_ema_curr 0.1
   # cor-por-parte: peso do frame anterior na EMA do campo de cor (anti-tremor
   # da rotulagem, que é parseada de forma independente por frame)
   @field_ema_alpha 0.5
-  @dark_luma_threshold 70
   @output_file "neon.mp4"
 
   @spec run(String.t(), (non_neg_integer(), non_neg_integer() -> any())) ::
@@ -127,7 +122,7 @@ defmodule Camerex.Pipeline.Video do
   end
 
   defp encode_frames(in_path, enc, fps, height, total_estimate, opts, progress_cb) do
-    initial = %{mask_f: nil, trail: nil, split_ema: nil, field: nil, count: 0, first: nil}
+    initial = %{trail: nil, field: nil, count: 0, first: nil}
 
     # frame vem em EXLA (Nx.from_binary); hospeda no BEAM antes de cruzar p/ as
     # tasks (device-resident não atravessa processo com segurança)
@@ -189,7 +184,7 @@ defmodule Camerex.Pipeline.Video do
   # parte cara e independente por frame. Roda numa task; materializa tudo em
   # BinaryBackend p/ cruzar de volta ao processo do scan com segurança.
 
-  defp prepare_frame(frame, %{layered: true} = opts) do
+  defp prepare_frame(frame, opts) do
     with {:ok, labels} <- Parser.parse(frame) do
       labels = object_labels(frame, labels, opts)
       {_h, w, _} = Nx.shape(frame)
@@ -198,7 +193,6 @@ defmodule Camerex.Pipeline.Video do
 
       {:ok,
        %{
-         kind: :layered,
          frame: to_host(frame),
          labels: to_host(labels),
          line: to_host(line),
@@ -207,17 +201,11 @@ defmodule Camerex.Pipeline.Video do
     end
   end
 
-  defp prepare_frame(frame, opts) do
-    with {:ok, raw_mask} <- segment(frame, opts) do
-      {:ok, %{kind: :plain, frame: to_host(frame), raw_mask: to_host(raw_mask)}}
-    end
-  end
-
   # ── ESTÁGIO SEQUENCIAL ────────────────────────────────────────────────────
   # estado temporal + composição + gravação, em ordem (mesma matemática do
   # reduce serial de antes — só a parte cara saiu para o estágio paralelo).
 
-  defp compose_step(%{kind: :layered} = p, state, opts, enc) do
+  defp compose_step(p, state, opts, enc) do
     field = Mask.ema(p.raw_field, state.field, @field_ema_alpha)
 
     trail =
@@ -227,7 +215,7 @@ defmodule Camerex.Pipeline.Video do
       end
 
     neon =
-      Neon.compose(trail, [{0, 0, 0}],
+      Neon.compose(trail,
         halo: opts.halo,
         bloom: opts.bloom,
         color_field: field,
@@ -242,47 +230,6 @@ defmodule Camerex.Pipeline.Video do
          state
          | trail: trail,
            field: field,
-           count: state.count + 1,
-           first: state.first || {p.frame, neon}
-       }}
-    end
-  end
-
-  defp compose_step(%{kind: :plain} = p, state, opts, enc) do
-    prev_bin = binarize(state.mask_f)
-    component = Mask.consistent_component(p.raw_mask, prev_bin)
-    mask_f = component |> to_unit_f32() |> Mask.ema(state.mask_f, @mask_ema_alpha)
-    mask_bin = binarize(mask_f)
-
-    edges =
-      p.frame
-      |> Neon.trace_edges(mask_bin, detail: opts.detail, chroma: opts.chroma)
-      |> to_unit_f32()
-
-    trail =
-      case state.trail do
-        nil -> edges
-        prev -> Nx.max(edges, Nx.multiply(prev, opts.trail_decay))
-      end
-
-    {split_ema, weights} = color_weights(mask_bin, state.split_ema, opts)
-
-    neon =
-      Neon.compose(trail, opts.colors,
-        halo: opts.halo,
-        bloom: opts.bloom,
-        duotone_weights: weights,
-        current_edges: edges
-      )
-      |> Background.behind(p.frame, opts.bg_opacity)
-
-    with :ok <- Encoder.write_frame(enc, neon) do
-      {:ok,
-       %{
-         state
-         | mask_f: mask_f,
-           trail: trail,
-           split_ema: split_ema,
            count: state.count + 1,
            first: state.first || {p.frame, neon}
        }}
@@ -308,61 +255,10 @@ defmodule Camerex.Pipeline.Video do
 
   defp fill_frame(neon, _opts, _frame, _labels, _field), do: neon
 
-  # cena escura (luma média < 70): clareia SÓ a entrada da segmentação;
-  # as bordas continuam vindo do frame original (igual ao protótipo Python)
-  defp segment(frame, opts) do
-    seg_in =
-      if luma(frame) < @dark_luma_threshold do
-        frame
-        |> Nx.as_type(:f32)
-        |> Nx.multiply(1.4)
-        |> Nx.add(18)
-        |> Nx.clip(0, 255)
-        |> Nx.as_type(:u8)
-      else
-        frame
-      end
-
-    opts.segmenter.segment(seg_in, model: opts.model)
-  end
-
-  defp luma(frame), do: frame |> Nx.as_type(:f32) |> Nx.mean() |> Nx.to_number()
-
-  # pesos de cor por frame. duotone usa split com EMA temporal (anti-tremor);
-  # mono/gradiente vêm da regra compartilhada Neon.weights_for (gradiente
-  # entrou na F1 — sem esta cláusula o vídeo crashava com Aurora/Brasa).
-  defp color_weights(mask_bin, split_ema, %{mode: :duotone}) do
-    split_now = Neon.mask_median_x(mask_bin)
-
-    split =
-      case split_ema do
-        nil -> split_now
-        prev -> @split_ema_prev * prev + @split_ema_curr * split_now
-      end
-
-    {split, Neon.weights_for(:duotone, mask_bin, split)}
-  end
-
-  defp color_weights(mask_bin, split_ema, %{mode: mode}) do
-    {split_ema, Neon.weights_for(mode, mask_bin, 0.0)}
-  end
-
-  defp binarize(nil), do: nil
-
-  defp binarize(mask_f) do
-    mask_f
-    |> Nx.greater(@mask_bin_threshold)
-    |> Nx.multiply(255)
-    |> Nx.as_type(:u8)
-  end
-
-  defp to_unit_f32(u8), do: u8 |> Nx.as_type(:f32) |> Nx.divide(255.0)
-
   # defaults dos ajustes por frame (merge de mapa em vez de `||` em cadeia —
   # mantém o credo feliz e os params num lugar só)
   @frame_defaults %{
     "detail" => 0.5,
-    "chroma" => 0.0,
     "halo" => 0.6,
     "bloom" => 0.0,
     "trail" => 0.7
@@ -370,35 +266,25 @@ defmodule Camerex.Pipeline.Video do
 
   defp build_opts(manifest) do
     params = manifest["params"] || %{}
-    preset = Palette.get(manifest["preset"]) || Palette.get("forro-duotone")
-    p = Map.merge(Map.put(@frame_defaults, "model", "u2net"), params)
-    frame_opts(p, preset, params["swap_sides"] == true)
+    frame_opts(Map.merge(Map.put(@frame_defaults, "model", "u2net"), params))
   end
 
   # variante de build_opts para a CLI (keyword em vez de manifest)
   defp build_opts_kw(opts) do
-    preset = Palette.get(Keyword.get(opts, :preset, "forro-teal")) || Palette.get("forro-teal")
     params = Map.new(opts, fn {k, v} -> {Atom.to_string(k), v} end)
-    p = Map.merge(Map.put(@frame_defaults, "model", "u2netp"), params)
-    frame_opts(p, preset, Keyword.get(opts, :swap_sides, false))
+    frame_opts(Map.merge(Map.put(@frame_defaults, "model", "u2netp"), params))
   end
 
-  # monta o mapa de opções por frame a partir de params já com defaults
-  defp frame_opts(p, preset, swap) do
-    colors =
-      if preset.mode == :duotone and swap, do: Enum.reverse(preset.colors), else: preset.colors
-
+  # monta o mapa de opções por frame a partir de params já com defaults.
+  # `model` é só pro detect_object (U²-Net); a cor-por-parte usa o parser (ATR).
+  defp frame_opts(p) do
     %{
       segmenter: Application.fetch_env!(:camerex, :segmenter),
       model: p["model"],
       detail: p["detail"],
-      chroma: p["chroma"],
       halo: p["halo"],
       bloom: p["bloom"],
       trail_decay: p["trail"],
-      mode: preset.mode,
-      colors: colors,
-      layered: p["layered"] == true,
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"] == true,
       bg_opacity: p["bg_opacity"] || 0.0,

@@ -22,11 +22,10 @@ defmodule Mix.Tasks.Camerex.Foto do
         Mix.raise(msg)
 
       {:ok, %{input: input, output: output, opts: opts}} ->
-        opts = Keyword.put_new(opts, :preset, "forro-teal")
         rgb = read_image!(input)
         Mix.shell().info("processando #{input}…")
 
-        case Pipeline.Photo.render(rgb, opts) do
+        case Pipeline.Photo.render_layered(rgb, opts) do
           {:ok, neon} ->
             write_image!(output, neon)
             Mix.shell().info("ok: #{output}")

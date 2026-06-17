@@ -7,55 +7,12 @@ defmodule Camerex.Pipeline.Photo do
   """
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
-  alias Camerex.Neon.{Background, Layered, Palette, Scene}
+  alias Camerex.Neon.{Background, Layered, Scene}
   alias Camerex.Parser.{Layers, Object}
 
-  @spec render(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
-  def render(rgb, opts \\ []) do
-    model = Keyword.get(opts, :model, "u2net")
-    segmenter = Application.fetch_env!(:camerex, :segmenter)
-
-    with {:ok, raw_mask} <- segmenter.segment(rgb, model: model) do
-      render_with_mask(rgb, Mask.largest_component(raw_mask), opts)
-    end
-  end
-
   @doc """
-  Composição pós-máscara (bordas + halos + cor): a parte barata do pipeline.
-  A calibragem ao vivo segmenta uma vez e chama isto a cada ajuste.
-  """
-  @spec render_with_mask(Nx.Tensor.t(), Nx.Tensor.t(), keyword()) ::
-          {:ok, Nx.Tensor.t()} | {:error, term()}
-  def render_with_mask(rgb, mask, opts \\ []) do
-    preset_id = Keyword.get(opts, :preset, "forro-teal")
-    halo = Keyword.get(opts, :halo, 0.6)
-    bloom = Keyword.get(opts, :bloom, 0.0)
-    detail = Keyword.get(opts, :detail, 0.5)
-    chroma = Keyword.get(opts, :chroma, 0.0)
-    swap_sides = Keyword.get(opts, :swap_sides, false)
-
-    with {:ok, preset} <- fetch_preset(preset_id) do
-      edges =
-        rgb
-        |> Neon.trace_edges(mask, detail: detail, chroma: chroma)
-        |> Nx.as_type(:f32)
-        |> Nx.divide(255.0)
-
-      neon =
-        Neon.compose(edges, colors(preset, swap_sides), compose_opts(preset, mask, halo, bloom))
-
-      {:ok,
-       neon
-       |> Background.behind(rgb, Keyword.get(opts, :bg_opacity, 0.0) || 0.0)
-       |> with_floor(opts)
-       |> Background.cutout(Keyword.get(opts, :transparent_bg, false))}
-    end
-  end
-
-  @doc """
-  Render por camada semântica: parseia as partes (cabelo/pele/roupa/…) e
-  pinta cada uma com sua cor, compondo por máximo. Cada camada herda o
-  `chroma` para recuperar tecido de baixo contraste.
+  Render por camada semântica (ÚNICO modo): parseia as partes
+  (cabelo/pele/roupa/…) e pinta cada uma com sua cor, compondo por máximo.
   """
   @spec render_layered(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
   def render_layered(rgb, opts \\ []) do
@@ -99,7 +56,7 @@ defmodule Camerex.Pipeline.Photo do
     line = Layered.line_art(rgb, labels, detail: detail)
     field = Layered.color_field(labels, colors, w)
 
-    Neon.compose(line, [{0, 0, 0}], halo: halo, bloom: bloom, color_field: field)
+    Neon.compose(line, halo: halo, bloom: bloom, color_field: field)
     |> with_fill(rgb, field, labels, opts)
     |> Background.behind(rgb, Keyword.get(opts, :bg_opacity, 0.0) || 0.0)
     |> with_floor(opts)
@@ -145,11 +102,8 @@ defmodule Camerex.Pipeline.Photo do
       rgb = read_rgb!(Workspace.item_path(item_id, manifest["original_file"]))
       {h, w, 3} = Nx.shape(rgb)
 
-      opts = render_opts(manifest)
-      renderer = if opts[:layered], do: &render_layered/2, else: &render/2
-
       neon =
-        case renderer.(rgb, opts) do
+        case render_layered(rgb, render_opts(manifest)) do
           {:ok, tensor} -> tensor
           {:error, reason} -> raise "pipeline de foto falhou: #{inspect(reason)}"
         end
@@ -184,21 +138,16 @@ defmodule Camerex.Pipeline.Photo do
     end
   end
 
-  # passa só o que o manifest tem; cada consumidor (render_with_mask,
+  # passa só o que o manifest tem; cada consumidor (render_with_labels,
   # with_floor, …) aplica seu default via Keyword.get, então descartamos os
   # ausentes para o fallback funcionar (e o credo não reclamar de complexidade)
   defp render_opts(manifest) do
     p = manifest["params"] || %{}
 
     [
-      preset: manifest["preset"],
       halo: p["halo"],
       bloom: p["bloom"],
       detail: p["detail"],
-      chroma: p["chroma"],
-      swap_sides: p["swap_sides"],
-      model: p["model"],
-      layered: p["layered"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"],
       bg_opacity: p["bg_opacity"],
@@ -248,22 +197,5 @@ defmodule Camerex.Pipeline.Photo do
       {_h, _w, 4} -> Evision.cvtColor(mat, Evision.Constant.cv_COLOR_RGBA2BGRA())
       _ -> Evision.cvtColor(mat, Evision.Constant.cv_COLOR_RGB2BGR())
     end
-  end
-
-  defp fetch_preset(id) do
-    case Palette.get(id) do
-      nil -> {:error, {:unknown_preset, id}}
-      preset -> {:ok, preset}
-    end
-  end
-
-  # swap_sides só faz sentido com 2 cores; em mono é ignorado
-  defp colors(%{colors: [left, right]}, true), do: [right, left]
-  defp colors(%{colors: colors}, _swap), do: colors
-
-  # foto: split do duotone = mediana-x da máscara; mono/gradiente ignoram
-  defp compose_opts(%{mode: mode}, mask, halo, bloom) do
-    split = if mode == :duotone, do: Neon.mask_median_x(mask), else: 0.0
-    [halo: halo, bloom: bloom, duotone_weights: Neon.weights_for(mode, mask, split)]
   end
 end

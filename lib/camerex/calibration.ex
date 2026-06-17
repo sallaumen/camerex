@@ -1,8 +1,8 @@
 defmodule Camerex.Calibration do
   @moduledoc """
-  Sessão de calibragem ao vivo: segmenta a prévia **uma vez** (a parte cara
+  Sessão de calibragem ao vivo: parseia a prévia **uma vez** (a parte cara
   do pipeline, ~300ms) e recompõe a cada ajuste de controle via
-  `Photo.render_with_mask` (milissegundos). A prévia trabalha reduzida a
+  `Photo.render_with_labels` (milissegundos). A prévia trabalha reduzida a
   #{480}px de largura — calibragem é sobre proporções de halo/detalhe/cor,
   não sobre resolução.
   """
@@ -35,8 +35,8 @@ defmodule Camerex.Calibration do
     segmenter = Application.fetch_env!(:camerex, :segmenter)
 
     with {:ok, raw} <- segmenter.segment(rgb, model: model) do
-      # parseia as partes uma vez também (modo "cor por camada"); se o parser
-      # falhar (modelo ausente), labels = nil e o layered cai pro modo normal
+      # parseia as partes (cor-por-parte é o ÚNICO modo); parser ausente → labels
+      # nil e a prévia avisa que o parser está indisponível
       labels =
         case Parser.parse(rgb) do
           {:ok, l} -> l
@@ -48,9 +48,8 @@ defmodule Camerex.Calibration do
   end
 
   @doc """
-  Recompõe a prévia com os params do painel
-  (`%{"preset" => _, "halo" => _, "detail" => _, "swap_sides" => _}`)
-  e devolve um data URL PNG pronto para `<img src>`.
+  Recompõe a prévia cor-por-parte com os params do painel (`%{"halo" => _,
+  "detail" => _, "layer_colors" => _, …}`) e devolve um data URL PNG.
   """
   @spec render(session(), map()) :: {:ok, String.t()} | {:error, term()}
   def render(session, params) do
@@ -59,9 +58,8 @@ defmodule Camerex.Calibration do
     end
   end
 
-  # modo "cor por camada" (parser pronto na sessão) vs. modo normal (máscara)
-  defp render_neon(%{rgb: rgb, mask: mask, labels: labels}, %{"layered" => true} = params)
-       when labels != nil do
+  # cor-por-parte (único modo): precisa dos rótulos do parser
+  defp render_neon(%{rgb: rgb, mask: mask, labels: labels}, params) when labels != nil do
     # objeto reusa a máscara U²-Net que a sessão já tem (sem rodar de novo)
     labels =
       if params["detect_object"],
@@ -73,7 +71,6 @@ defmodule Camerex.Calibration do
         halo: params["halo"],
         bloom: params["bloom"] || 0.0,
         detail: params["detail"],
-        chroma: params["chroma"] || 0.5,
         layer_colors: Layers.normalize_colors(params["layer_colors"]),
         fill: params["fill"] || false,
         fill_color: params["fill_color"] || 0.45,
@@ -83,19 +80,7 @@ defmodule Camerex.Calibration do
     {:ok, Photo.render_with_labels(rgb, labels, opts)}
   end
 
-  defp render_neon(%{rgb: rgb, mask: mask}, params) do
-    opts =
-      [
-        preset: params["preset"],
-        halo: params["halo"],
-        bloom: params["bloom"] || 0.0,
-        detail: params["detail"],
-        chroma: params["chroma"] || 0.0,
-        swap_sides: params["swap_sides"] || false
-      ] ++ bg_opts(params) ++ floor_opts(params)
-
-    Photo.render_with_mask(rgb, mask, opts)
-  end
+  defp render_neon(_session, _params), do: {:error, "parser de partes indisponível"}
 
   defp bg_opts(params) do
     [
