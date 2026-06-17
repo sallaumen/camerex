@@ -377,4 +377,37 @@ defmodule CamerexWeb.LibraryComponents do
   defp ram_note(%{used_mb: used, total_mb: total}), do: "#{gb(used)}/#{gb(total)} GB"
 
   defp gb(mb), do: Float.round(mb / 1024, 1)
+
+  @doc """
+  Indicador GLOBAL de processamento (header): aparece quando há jobs rodando ou
+  na fila, com o agregado de frames + ETA — visível em qualquer pasta/filtro,
+  pra um render longo não parecer travado. `summary` vem de `Jobs.state/0`.
+  """
+  attr :summary, :map, required: true
+
+  def jobs_indicator(assigns) do
+    ~H"""
+    <div
+      :if={@summary.processing > 0 or @summary.queued > 0}
+      id="jobs-indicator"
+      class="flex items-center gap-2 rounded-full border border-cx-teal bg-cx-surface px-3 py-1 text-sm"
+    >
+      <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-cx-teal"></span>
+      <span class="text-cx-text">
+        {@summary.processing} processando<span
+          :if={@summary.queued > 0}
+          class="text-cx-text-dim"
+        > · {@summary.queued} na fila</span>
+      </span>
+      <span :if={@summary.total > 0} class="text-cx-text-dim">
+        {@summary.done}/{@summary.total} frames<span :if={@summary.eta_s}> · ~{eta_label(
+          @summary.eta_s
+        )}</span>
+      </span>
+    </div>
+    """
+  end
+
+  defp eta_label(s) when s >= 60, do: "#{round(s / 60)}min"
+  defp eta_label(s), do: "#{round(s)}s"
 end

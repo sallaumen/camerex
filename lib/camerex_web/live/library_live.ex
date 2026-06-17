@@ -60,6 +60,7 @@ defmodule CamerexWeb.LibraryLive do
         import_scan: nil,
         new_folder_name: "",
         perf: SystemStats.snapshot(),
+        jobs_summary: jobs_summary(),
         frame_concurrency: Video.frame_concurrency(),
         colors_json: "",
         colors_json_error: nil,
@@ -108,7 +109,8 @@ defmodule CamerexWeb.LibraryLive do
 
   @impl true
   def handle_info({:jobs_changed}, socket) do
-    {:noreply, socket |> reload() |> refresh_current_item()}
+    {:noreply,
+     socket |> reload() |> refresh_current_item() |> assign(:jobs_summary, jobs_summary())}
   end
 
   def handle_info({:job_progress, id, prog}, socket) do
@@ -136,10 +138,11 @@ defmodule CamerexWeb.LibraryLive do
 
   def handle_info({:calib_render, _stale_ref, _result}, socket), do: {:noreply, socket}
 
-  # tick do mini-dashboard: re-amostra CPU/RAM/BEAM e reagenda enquanto vivo
+  # tick do mini-dashboard: re-amostra CPU/RAM/BEAM + agregado de jobs (pega o
+  # progresso de jobs em QUALQUER pasta, não só os do filtro atual) e reagenda
   def handle_info(:perf_tick, socket) do
     Process.send_after(self(), :perf_tick, @perf_interval)
-    {:noreply, assign(socket, :perf, SystemStats.snapshot())}
+    {:noreply, assign(socket, perf: SystemStats.snapshot(), jobs_summary: jobs_summary())}
   end
 
   ## Navegação e seleção
@@ -587,7 +590,10 @@ defmodule CamerexWeb.LibraryLive do
 
         <main class="min-w-0 flex-1 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <.breadcrumb folder={@folder} />
+            <div class="flex items-center gap-3">
+              <.breadcrumb folder={@folder} />
+              <.jobs_indicator summary={@jobs_summary} />
+            </div>
             <div class="flex items-center gap-2 text-sm">
               <button
                 type="button"
@@ -949,6 +955,21 @@ defmodule CamerexWeb.LibraryLive do
 
     Enum.each(new_ids, &Jobs.subscribe/1)
     assign(socket, subscribed_jobs: MapSet.union(subscribed, new_ids))
+  end
+
+  # agregado do pool pro indicador global: contagens + soma de frames + maior
+  # ETA entre os jobs rodando (de QUALQUER pasta — vem do Jobs, não do disco)
+  defp jobs_summary do
+    %{running: running, queue: queue} = Jobs.state()
+    progs = running |> Enum.map(& &1.progress) |> Enum.filter(&(&1.total > 0))
+
+    %{
+      processing: length(running),
+      queued: length(queue),
+      done: progs |> Enum.map(& &1.done) |> Enum.sum(),
+      total: progs |> Enum.map(& &1.total) |> Enum.sum(),
+      eta_s: progs |> Enum.map(& &1.eta_s) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
+    }
   end
 
   ## Internas — conversão
