@@ -14,7 +14,7 @@ defmodule CamerexWeb.GalleryProgressTest do
 
     src = Path.join(tmp_dir, "src.mp4")
     File.write!(src, "bytes de mentira: o card não toca o arquivo")
-    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, "forro-duotone", %{})
+    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, %{})
     {:ok, _} = Workspace.update_manifest(id, &Map.put(&1, "status", "processing"))
 
     %{id: id}

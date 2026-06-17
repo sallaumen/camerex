@@ -65,10 +65,10 @@ defmodule Camerex.WorkspaceTest do
     end
   end
 
-  describe "generate_id/2" do
-    test "segue o formato <ts>-<slug>-<preset>-<rand4>" do
-      id = Workspace.generate_id("casal.jpg", "forro-duotone")
-      assert id =~ ~r/^\d{8}-\d{6}-casal-forro-duotone-[0-9a-f]{4}$/
+  describe "generate_id/1" do
+    test "segue o formato <ts>-<slug>-<rand4>" do
+      id = Workspace.generate_id("casal.jpg")
+      assert id =~ ~r/^\d{8}-\d{6}-casal-[0-9a-f]{4}$/
     end
 
     test "timestamp usa o relógio de America/Sao_Paulo" do
@@ -77,7 +77,7 @@ defmodule Camerex.WorkspaceTest do
       end
 
       before_ts = fmt.()
-      id = Workspace.generate_id("casal.jpg", "ouro")
+      id = Workspace.generate_id("casal.jpg")
       after_ts = fmt.()
 
       # nesse formato, comparação lexicográfica == cronológica
@@ -86,7 +86,7 @@ defmodule Camerex.WorkspaceTest do
     end
 
     test "sufixo aleatório distingue ids gerados no mesmo segundo" do
-      ids = for _ <- 1..10, do: Workspace.generate_id("casal.jpg", "ouro")
+      ids = for _ <- 1..10, do: Workspace.generate_id("casal.jpg")
       # probabilidade de 10 rand4 iguais: (1/65536)^9 — nunca flake
       assert ids |> Enum.uniq() |> length() > 1
     end
@@ -114,7 +114,7 @@ defmodule Camerex.WorkspaceTest do
       src = fake_source!("upload.jpg")
 
       {:ok, id} =
-        Workspace.create_item(src, "x.jpg", :photo, "ouro", @params, folder: "Shows/2026")
+        Workspace.create_item(src, "x.jpg", :photo, @params, folder: "Shows/2026")
 
       assert {:ok, %{"folder" => "shows/2026"}} = Workspace.manifest(id)
     end
@@ -123,19 +123,18 @@ defmodule Camerex.WorkspaceTest do
       src = fake_source!("upload.jpg")
 
       assert {:error, :invalid_folder} =
-               Workspace.create_item(src, "x.jpg", :photo, "ouro", @params, folder: "../fuga")
+               Workspace.create_item(src, "x.jpg", :photo, @params, folder: "../fuga")
 
       assert {:ok, []} = File.ls(Workspace.items_dir())
     end
 
-    test "create_item sem preset/params: item importado nasce \"new\"" do
+    test "create_item sem params: item importado nasce \"new\"" do
       src = fake_source!("clip.mp4")
 
-      {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, nil, nil)
+      {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, nil)
 
       assert {:ok, m} = Workspace.manifest(id)
       assert m["status"] == "new"
-      assert m["preset"] == nil
       assert m["params"] == nil
       assert m["output_file"] == nil
       assert m["folder"] == ""
@@ -143,7 +142,7 @@ defmodule Camerex.WorkspaceTest do
 
     test "manifest v1 sem a chave folder ganha default \"\" na leitura" do
       src = fake_source!("upload.jpg")
-      {:ok, id} = Workspace.create_item(src, "v1.jpg", :photo, "ouro", @params)
+      {:ok, id} = Workspace.create_item(src, "v1.jpg", :photo, @params)
 
       # simula manifest gravado pela v1 (sem "folder")
       path = Path.join([Workspace.items_dir(), id, "manifest.json"])
@@ -154,12 +153,12 @@ defmodule Camerex.WorkspaceTest do
     end
   end
 
-  describe "create_item/5 + manifest/1 + update_manifest/2" do
+  describe "create_item/4 + manifest/1 + update_manifest/2" do
     test "copia o original para items/<id>/original.<ext> com extensão minúscula" do
       src = fake_source!("upload.tmp", "bytes-da-foto")
 
-      assert {:ok, id} = Workspace.create_item(src, "Dança.JPG", :photo, "ouro", @params)
-      assert id =~ ~r/^\d{8}-\d{6}-danca-ouro-[0-9a-f]{4}$/
+      assert {:ok, id} = Workspace.create_item(src, "Dança.JPG", :photo, @params)
+      assert id =~ ~r/^\d{8}-\d{6}-danca-[0-9a-f]{4}$/
 
       original = Path.join([Workspace.items_dir(), id, "original.jpg"])
       assert File.read!(original) == "bytes-da-foto"
@@ -167,7 +166,7 @@ defmodule Camerex.WorkspaceTest do
 
     test "escreve manifest queued com o schema exato do spec §3" do
       src = fake_source!("upload.jpg")
-      {:ok, id} = Workspace.create_item(src, "casal.jpg", :photo, "forro-duotone", @params)
+      {:ok, id} = Workspace.create_item(src, "casal.jpg", :photo, @params)
 
       assert {:ok, m} = Workspace.manifest(id)
 
@@ -179,7 +178,6 @@ defmodule Camerex.WorkspaceTest do
                "original_filename" => "casal.jpg",
                "original_file" => "original.jpg",
                "output_file" => "neon.png",
-               "preset" => "forro-duotone",
                "params" => @params,
                "status" => "queued",
                "error" => nil,
@@ -196,7 +194,7 @@ defmodule Camerex.WorkspaceTest do
 
     test "manifest é serializado com Jason pretty" do
       src = fake_source!("upload.jpg")
-      {:ok, id} = Workspace.create_item(src, "casal.jpg", :photo, "ouro", @params)
+      {:ok, id} = Workspace.create_item(src, "casal.jpg", :photo, @params)
 
       raw = File.read!(Path.join([Workspace.items_dir(), id, "manifest.json"]))
       assert raw =~ "\n  \"id\""
@@ -204,8 +202,8 @@ defmodule Camerex.WorkspaceTest do
 
     test "output_file segue o tipo: photo→neon.png, video→neon.mp4" do
       src = fake_source!("upload.bin")
-      {:ok, photo_id} = Workspace.create_item(src, "a.jpg", :photo, "ouro", @params)
-      {:ok, video_id} = Workspace.create_item(src, "a.mp4", :video, "ouro", @params)
+      {:ok, photo_id} = Workspace.create_item(src, "a.jpg", :photo, @params)
+      {:ok, video_id} = Workspace.create_item(src, "a.mp4", :video, @params)
 
       assert {:ok, %{"type" => "photo", "output_file" => "neon.png"}} =
                Workspace.manifest(photo_id)
@@ -218,7 +216,7 @@ defmodule Camerex.WorkspaceTest do
       missing = Path.join(Workspace.tmp_dir(), "nao-existe.jpg")
 
       assert {:error, :enoent} =
-               Workspace.create_item(missing, "x.jpg", :photo, "ouro", @params)
+               Workspace.create_item(missing, "x.jpg", :photo, @params)
 
       assert {:ok, []} = File.ls(Workspace.items_dir())
     end
@@ -229,7 +227,7 @@ defmodule Camerex.WorkspaceTest do
 
     test "update_manifest/2 aplica a função e persiste no disco" do
       src = fake_source!("upload.jpg")
-      {:ok, id} = Workspace.create_item(src, "casal.jpg", :photo, "ouro", @params)
+      {:ok, id} = Workspace.create_item(src, "casal.jpg", :photo, @params)
 
       assert {:ok, %{"status" => "processing"}} =
                Workspace.update_manifest(id, &Map.put(&1, "status", "processing"))
@@ -249,9 +247,9 @@ defmodule Camerex.WorkspaceTest do
 
     test "ordena por created_at desc" do
       src = fake_source!("upload.jpg")
-      {:ok, a} = Workspace.create_item(src, "a.jpg", :photo, "ouro", @params)
-      {:ok, b} = Workspace.create_item(src, "b.jpg", :photo, "ouro", @params)
-      {:ok, c} = Workspace.create_item(src, "c.jpg", :photo, "ouro", @params)
+      {:ok, a} = Workspace.create_item(src, "a.jpg", :photo, @params)
+      {:ok, b} = Workspace.create_item(src, "b.jpg", :photo, @params)
+      {:ok, c} = Workspace.create_item(src, "c.jpg", :photo, @params)
 
       # created_at fixado via update_manifest: os 3 creates caem no mesmo
       # segundo, então a ordem precisa ser controlada pelo teste
@@ -268,7 +266,7 @@ defmodule Camerex.WorkspaceTest do
 
     test "ignora pastas sem manifest válido sem quebrar" do
       src = fake_source!("upload.jpg")
-      {:ok, id} = Workspace.create_item(src, "ok.jpg", :photo, "ouro", @params)
+      {:ok, id} = Workspace.create_item(src, "ok.jpg", :photo, @params)
 
       File.mkdir_p!(Path.join(Workspace.items_dir(), "pasta-intrusa"))
 
@@ -283,7 +281,7 @@ defmodule Camerex.WorkspaceTest do
   describe "delete_item/1, item_path/2, media_url/2" do
     test "delete_item remove a pasta inteira e é idempotente" do
       src = fake_source!("upload.jpg")
-      {:ok, id} = Workspace.create_item(src, "x.jpg", :photo, "ouro", @params)
+      {:ok, id} = Workspace.create_item(src, "x.jpg", :photo, @params)
 
       assert :ok = Workspace.delete_item(id)
       refute File.exists?(Path.join(Workspace.items_dir(), id))
@@ -308,7 +306,7 @@ defmodule Camerex.WorkspaceTest do
 
   describe "write_thumbs/1" do
     test "gera thumb.jpg do original com lado maior 480 e proporção preservada" do
-      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, "ouro", @params)
+      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, @params)
 
       assert :ok = Workspace.write_thumbs(id)
 
@@ -322,7 +320,7 @@ defmodule Camerex.WorkspaceTest do
     end
 
     test "gera thumb_neon.jpg quando o resultado existe" do
-      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, "ouro", @params)
+      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, @params)
       # qualquer imagem serve de resultado: imread detecta o formato pelos
       # bytes, não pela extensão
       File.cp!(@casal, Workspace.item_path(id, "neon.png"))
@@ -332,7 +330,7 @@ defmodule Camerex.WorkspaceTest do
     end
 
     test "sem resultado ainda, só thumb.jpg é gerado" do
-      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, "ouro", @params)
+      {:ok, id} = Workspace.create_item(@casal, "casal.jpg", :photo, @params)
 
       assert :ok = Workspace.write_thumbs(id)
       assert File.exists?(Workspace.item_path(id, "thumb.jpg"))
@@ -341,7 +339,7 @@ defmodule Camerex.WorkspaceTest do
 
     test "item de vídeo não gera thumbs nesta fase (frame vem na Fase 4)" do
       src = fake_source!("clip.mp4", "nao é um mp4 de verdade")
-      {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, "ouro", @params)
+      {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, @params)
 
       assert :ok = Workspace.write_thumbs(id)
       refute File.exists?(Workspace.item_path(id, "thumb.jpg"))
@@ -352,9 +350,9 @@ defmodule Camerex.WorkspaceTest do
   describe "mark_interrupted_on_boot/0" do
     test "processing vira interrupted; demais status ficam intactos" do
       src = fake_source!("upload.jpg")
-      {:ok, presa} = Workspace.create_item(src, "presa.jpg", :photo, "ouro", @params)
-      {:ok, pronta} = Workspace.create_item(src, "pronta.jpg", :photo, "ouro", @params)
-      {:ok, na_fila} = Workspace.create_item(src, "fila.jpg", :photo, "ouro", @params)
+      {:ok, presa} = Workspace.create_item(src, "presa.jpg", :photo, @params)
+      {:ok, pronta} = Workspace.create_item(src, "pronta.jpg", :photo, @params)
+      {:ok, na_fila} = Workspace.create_item(src, "fila.jpg", :photo, @params)
 
       {:ok, _} = Workspace.update_manifest(presa, &Map.put(&1, "status", "processing"))
       {:ok, _} = Workspace.update_manifest(pronta, &Map.put(&1, "status", "done"))

@@ -48,7 +48,7 @@ defmodule Camerex.WorkspaceCase do
     true = Evision.imwrite(src, Evision.Mat.from_nx_2d(rgb))
 
     {:ok, id} =
-      Camerex.Workspace.create_item(src, "fonte.png", :photo, "forro-teal", default_params())
+      Camerex.Workspace.create_item(src, "fonte.png", :photo, default_params())
 
     case attrs[:status] do
       nil ->

@@ -10,8 +10,8 @@ generativa, zero APIs pagas, nada sobe para a nuvem.**
 Resultados de referência em [`exemplos/saida/`](exemplos/saida/):
 
 - [`neon_duotone_final.png`](exemplos/saida/neon_duotone_final.png) — foto,
-  preset duotone laranja/teal
-- [`neon_teal_final.png`](exemplos/saida/neon_teal_final.png) — foto, preset mono teal
+  cores por parte (laranja/teal)
+- [`neon_teal_final.png`](exemplos/saida/neon_teal_final.png) — foto, linha teal
 - [`tango_neon.mp4`](exemplos/saida/tango_neon.mp4) — vídeo com rastro de luz
 
 ## Pré-requisitos (macOS)
@@ -44,15 +44,15 @@ A interface é uma **biblioteca single-page** pensada para telas largas:
 árvore de pastas no rail esquerdo, grade de mídia no centro e painel de
 conversão/detalhe à direita — nada navega para outra página.
 
-- **Converter**: solte uma foto ou vídeo na dropzone, escolha um preset de
-  cor (mono, duotone ou **gradiente** — Aurora/Brasa) e ajuste **halo**,
-  **brilho atmosférico**, **cor** (recupera tecido de baixo contraste de
-  luminância via canal de saturação), **rastro** e **detalhe**.
-- **Cor por parte** (human parsing): ligue "colorir por parte" e um modelo
-  semântico (SegFormer/ATR, local) separa **pele, cabelo e roupa** — cada
-  camada com sua própria cor, escolhida nos pickers. É o caminho para cores
-  corretas por região, que cor pura não resolve quando pele/roupa têm o
-  mesmo tom.
+- **Converter**: solte uma foto ou vídeo na dropzone e ajuste **halo**,
+  **brilho atmosférico**, **rastro** e **detalhe** — a cor vem dos pickers
+  por parte (abaixo).
+- **Cor por parte** (human parsing): é o padrão. Um modelo semântico
+  (SegFormer/ATR, local) separa **pele, cabelo, chapéu, roupa e acessórios**
+  — cada camada com sua própria cor nos pickers, pré-preenchida pela cor real
+  detectada na imagem. É o caminho para cores corretas por região, que uma
+  cor única não resolve quando pele/roupa têm o mesmo tom. Opcional: detectar
+  um **objeto na mão** (instrumento etc.) como uma camada extra.
 - **Chão com reflexo de água**: ligue "chão" e o sujeito ganha um piso com
   reflexo espelhado (esmaecido, ondulado, com poça de luz na cor dele) — não
   fica mais "flutuando". Sliders de **reflexo** e **ondulação**.
@@ -89,10 +89,10 @@ Se faltar ffmpeg ou modelo, um banner no rail mostra o comando de correção.
 2. **Bordas**: CLAHE + filtro bilateral + Canny dentro da máscara +
    contorno da silhueta (Evision/OpenCV).
 3. **Composição por máximo** entre linha e halos gaussianos — o matiz da
-   linha é exatamente a cor do preset, nunca estoura.
+   linha é exatamente a cor escolhida por parte, nunca estoura.
 4. **Vídeo**: máscara suavizada por EMA (anti-flicker), subject-lock por
-   sobreposição temporal, rastro de luz decaindo só no halo, duotone com
-   split estabilizado. Cadência **"shot on twos"** da animação desenhada à
+   sobreposição temporal, rastro de luz decaindo só no halo, campo de cor
+   por parte estabilizado entre frames. Cadência **"shot on twos"** da animação desenhada à
    mão: até 12 desenhos/s, cada um segurado por 2 frames num container de
    2× (24 fps), com duração preservada; largura de trabalho 640 px.
 
@@ -118,11 +118,12 @@ restart viram `interrupted` e podem ser reprocessados pela UI.
 Conversão direta arquivo → arquivo, sem criar item na galeria:
 
 ```sh
-mix camerex.foto IN OUT [--preset ID] [--halo 0..1] [--detail 0..1]
-mix camerex.video IN OUT [--preset ID]
+mix camerex.foto IN OUT [--halo 0..1] [--detail 0..1]
+mix camerex.video IN OUT
 ```
 
-Presets: `forro-laranja`, `forro-teal`, `forro-duotone`, `pulp`, `miami`, `ouro`.
+A cor sai dos defaults por parte (pele, cabelo, roupa…); o ajuste fino de
+cor é na galeria.
 
 ## Desenvolvimento
 

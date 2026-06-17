@@ -13,9 +13,7 @@ defmodule Camerex.LibraryTest do
     true = Evision.imwrite(src, Evision.Mat.from_nx_2d(rgb))
 
     {:ok, id} =
-      Workspace.create_item(src, "foto.png", :photo, "forro-teal", default_params(),
-        folder: folder
-      )
+      Workspace.create_item(src, "foto.png", :photo, default_params(), folder: folder)
 
     case attrs[:status] do
       nil ->
@@ -113,7 +111,6 @@ defmodule Camerex.LibraryTest do
       {:ok, dup} = Workspace.manifest(new_id)
       assert dup["status"] == "new"
       assert dup["folder"] == "shows"
-      assert dup["preset"] == nil
       assert File.exists?(Workspace.item_path(new_id, dup["original_file"]))
     end
 
@@ -126,7 +123,6 @@ defmodule Camerex.LibraryTest do
       ocupado = create_item_in!(tmp, "", %{status: "processing"})
 
       params = %{
-        "preset" => "pulp",
         "halo" => 0.9,
         "trail" => 0.7,
         "detail" => 0.5,
@@ -136,13 +132,12 @@ defmodule Camerex.LibraryTest do
       assert %{enqueued: 1, skipped: 1} = Library.process_items([novo, ocupado], params)
 
       {:ok, m} = Workspace.manifest(novo)
-      assert m["preset"] == "pulp"
       assert m["params"]["halo"] == 0.9
-      refute Map.has_key?(m["params"], "preset")
       assert m["status"] in ["queued", "processing", "done"]
 
+      # o item ocupado é pulado: segue em processing, sem re-enfileirar
       {:ok, untouched} = Workspace.manifest(ocupado)
-      assert untouched["preset"] == "forro-teal"
+      assert untouched["status"] == "processing"
     end
 
     test "process_items persiste os params novos (bloom/camada/chão)", %{tmp: tmp} do
@@ -152,7 +147,6 @@ defmodule Camerex.LibraryTest do
       id = create_item_in!(tmp, "", %{status: "new"})
 
       params = %{
-        "preset" => "pulp",
         "halo" => 0.6,
         "bloom" => 0.8,
         "trail" => 0.7,

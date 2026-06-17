@@ -7,7 +7,6 @@ defmodule Camerex.UserPresetsTest do
   # travar a regressão "preset não salvava as configs novas"
   @valid %{
     "name" => "Show Noturno",
-    "preset" => "miami",
     "halo" => 0.8,
     "bloom" => 0.4,
     "trail" => 0.5,
@@ -28,7 +27,6 @@ defmodule Camerex.UserPresetsTest do
   test "save/1 válido gera id slug e persiste; all/0 devolve" do
     assert {:ok, saved} = UserPresets.save(@valid)
     assert saved["id"] == "show-noturno"
-    assert saved["preset"] == "miami"
 
     assert [%{"id" => "show-noturno"}] = UserPresets.all()
   end
@@ -71,12 +69,9 @@ defmodule Camerex.UserPresetsTest do
     assert :ok = UserPresets.delete("show-noturno")
   end
 
-  test "validações: nome vazio, preset base inexistente, ranges e modelo" do
+  test "validações: nome vazio, ranges e modelo" do
     assert {:error, msg} = UserPresets.save(%{@valid | "name" => "  "})
     assert msg =~ "nome"
-
-    assert {:error, msg} = UserPresets.save(%{@valid | "preset" => "vaporwave"})
-    assert msg =~ "preset"
 
     assert {:error, msg} = UserPresets.save(%{@valid | "halo" => 1.5})
     assert msg =~ "halo"
@@ -97,7 +92,7 @@ defmodule Camerex.UserPresetsTest do
 
   test "params/1 devolve o mapa de params inteiro do preset salvo" do
     {:ok, saved} = UserPresets.save(@valid)
-    assert UserPresets.params(saved) == Map.drop(@valid, ["name", "preset"])
+    assert UserPresets.params(saved) == Map.drop(@valid, ["name"])
   end
 
   test "params/1 de preset antigo (chaves planas, sem 'params') usa fallback" do

@@ -106,8 +106,6 @@ defmodule CamerexWeb.DetailPanel do
       </div>
 
       <dl :if={@item["params"]} id="params" class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <dt class="text-cx-text-dim">preset</dt>
-        <dd>{@item["preset"]}</dd>
         <dt class="text-cx-text-dim">halo</dt>
         <dd>{@item["params"]["halo"]}</dd>
         <dt class="text-cx-text-dim">rastro</dt>

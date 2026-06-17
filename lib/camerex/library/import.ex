@@ -55,7 +55,7 @@ defmodule Camerex.Library.Import do
     name = Path.basename(path)
     folder = Path.join(dest_folder, rel_folder) |> String.trim("/") |> String.trim(".")
 
-    case Workspace.create_item(path, name, media_type(name), nil, nil, folder: folder) do
+    case Workspace.create_item(path, name, media_type(name), nil, folder: folder) do
       {:ok, _id} -> :ok
       {:error, reason} -> {:error, "#{name}: #{inspect(reason)}"}
     end

@@ -85,8 +85,8 @@ defmodule Camerex.Pipeline.Video do
   Converte um arquivo de vídeo direto em disco, sem Workspace — usada por
   `run/2` (via `do_render`) e pela CLI `mix camerex.video`.
 
-  opts (defaults do contrato): `preset:` (id da Palette, default "forro-teal"),
-  `halo:` 0.6, `detail:` 0.5, `trail:` 0.7, `model:` "u2netp".
+  opts (defaults do contrato): `halo:` 0.6, `detail:` 0.5, `trail:` 0.7,
+  `model:` "u2netp". Cor por camada via `layer_colors` (defaults de Layers).
   """
   @spec render_file(
           Path.t(),

@@ -30,7 +30,7 @@ defmodule Camerex.Pipeline.VideoTest do
       "model" => "u2netp"
     }
 
-    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, "forro-duotone", params)
+    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, params)
     test_pid = self()
 
     assert :ok =
@@ -86,7 +86,7 @@ defmodule Camerex.Pipeline.VideoTest do
       "layer_colors" => %{"clothing" => [0, 0, 255]}
     }
 
-    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, "forro-teal", params)
+    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, params)
     test_pid = self()
 
     assert :ok =
@@ -110,7 +110,7 @@ defmodule Camerex.Pipeline.VideoTest do
     src = Path.join(tmp_dir, "clip.mp4")
     File.write!(src, "isto não é um vídeo")
 
-    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, "forro-duotone", %{})
+    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, %{})
 
     assert {:error, _} = Pipeline.Video.run(id, fn _, _ -> :ok end)
 
@@ -131,7 +131,7 @@ defmodule Camerex.Pipeline.VideoTest do
 
     serial = Path.join(tmp_dir, "serial.mp4")
     parallel = Path.join(tmp_dir, "parallel.mp4")
-    opts = [preset: "forro-duotone", detail: 0.5, trail: 0.7, model: "u2netp"]
+    opts = [detail: 0.5, trail: 0.7, model: "u2netp"]
 
     assert :ok =
              Pipeline.Video.render_file(src, serial, [{:frame_concurrency, 1} | opts], fn _, _ ->
@@ -171,7 +171,7 @@ defmodule Camerex.Pipeline.VideoTest do
           ~w(-f lavfi -i sine=frequency=440:duration=1 -shortest #{src})
       )
 
-    {:ok, id} = Workspace.create_item(src, "com_audio.mp4", :video, "forro-teal", %{})
+    {:ok, id} = Workspace.create_item(src, "com_audio.mp4", :video, %{})
     assert :ok = Pipeline.Video.run(id, fn _, _ -> :ok end)
 
     out = Workspace.item_path(id, "neon.mp4")

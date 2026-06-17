@@ -60,4 +60,12 @@ defmodule Camerex.Parser.LayersTest do
     assert Nx.to_number(m[12][12]) == 255
     assert Nx.to_number(m[0][0]) == 0
   end
+
+  describe "hex/1" do
+    test "RGB → #RRGGBB maiúsculo, zero-padded" do
+      assert Layers.hex({255, 138, 92}) == "#FF8A5C"
+      assert Layers.hex({0, 194, 255}) == "#00C2FF"
+      assert Layers.hex({43, 196, 178}) == "#2BC4B2"
+    end
+  end
 end

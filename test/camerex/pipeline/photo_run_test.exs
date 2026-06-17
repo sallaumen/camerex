@@ -39,15 +39,14 @@ defmodule Camerex.Pipeline.PhotoRunTest do
     # novos ajustes direto no manifest (o caminho real é Library.process_items)
     {:ok, _} =
       Workspace.update_manifest(id, fn m ->
-        Map.merge(m, %{"preset" => "ouro", "params" => Map.put(m["params"], "halo", 1.0)})
+        Map.put(m, "params", Map.put(m["params"], "halo", 1.0))
       end)
 
     assert :ok = Photo.run(id, nil)
 
     {:ok, m} = Workspace.manifest(id)
     assert m["status"] == "done"
-    assert m["preset"] == "ouro"
-    # cor diferente → png diferente: a conversão foi de fato regravada
+    # halo diferente → png diferente: a conversão foi de fato regravada
     refute File.read!(Workspace.item_path(id, "neon.png")) == bytes_v1
   end
 
@@ -56,7 +55,7 @@ defmodule Camerex.Pipeline.PhotoRunTest do
     File.write!(src, "isto nao e uma imagem")
 
     {:ok, id} =
-      Workspace.create_item(src, "quebrada.jpg", :photo, "forro-teal", default_params())
+      Workspace.create_item(src, "quebrada.jpg", :photo, default_params())
 
     assert_raise RuntimeError, fn -> Photo.run(id, nil) end
 

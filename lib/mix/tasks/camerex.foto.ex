@@ -2,10 +2,11 @@ defmodule Mix.Tasks.Camerex.Foto do
   @shortdoc "Converte uma foto em arte neon"
 
   @moduledoc """
-      mix camerex.foto IN OUT [--preset ID] [--halo 0..1] [--detail 0..1]
+      mix camerex.foto IN OUT [--halo 0..1] [--detail 0..1]
 
   Roda o pipeline de foto direto em arquivos, sem criar item na galeria.
-  Presets: ver `Camerex.Neon.Palette`. Exige modelos (`mix camerex.setup`).
+  Cor por camada (pele, cabelo, roupa…) com os defaults; ajuste fino na
+  galeria. Exige modelos (`mix camerex.setup`).
   """
 
   use Mix.Task

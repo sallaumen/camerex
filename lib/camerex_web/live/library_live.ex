@@ -23,7 +23,6 @@ defmodule CamerexWeb.LibraryLive do
   }
 
   alias Camerex.Library.Import, as: LibraryImport
-  alias Camerex.Neon.Palette
   alias Camerex.Parser.Layers
   alias Camerex.Pipeline.Video
 
@@ -314,7 +313,7 @@ defmodule CamerexWeb.LibraryLive do
   # importa sem processar: cria o item (status "new") e NÃO enfileira job —
   # a pessoa clica "Processar" no detalhe quando quiser
   def handle_event("import_only", _params, socket) do
-    case import_uploads(socket, nil) do
+    case import_uploads(socket, convert?: false) do
       [] ->
         {:noreply, put_flash(socket, :error, "Escolha uma foto ou vídeo para importar.")}
 
@@ -348,7 +347,7 @@ defmodule CamerexWeb.LibraryLive do
 
   def handle_event("retry_item", _params, socket) do
     item = socket.assigns.current_item
-    params = Map.put(item["params"] || panel_params(socket), "preset", item["preset"])
+    params = item["params"] || panel_params(socket)
     Library.process_items([item["id"]], params)
     {:noreply, socket |> reload() |> refresh_current_item()}
   end
@@ -384,7 +383,7 @@ defmodule CamerexWeb.LibraryLive do
         {:noreply, socket}
 
       preset ->
-        bulk_process(socket, Map.put(UserPresets.params(preset), "preset", preset["preset"]))
+        bulk_process(socket, UserPresets.params(preset))
     end
   end
 
@@ -427,7 +426,7 @@ defmodule CamerexWeb.LibraryLive do
     attrs =
       socket
       |> panel_params()
-      |> Map.merge(%{"name" => name, "preset" => socket.assigns.render_params.preset_id})
+      |> Map.put("name", name)
 
     case UserPresets.save(attrs) do
       {:ok, _} ->
@@ -451,10 +450,7 @@ defmodule CamerexWeb.LibraryLive do
         # preset traz de volta TODOS os controles — não só halo/trail/detail
         socket =
           socket
-          |> apply_item_params(%{
-            "preset" => preset["preset"],
-            "params" => UserPresets.params(preset)
-          })
+          |> apply_item_params(%{"params" => UserPresets.params(preset)})
           |> rerender_calibration()
 
         {:noreply, socket}
@@ -962,7 +958,7 @@ defmodule CamerexWeb.LibraryLive do
   ## Internas — conversão
 
   defp convert_upload(socket) do
-    case import_uploads(socket, socket.assigns.render_params.preset_id) do
+    case import_uploads(socket, convert?: true) do
       [] ->
         {:noreply, put_flash(socket, :error, "Escolha uma foto ou vídeo para converter.")}
 
@@ -973,21 +969,21 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   # consome os uploads e cria os itens (sem enfileirar) — base comum de
-  # "Converter" e "Só importar". preset_id `nil` → item "new" (sem processar,
-  # igual à importação de pasta); com preset → "queued". create_item devolve
-  # {:ok, id}, que o consume_uploaded_entries desembrulha para o próprio id.
-  defp import_uploads(socket, preset_id) do
+  # "Converter" e "Só importar". Sem params (convert?: false) → item "new" (só
+  # importa, igual à importação de pasta); com params → "queued". create_item
+  # devolve {:ok, id}, que o consume_uploaded_entries desembrulha pro id.
+  defp import_uploads(socket, convert?: convert?) do
     folder = socket.assigns.folder
 
     consume_uploaded_entries(socket, :media, fn %{path: path}, entry ->
       type = media_type(entry.client_name)
-      params = if preset_id, do: panel_params_for(socket, type), else: nil
-      Workspace.create_item(path, entry.client_name, type, preset_id, params, folder: folder)
+      params = if convert?, do: panel_params_for(socket, type), else: nil
+      Workspace.create_item(path, entry.client_name, type, params, folder: folder)
     end)
   end
 
   defp reprocess_item(socket, item) do
-    params = Map.put(panel_params(socket), "preset", socket.assigns.render_params.preset_id)
+    params = panel_params(socket)
     Library.process_items([item["id"]], params)
 
     {:noreply,
@@ -1020,7 +1016,7 @@ defmodule CamerexWeb.LibraryLive do
   defp rerender_calibration(%{assigns: %{calib: %{} = session}} = socket) do
     lv = self()
     ref = make_ref()
-    params = Map.put(panel_params(socket), "preset", socket.assigns.render_params.preset_id)
+    params = panel_params(socket)
 
     {:ok, _pid} =
       Task.start(fn -> send(lv, {:calib_render, ref, safe_render(session, params)}) end)
@@ -1112,7 +1108,7 @@ defmodule CamerexWeb.LibraryLive do
   defp colors_to_json(colors) do
     body =
       Enum.map_join(Layers.groups(), ",\n", fn %{key: key, default: default} ->
-        hex = colors |> Map.get(key, default) |> Palette.hex()
+        hex = colors |> Map.get(key, default) |> Layers.hex()
         ~s(  "#{key}": "#{hex}")
       end)
 
@@ -1159,7 +1155,6 @@ defmodule CamerexWeb.LibraryLive do
   defp json_color(_), do: :error
 
   defp bulk_process(socket, params) do
-    params = Map.put_new(params, "preset", socket.assigns.render_params.preset_id)
     result = Library.process_items(MapSet.to_list(socket.assigns.selected), params)
 
     {:noreply,
@@ -1170,7 +1165,7 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   defp apply_calibration_to(socket, ids) do
-    params = Map.put(panel_params(socket), "preset", socket.assigns.render_params.preset_id)
+    params = panel_params(socket)
     result = Library.process_items(ids, params)
 
     {:noreply,

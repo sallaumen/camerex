@@ -18,7 +18,6 @@ defmodule Camerex.Neon.Layered do
   (rastro na arte-de-linha, EMA no campo de cor).
   """
 
-  alias Camerex.Neon.Palette
   alias Camerex.Parser.Layers
 
   # componentes de um rótulo menores que esta fração da imagem são ilhas de
@@ -215,7 +214,7 @@ defmodule Camerex.Neon.Layered do
   `%{skin: rgb, hair: rgb, ...}` (use `Layers.default_colors/0` ou
   `Layers.normalize_colors/1`). Sem nenhuma parte → preto.
   """
-  @spec color_field(Nx.Tensor.t(), %{atom() => Palette.color()}, pos_integer()) :: Nx.Tensor.t()
+  @spec color_field(Nx.Tensor.t(), %{atom() => Layers.rgb()}, pos_integer()) :: Nx.Tensor.t()
   def color_field(labels, colors, w) do
     {h, _w} = Nx.shape(labels)
 

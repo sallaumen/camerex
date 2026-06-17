@@ -271,7 +271,6 @@ defmodule CamerexWeb.LibraryLiveTest do
       {:ok, _} =
         UserPresets.save(%{
           "name" => "Forte",
-          "preset" => "pulp",
           "halo" => 0.95,
           "trail" => 0.3,
           "detail" => 0.2,
@@ -289,7 +288,6 @@ defmodule CamerexWeb.LibraryLiveTest do
       |> render_change(%{"preset_id" => "forte"})
 
       {:ok, m} = Workspace.manifest(id)
-      assert m["preset"] == "pulp"
       assert m["params"]["halo"] == 0.95
     end
 
@@ -508,7 +506,7 @@ defmodule CamerexWeb.LibraryLiveTest do
       lv |> form("#colors-json-form", %{"json" => ~s({"clothing": "#0000FF"})}) |> render_submit()
 
       refute render(lv) =~ "colors-json-modal"
-      # Palette.hex devolve hex MAIÚSCULO
+      # Layers.hex devolve hex MAIÚSCULO
       assert has_element?(lv, ~s(input[name=layer_clothing][value="#0000FF"]))
     end
 

@@ -1,11 +1,10 @@
 defmodule Camerex.UserPresets do
   @moduledoc """
-  Presets de conversão salvos pelo usuário (nome + preset de cor + sliders),
-  persistidos em `workspace/user_presets.json`. Arquivo corrompido é tratado
-  como vazio — preferências nunca derrubam o app.
+  Presets de conversão salvos pelo usuário (nome + controles de render: cor
+  por camada, sliders, fundo…), persistidos em `workspace/user_presets.json`.
+  Arquivo corrompido é tratado como vazio — preferências nunca derrubam o app.
   """
 
-  alias Camerex.Neon.Palette
   alias Camerex.Workspace
 
   @file_name "user_presets.json"
@@ -58,9 +57,6 @@ defmodule Camerex.UserPresets do
       name == "" ->
         {:error, "nome do preset não pode ser vazio"}
 
-      Palette.get(attrs["preset"]) == nil ->
-        {:error, "preset de cor desconhecido: #{inspect(attrs["preset"])}"}
-
       not in_range?(attrs["halo"], 0.0, 1.0) ->
         {:error, "halo fora de [0, 1]"}
 
@@ -78,7 +74,6 @@ defmodule Camerex.UserPresets do
          %{
            "id" => Workspace.slug(name),
            "name" => name,
-           "preset" => attrs["preset"],
            # guarda o mapa de params INTEIRO (genérico): params novos (cor, fundo,
            # objeto, preenchimento, chão…) entram sozinhos, sem listar campo a
            # campo aqui — era exatamente o que deixava preset salvo pra trás.

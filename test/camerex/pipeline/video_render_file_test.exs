@@ -28,7 +28,7 @@ defmodule Camerex.Pipeline.VideoRenderFileTest do
              Pipeline.Video.render_file(
                in_path,
                out_path,
-               [preset: "forro-teal", trail: 0.6],
+               [trail: 0.6],
                progress_cb
              )
 
@@ -43,21 +43,6 @@ defmodule Camerex.Pipeline.VideoRenderFileTest do
 
     assert_received {:progress, 1, total}
     assert total == 10
-  end
-
-  test "preset gradiente (aurora) renderiza vídeo sem crashar",
-       %{in_path: in_path, out_path: out_path} do
-    # regressão: o modo :gradient (F1) não existia no pipeline de vídeo →
-    # FunctionClauseError no process_frame → broken pipe (exit 224)
-    assert :ok =
-             Pipeline.Video.render_file(
-               in_path,
-               out_path,
-               [preset: "aurora"],
-               fn _done, _total -> :ok end
-             )
-
-    assert File.exists?(out_path)
   end
 
   test "origem rapida e limitada a 12 desenhos por segundo, container 24fps",
@@ -77,7 +62,7 @@ defmodule Camerex.Pipeline.VideoRenderFileTest do
              Pipeline.Video.render_file(
                in_path,
                out_path,
-               [preset: "forro-teal"],
+               [],
                fn _done, _total -> :ok end
              )
 

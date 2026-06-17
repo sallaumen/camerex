@@ -27,7 +27,6 @@ defmodule Camerex.RenderParams do
 
   @type rgb :: {0..255, 0..255, 0..255}
   @type t :: %__MODULE__{
-          preset_id: String.t(),
           layer_colors: %{atom() => rgb()},
           halo: float(),
           bloom: float(),
@@ -44,8 +43,7 @@ defmodule Camerex.RenderParams do
           floor: boolean()
         }
 
-  defstruct preset_id: "forro-laranja",
-            layer_colors: %{},
+  defstruct layer_colors: %{},
             halo: 0.6,
             bloom: 0.4,
             trail: 0.7,
@@ -75,11 +73,10 @@ defmodule Camerex.RenderParams do
 
   @doc "Params salvos no item (reprocesso) → struct; `current` é fallback dos sliders."
   @spec from_manifest(map(), t()) :: t()
-  def from_manifest(%{"params" => p} = item, %__MODULE__{} = current) when is_map(p) do
+  def from_manifest(%{"params" => p}, %__MODULE__{} = current) when is_map(p) do
     @sliders
     |> Map.new(fn k -> {k, p[to_string(k)] || Map.fetch!(current, k)} end)
     |> Map.merge(Map.new(@booleans, fn k -> {k, p[to_string(k)] || false} end))
-    |> Map.put(:preset_id, item["preset"] || current.preset_id)
     |> Map.put(:layer_colors, Layers.normalize_colors(p["layer_colors"]))
     |> then(&struct(current, &1))
   end

@@ -15,7 +15,6 @@ defmodule CamerexWeb.LibraryComponentsTest do
         "original_file" => "original.png",
         "output_file" => "neon.png",
         "folder" => "shows",
-        "preset" => "ouro",
         "params" => %{"halo" => 0.6, "trail" => 0.7, "detail" => 0.5},
         "error" => nil
       },

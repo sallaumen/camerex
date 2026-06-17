@@ -111,15 +111,14 @@ defmodule Camerex.Library do
         manifest["original_filename"],
         String.to_existing_atom(manifest["type"]),
         nil,
-        nil,
         folder: manifest["folder"]
       )
     end
   end
 
   @doc """
-  Aplica os params (com `"preset"`) aos itens e enfileira — itens já em
-  processamento/fila são pulados. Devolve `%{enqueued: n, skipped: n}`.
+  Aplica os params aos itens e enfileira — itens já em processamento/fila
+  são pulados. Devolve `%{enqueued: n, skipped: n}`.
   """
   @spec process_items([String.t()], map()) :: %{
           enqueued: non_neg_integer(),
@@ -152,7 +151,6 @@ defmodule Camerex.Library do
     {:ok, _} =
       Workspace.update_manifest(manifest["id"], fn m ->
         Map.merge(m, %{
-          "preset" => params["preset"],
           "params" => Map.take(params, @param_keys),
           "status" => "queued",
           "error" => nil,

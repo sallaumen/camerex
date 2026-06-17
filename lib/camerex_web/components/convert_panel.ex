@@ -9,7 +9,6 @@ defmodule CamerexWeb.ConvertPanel do
 
   use Phoenix.Component
 
-  alias Camerex.Neon.Palette
   alias Camerex.Parser.Layers
   alias Phoenix.LiveView.JS
 
@@ -188,7 +187,7 @@ defmodule CamerexWeb.ConvertPanel do
                   <input
                     type="color"
                     name={"layer_#{group.key}"}
-                    value={Palette.hex(Map.get(@layer_colors, group.key, group.default))}
+                    value={Layers.hex(Map.get(@layer_colors, group.key, group.default))}
                     phx-debounce="200"
                     aria-label={"cor da camada #{group.label}"}
                     class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
@@ -220,7 +219,7 @@ defmodule CamerexWeb.ConvertPanel do
                 <input
                   type="color"
                   name={"layer_#{object_group().key}"}
-                  value={Palette.hex(Map.get(@layer_colors, :object, object_group().default))}
+                  value={Layers.hex(Map.get(@layer_colors, :object, object_group().default))}
                   phx-debounce="200"
                   aria-label={"cor da camada #{object_group().label}"}
                   class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
@@ -395,7 +394,6 @@ defmodule CamerexWeb.ConvertPanel do
                   title={"aplicar #{p["name"]}"}
                 >
                   {p["name"]}
-                  <span class="text-xs text-cx-text-dim">· {p["preset"]}</span>
                 </button>
                 <button
                   type="button"

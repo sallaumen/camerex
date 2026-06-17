@@ -7,8 +7,6 @@ defmodule Camerex.Parser.Layers do
   modelo os distingue, então um boné não vira "cabelo colorido".
   """
 
-  alias Camerex.Neon.Palette
-
   @groups [
     %{key: :skin, label: "pele", ids: [11, 12, 13, 14, 15], default: {255, 170, 120}},
     %{key: :hair, label: "cabelo", ids: [2], default: {255, 90, 30}},
@@ -21,22 +19,32 @@ defmodule Camerex.Parser.Layers do
     %{key: :object, label: "objeto/instrumento", ids: [18], default: {90, 200, 255}}
   ]
 
-  @type group :: %{key: atom(), label: String.t(), ids: [0..17], default: Palette.color()}
+  @type rgb :: {0..255, 0..255, 0..255}
+  @type group :: %{key: atom(), label: String.t(), ids: [0..17], default: rgb()}
 
   @doc "As 4 camadas semânticas, na ordem de composição (pele → acessórios)."
   @spec groups() :: [group()]
   def groups, do: @groups
 
   @doc "Cores default por camada, no formato `%{skin: rgb, hair: rgb, ...}`."
-  @spec default_colors() :: %{atom() => Palette.color()}
+  @spec default_colors() :: %{atom() => rgb()}
   def default_colors, do: Map.new(@groups, &{&1.key, &1.default})
+
+  @doc "Cor RGB → string hex CSS (#RRGGBB, maiúsculo) para os `<input type=color>`."
+  @spec hex(rgb()) :: String.t()
+  def hex({r, g, b}) do
+    "#" <>
+      Enum.map_join([r, g, b], fn channel ->
+        channel |> Integer.to_string(16) |> String.pad_leading(2, "0")
+      end)
+  end
 
   @doc """
   Normaliza cores por camada vindas do manifest/UI (`%{"skin" => [r,g,b]}` ou
   `%{skin: {r,g,b}}`) para `%{atom => {r,g,b}}`, mescladas sobre os defaults.
   `nil` devolve os defaults.
   """
-  @spec normalize_colors(map() | nil) :: %{atom() => Palette.color()}
+  @spec normalize_colors(map() | nil) :: %{atom() => rgb()}
   def normalize_colors(nil), do: default_colors()
 
   def normalize_colors(map) when is_map(map) do
@@ -57,7 +65,7 @@ defmodule Camerex.Parser.Layers do
   Partes ausentes (ou minúsculas) caem no default. Deixa os pickers já
   coerentes com o que a pessoa veste.
   """
-  @spec suggest_colors(Nx.Tensor.t(), Nx.Tensor.t()) :: %{atom() => Palette.color()}
+  @spec suggest_colors(Nx.Tensor.t(), Nx.Tensor.t()) :: %{atom() => rgb()}
   def suggest_colors(rgb, labels) do
     rgb_f = Nx.as_type(rgb, :f32)
     Map.new(@groups, fn g -> {g.key, suggest_one(rgb_f, labels, g)} end)

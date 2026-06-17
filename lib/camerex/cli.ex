@@ -4,21 +4,19 @@ defmodule Camerex.CLI do
   `mix camerex.video` — testável sem Mix.
   """
 
-  alias Camerex.Neon.Palette
-
-  @photo_usage "uso: mix camerex.foto IN OUT [--preset ID] [--halo 0..1] [--detail 0..1]"
-  @video_usage "uso: mix camerex.video IN OUT [--preset ID]"
+  @photo_usage "uso: mix camerex.foto IN OUT [--halo 0..1] [--detail 0..1]"
+  @video_usage "uso: mix camerex.video IN OUT"
 
   @type parsed :: %{input: String.t(), output: String.t(), opts: keyword()}
 
   @spec parse_photo([String.t()]) :: {:ok, parsed()} | {:error, String.t()}
   def parse_photo(argv) do
-    parse(argv, [preset: :string, halo: :float, detail: :float], @photo_usage)
+    parse(argv, [halo: :float, detail: :float], @photo_usage)
   end
 
   @spec parse_video([String.t()]) :: {:ok, parsed()} | {:error, String.t()}
   def parse_video(argv) do
-    parse(argv, [preset: :string], @video_usage)
+    parse(argv, [], @video_usage)
   end
 
   defp parse(argv, switches, usage) do
@@ -38,21 +36,9 @@ defmodule Camerex.CLI do
   end
 
   defp validate(opts, [input, output]) do
-    with :ok <- validate_preset(opts[:preset]),
-         :ok <- validate_unit(:halo, opts[:halo]),
+    with :ok <- validate_unit(:halo, opts[:halo]),
          :ok <- validate_unit(:detail, opts[:detail]) do
       {:ok, %{input: input, output: output, opts: opts}}
-    end
-  end
-
-  defp validate_preset(nil), do: :ok
-
-  defp validate_preset(id) do
-    if Palette.get(id) do
-      :ok
-    else
-      valid = Enum.map_join(Palette.all(), ", ", & &1.id)
-      {:error, "preset desconhecido: #{id} (válidos: #{valid})"}
     end
   end
 

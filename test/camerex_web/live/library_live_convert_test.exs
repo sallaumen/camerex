@@ -95,7 +95,6 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
 
       assert [item] = Workspace.list_items()
       assert item["type"] == "photo"
-      assert item["preset"] == "forro-laranja"
       assert item["original_filename"] == "casal.jpg"
       assert item["params"]["halo"] == 0.8
       assert item["params"]["trail"] == 0.7

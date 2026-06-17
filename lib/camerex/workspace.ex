@@ -57,14 +57,14 @@ defmodule Camerex.Workspace do
   end
 
   @doc """
-  Id de item: `YYYYMMDD-HHMMSS-<slug>-<preset>-<rand4>` no fuso
-  America/Sao_Paulo (contrato §4).
+  Id de item: `YYYYMMDD-HHMMSS-<slug>-<rand4>` no fuso America/Sao_Paulo
+  (contrato §4).
   """
-  @spec generate_id(String.t(), String.t() | nil) :: String.t()
-  def generate_id(original_filename, preset_id) do
+  @spec generate_id(String.t()) :: String.t()
+  def generate_id(original_filename) do
     ts = Calendar.strftime(DateTime.now!("America/Sao_Paulo"), "%Y%m%d-%H%M%S")
     rand4 = :crypto.strong_rand_bytes(2) |> Base.encode16(case: :lower)
-    "#{ts}-#{slug(original_filename)}-#{preset_id || "novo"}-#{rand4}"
+    "#{ts}-#{slug(original_filename)}-#{rand4}"
   end
 
   @doc """
@@ -75,14 +75,13 @@ defmodule Camerex.Workspace do
           Path.t(),
           String.t(),
           :photo | :video,
-          String.t() | nil,
           map() | nil,
           keyword()
         ) :: {:ok, String.t()} | {:error, term()}
-  def create_item(src_path, original_filename, type, preset_id, params, opts \\ [])
+  def create_item(src_path, original_filename, type, params, opts \\ [])
       when type in [:photo, :video] and (is_map(params) or is_nil(params)) do
     with {:ok, folder} <- folder_from_opts(opts) do
-      do_create_item(src_path, original_filename, type, preset_id, params, folder)
+      do_create_item(src_path, original_filename, type, params, folder)
     end
   end
 
@@ -93,12 +92,13 @@ defmodule Camerex.Workspace do
     end
   end
 
-  defp do_create_item(src_path, original_filename, type, preset_id, params, folder) do
-    id = generate_id(original_filename, preset_id)
+  defp do_create_item(src_path, original_filename, type, params, folder) do
+    id = generate_id(original_filename)
     dir = Path.join(items_dir(), id)
     ext = original_filename |> Path.extname() |> String.downcase()
     original_file = "original#{ext}"
-    new? = is_nil(preset_id)
+    # sem params = só importar (nasce "new"); com params = converter ("queued")
+    new? = is_nil(params)
 
     with :ok <- File.mkdir_p(dir),
          :ok <- File.cp(src_path, Path.join(dir, original_file)) do
@@ -108,7 +108,6 @@ defmodule Camerex.Workspace do
         "original_filename" => original_filename,
         "original_file" => original_file,
         "output_file" => if(new?, do: nil, else: default_output(type)),
-        "preset" => preset_id,
         "params" => params,
         "status" => if(new?, do: "new", else: "queued"),
         "error" => nil,

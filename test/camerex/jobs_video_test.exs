@@ -31,7 +31,7 @@ defmodule Camerex.JobsVideoTest do
       "model" => "u2netp"
     }
 
-    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, "forro-duotone", params)
+    {:ok, id} = Workspace.create_item(src, "clip.mp4", :video, params)
 
     :ok = Jobs.subscribe(id)
     :ok = Jobs.subscribe()

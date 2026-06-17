@@ -12,7 +12,6 @@ defmodule Camerex.RenderParamsTest do
     test "traz as cores por camada e os defaults dos controles" do
       d = RenderParams.default()
       assert d.layer_colors == Layers.default_colors()
-      assert d.preset_id == "forro-laranja"
       assert d.halo == 0.6
       assert d.fill == false
     end
@@ -44,12 +43,11 @@ defmodule Camerex.RenderParamsTest do
   end
 
   describe "from_manifest/2" do
-    test "lê params já tipados do item e o preset" do
+    test "lê params já tipados do item" do
       d = RenderParams.default()
-      item = %{"preset" => "miami", "params" => %{"halo" => 0.7, "fill" => true}}
+      item = %{"params" => %{"halo" => 0.7, "fill" => true}}
       out = RenderParams.from_manifest(item, d)
 
-      assert out.preset_id == "miami"
       assert out.halo == 0.7
       assert out.fill == true
       # slider ausente cai no fallback (current)
@@ -58,12 +56,12 @@ defmodule Camerex.RenderParamsTest do
 
     test "item sem mapa \"params\" devolve o current" do
       d = RenderParams.default()
-      assert RenderParams.from_manifest(%{"preset" => "x"}, d) == d
+      assert RenderParams.from_manifest(%{}, d) == d
     end
   end
 
   describe "to_manifest/1" do
-    test "produz exatamente as chaves do manifest (sem model nem preset_id)" do
+    test "produz exatamente as chaves do manifest (sem model)" do
       keys = RenderParams.default() |> RenderParams.to_manifest() |> Map.keys() |> Enum.sort()
 
       expected =
@@ -71,7 +69,6 @@ defmodule Camerex.RenderParamsTest do
 
       assert keys == Enum.sort(expected)
       refute "model" in keys
-      refute "preset_id" in keys
     end
 
     test "serializa as cores por camada como listas [r,g,b]" do
@@ -82,29 +79,25 @@ defmodule Camerex.RenderParamsTest do
 
   property "round-trip pelo manifest preserva todos os params (save → reprocesso)" do
     check all(p <- render_params()) do
-      item = %{"preset" => p.preset_id, "params" => RenderParams.to_manifest(p)}
+      item = %{"params" => RenderParams.to_manifest(p)}
       restored = RenderParams.from_manifest(item, RenderParams.default())
 
-      # o que vai pro manifest é idêntico depois do round-trip…
+      # o que vai pro manifest é idêntico depois do round-trip
       assert RenderParams.to_manifest(restored) == RenderParams.to_manifest(p)
-      # …e o preset (que viaja à parte) também
-      assert restored.preset_id == p.preset_id
     end
   end
 
-  # struct aleatório válido: sliders em [0,1] (passo 0.01), booleanos e preset
+  # struct aleatório válido: sliders em [0,1] (passo 0.01) e booleanos
   defp render_params do
     gen all(
           sliders <- list_of(map(integer(0..100), &(&1 / 100.0)), length: length(@sliders)),
-          bools <- list_of(boolean(), length: length(@booleans)),
-          preset <- member_of(~w(forro-laranja forro-teal forro-duotone pulp miami ouro))
+          bools <- list_of(boolean(), length: length(@booleans))
         ) do
       fields =
         @sliders
         |> Enum.zip(sliders)
         |> Map.new()
         |> Map.merge(@booleans |> Enum.zip(bools) |> Map.new())
-        |> Map.put(:preset_id, preset)
 
       struct(RenderParams.default(), fields)
     end
