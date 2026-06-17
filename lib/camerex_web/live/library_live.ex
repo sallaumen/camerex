@@ -192,7 +192,7 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   def handle_event("select_all", _params, socket) do
-    ids = socket.assigns.visible_items |> Enum.map(& &1["id"]) |> MapSet.new()
+    ids = MapSet.new(socket.assigns.visible_items, & &1["id"])
     {:noreply, assign(socket, :selected, ids)}
   end
 
@@ -944,8 +944,7 @@ defmodule CamerexWeb.LibraryLive do
     new_ids =
       items
       |> Enum.filter(&(&1["status"] == "processing"))
-      |> Enum.map(& &1["id"])
-      |> MapSet.new()
+      |> MapSet.new(& &1["id"])
       |> MapSet.difference(subscribed)
 
     Enum.each(new_ids, &Jobs.subscribe/1)
