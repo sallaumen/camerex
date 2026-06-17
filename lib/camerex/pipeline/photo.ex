@@ -7,7 +7,7 @@ defmodule Camerex.Pipeline.Photo do
   """
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
-  alias Camerex.Neon.{Layered, Palette, Scene}
+  alias Camerex.Neon.{Background, Layered, Palette, Scene}
   alias Camerex.Parser.{Layers, Object}
 
   @spec render(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
@@ -44,7 +44,11 @@ defmodule Camerex.Pipeline.Photo do
       neon =
         Neon.compose(edges, colors(preset, swap_sides), compose_opts(preset, mask, halo, bloom))
 
-      {:ok, neon |> with_background(rgb, opts) |> with_floor(opts) |> with_alpha(opts)}
+      {:ok,
+       neon
+       |> Background.behind(rgb, Keyword.get(opts, :bg_opacity, 0.0) || 0.0)
+       |> with_floor(opts)
+       |> Background.cutout(Keyword.get(opts, :transparent_bg, false))}
     end
   end
 
@@ -97,9 +101,9 @@ defmodule Camerex.Pipeline.Photo do
 
     Neon.compose(line, [{0, 0, 0}], halo: halo, bloom: bloom, color_field: field)
     |> with_fill(rgb, field, labels, opts)
-    |> with_background(rgb, opts)
+    |> Background.behind(rgb, Keyword.get(opts, :bg_opacity, 0.0) || 0.0)
     |> with_floor(opts)
-    |> with_alpha(opts)
+    |> Background.cutout(Keyword.get(opts, :transparent_bg, false))
   end
 
   # preenchimento texturizado SOB as linhas (opt-in): a cor de cada parte com
@@ -114,32 +118,6 @@ defmodule Camerex.Pipeline.Photo do
         )
 
       neon |> Nx.as_type(:f32) |> Nx.max(fill) |> Nx.clip(0, 255) |> Nx.as_type(:u8)
-    else
-      neon
-    end
-  end
-
-  # compõe o ORIGINAL atenuado ATRÁS do neon (opt-in via bg_opacity > 0): por
-  # máximo, o neon brilhante domina e o original só preenche onde o fundo era
-  # escuro — a cena real aparece "fantasma" sob o traço. Em 0 = preto puro.
-  defp with_background(neon, rgb, opts) do
-    op = Keyword.get(opts, :bg_opacity, 0.0) || 0.0
-
-    if op > 0.0 do
-      bg = rgb |> Nx.as_type(:f32) |> Nx.multiply(op)
-      neon |> Nx.as_type(:f32) |> Nx.max(bg) |> Nx.clip(0, 255) |> Nx.as_type(:u8)
-    else
-      neon
-    end
-  end
-
-  # fundo transparente (opt-in, só foto/PNG): deriva o canal alpha do brilho do
-  # conteúdo (máximo dos canais) — neon/original viram opacos, preto absoluto
-  # vira transparente. Recorte limpo do neon pra compor em qualquer fundo.
-  defp with_alpha(neon, opts) do
-    if Keyword.get(opts, :transparent_bg, false) do
-      alpha = neon |> Nx.reduce_max(axes: [2]) |> Nx.new_axis(-1)
-      Nx.concatenate([neon, alpha], axis: 2)
     else
       neon
     end

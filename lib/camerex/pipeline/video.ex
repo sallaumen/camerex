@@ -20,7 +20,7 @@ defmodule Camerex.Pipeline.Video do
   """
 
   alias Camerex.{Mask, Neon, Parser, Settings, Workspace}
-  alias Camerex.Neon.{Layered, Palette}
+  alias Camerex.Neon.{Background, Layered, Palette}
   alias Camerex.Parser.{Layers, Object}
   alias Camerex.Video.{Audio, Decoder, Encoder, Probe}
 
@@ -234,7 +234,7 @@ defmodule Camerex.Pipeline.Video do
         current_edges: p.line
       )
       |> fill_frame(opts, p.frame, p.labels, field)
-      |> with_background(p.frame, opts)
+      |> Background.behind(p.frame, opts.bg_opacity)
 
     with :ok <- Encoder.write_frame(enc, neon) do
       {:ok,
@@ -274,7 +274,7 @@ defmodule Camerex.Pipeline.Video do
         duotone_weights: weights,
         current_edges: edges
       )
-      |> with_background(p.frame, opts)
+      |> Background.behind(p.frame, opts.bg_opacity)
 
     with :ok <- Encoder.write_frame(enc, neon) do
       {:ok,
@@ -307,15 +307,6 @@ defmodule Camerex.Pipeline.Video do
   end
 
   defp fill_frame(neon, _opts, _frame, _labels, _field), do: neon
-
-  # original atenuado ATRÁS do neon (mesma regra da foto): a cena real aparece
-  # fantasma sob o traço. Vídeo não tem alpha — só este modo de fundo se aplica.
-  defp with_background(neon, frame, %{bg_opacity: op}) when is_number(op) and op > 0.0 do
-    bg = frame |> Nx.as_type(:f32) |> Nx.multiply(op)
-    neon |> Nx.as_type(:f32) |> Nx.max(bg) |> Nx.clip(0, 255) |> Nx.as_type(:u8)
-  end
-
-  defp with_background(neon, _frame, _opts), do: neon
 
   # cena escura (luma média < 70): clareia SÓ a entrada da segmentação;
   # as bordas continuam vindo do frame original (igual ao protótipo Python)
