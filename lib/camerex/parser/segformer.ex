@@ -61,6 +61,9 @@ defmodule Camerex.Parser.Segformer do
       |> then(& &1[0])
 
     {:ok, upsampled_argmax(logits, {h, w})}
+    # fronteira de inferência: catch-all INTENCIONAL — falha nativa (Ortex/Evision/
+    # Nx) vira o contrato {:error, _} pras with-chains tratarem com graça. Não é
+    # silêncio: o item fica "failed" com a mensagem da exceção (bug inclusive).
   rescue
     e -> {:error, e}
   end

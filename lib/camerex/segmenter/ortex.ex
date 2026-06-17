@@ -79,6 +79,9 @@ defmodule Camerex.Segmenter.Ortex do
       |> Nx.backend_transfer()
 
     {:ok, d0 |> U2Net.postprocess({h, w}) |> U2Net.binarize()}
+    # fronteira de inferência: catch-all INTENCIONAL — falha nativa (Ortex/Nx) vira
+    # o contrato {:error, _} pras with-chains tratarem com graça. Não é silêncio: o
+    # item fica "failed" com a mensagem da exceção (bug inclusive).
   rescue
     e -> {:error, e}
   end
