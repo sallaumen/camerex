@@ -161,4 +161,27 @@ defmodule Camerex.Pipeline.VideoTest do
     assert Pipeline.Video.set_frame_concurrency(0) == 1
     assert Pipeline.Video.frame_concurrency() == 1
   end
+
+  test "preserva o áudio do original no neon", %{tmp_dir: tmp_dir} do
+    src = Path.join(tmp_dir, "com_audio.mp4")
+
+    # vídeo de origem COM trilha de áudio (sine)
+    {_, 0} =
+      System.cmd(
+        "ffmpeg",
+        ~w(-y -v error -f lavfi -i testsrc=duration=1:size=64x48:rate=8) ++
+          ~w(-f lavfi -i sine=frequency=440:duration=1 -shortest #{src})
+      )
+
+    {:ok, id} = Workspace.create_item(src, "com_audio.mp4", :video, "forro-teal", %{})
+    assert :ok = Pipeline.Video.run(id, fn _, _ -> :ok end)
+
+    out = Workspace.item_path(id, "neon.mp4")
+
+    {streams, 0} =
+      System.cmd("ffprobe", ~w(-v error -show_entries stream=codec_type -of csv=p=0 #{out}))
+
+    assert streams =~ "audio", "neon perdeu o áudio do original"
+    assert streams =~ "video"
+  end
 end

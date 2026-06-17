@@ -22,7 +22,7 @@ defmodule Camerex.Pipeline.Video do
   alias Camerex.{Mask, Neon, Parser, Settings, Workspace}
   alias Camerex.Neon.{Layered, Palette}
   alias Camerex.Parser.{Layers, Object}
-  alias Camerex.Video.{Decoder, Encoder, Probe}
+  alias Camerex.Video.{Audio, Decoder, Encoder, Probe}
 
   @work_width 640
   # cadência "shot on twos" da animação à mão: até 12 desenhos/s, cada um
@@ -118,6 +118,8 @@ defmodule Camerex.Pipeline.Video do
       reduced = encode_frames(in_path, enc, fps, height, total_estimate, opts, progress_cb)
 
       with {:ok, stats} <- finish_render(reduced, enc, fps, height) do
+        # reanexa o áudio do original (mudo se a origem não tiver)
+        Audio.attach(out_path, in_path)
         progress_cb.(stats.count, stats.count)
         {:ok, stats}
       end
