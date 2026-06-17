@@ -10,11 +10,8 @@ defmodule Camerex.UserPresetsTest do
     "preset" => "miami",
     "halo" => 0.8,
     "bloom" => 0.4,
-    "chroma" => 0.5,
     "trail" => 0.5,
     "detail" => 0.4,
-    "swap_sides" => true,
-    "layered" => true,
     "layer_colors" => %{"clothing" => [0, 0, 255]},
     "detect_object" => true,
     "bg_opacity" => 0.3,
@@ -42,8 +39,6 @@ defmodule Camerex.UserPresetsTest do
 
     # os controles novos sobrevivem ao save
     assert params["bloom"] == 0.4
-    assert params["chroma"] == 0.5
-    assert params["layered"] == true
     assert params["layer_colors"] == %{"clothing" => [0, 0, 255]}
     assert params["detect_object"] == true
     assert params["bg_opacity"] == 0.3

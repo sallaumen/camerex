@@ -1,7 +1,7 @@
 defmodule Camerex.RenderParams do
   @moduledoc """
   Reúne num struct os controles de render do painel de conversão (princípio
-  *Data*): preset/cores por camada, composição (halo/bloom/cor/detalhe), fundo,
+  *Data*): cores por camada, composição (halo/bloom/detalhe), fundo,
   preenchimento, objeto, chão e rastro.
 
   Concentra o que antes era plumbing repetido em 4 funções da `LibraryLive` (e
@@ -22,8 +22,8 @@ defmodule Camerex.RenderParams do
   alias Camerex.Parser.Layers
 
   # sliders viram float (parse com fallback); booleanos vêm de `== "true"`
-  @sliders ~w(halo bloom chroma trail detail bg_opacity fill_color fill_texture glow spread)a
-  @booleans ~w(swap_sides layered detect_object transparent_bg fill floor)a
+  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread)a
+  @booleans ~w(detect_object transparent_bg fill floor)a
 
   @type rgb :: {0..255, 0..255, 0..255}
   @type t :: %__MODULE__{
@@ -31,7 +31,6 @@ defmodule Camerex.RenderParams do
           layer_colors: %{atom() => rgb()},
           halo: float(),
           bloom: float(),
-          chroma: float(),
           trail: float(),
           detail: float(),
           bg_opacity: float(),
@@ -39,8 +38,6 @@ defmodule Camerex.RenderParams do
           fill_texture: float(),
           glow: float(),
           spread: float(),
-          swap_sides: boolean(),
-          layered: boolean(),
           detect_object: boolean(),
           transparent_bg: boolean(),
           fill: boolean(),
@@ -51,7 +48,6 @@ defmodule Camerex.RenderParams do
             layer_colors: %{},
             halo: 0.6,
             bloom: 0.4,
-            chroma: 0.5,
             trail: 0.7,
             detail: 0.5,
             bg_opacity: 0.0,
@@ -59,8 +55,6 @@ defmodule Camerex.RenderParams do
             fill_texture: 0.15,
             glow: 0.85,
             spread: 0.5,
-            swap_sides: false,
-            layered: false,
             detect_object: false,
             transparent_bg: false,
             fill: false,

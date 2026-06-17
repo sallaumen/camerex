@@ -70,9 +70,6 @@ defmodule Camerex.UserPresets do
       not in_range?(attrs["detail"], 0.0, 1.0) ->
         {:error, "detail fora de [0, 1]"}
 
-      not is_boolean(attrs["swap_sides"]) ->
-        {:error, "swap_sides deve ser booleano"}
-
       attrs["model"] not in @models ->
         {:error, "model deve ser um de: #{Enum.join(@models, ", ")}"}
 

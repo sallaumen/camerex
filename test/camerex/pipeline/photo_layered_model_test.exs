@@ -1,6 +1,6 @@
 defmodule Camerex.Pipeline.PhotoLayeredModelTest do
-  # caminho cor-por-parte ponta a ponta com o PARSER REAL (Segformer/ATR).
-  # Os goldens cobrem só o modo normal; isto fecha o buraco do layered.
+  # caminho cor-por-parte (único modo) ponta a ponta com o PARSER REAL
+  # (Segformer/ATR) — valida o pipeline real, não os núcleos sintéticos.
   # Precisa do modelo em priv/models — corre com `mix test --include model`.
   use ExUnit.Case, async: false
 

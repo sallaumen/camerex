@@ -130,7 +130,6 @@ defmodule Camerex.LibraryTest do
         "halo" => 0.9,
         "trail" => 0.7,
         "detail" => 0.5,
-        "swap_sides" => false,
         "model" => "u2net"
       }
 
@@ -146,7 +145,7 @@ defmodule Camerex.LibraryTest do
       assert untouched["preset"] == "forro-teal"
     end
 
-    test "process_items persiste os params novos (bloom/chroma/camada/chão)", %{tmp: tmp} do
+    test "process_items persiste os params novos (bloom/camada/chão)", %{tmp: tmp} do
       Application.put_env(:camerex, :photo_pipeline, PipelineNoop)
       on_exit(fn -> Application.delete_env(:camerex, :photo_pipeline) end)
 
@@ -156,12 +155,9 @@ defmodule Camerex.LibraryTest do
         "preset" => "pulp",
         "halo" => 0.6,
         "bloom" => 0.8,
-        "chroma" => 0.7,
         "trail" => 0.7,
         "detail" => 0.5,
-        "swap_sides" => false,
         "model" => "u2net",
-        "layered" => true,
         "layer_colors" => %{"clothing" => [0, 0, 255]},
         "detect_object" => true,
         "bg_opacity" => 0.3,
@@ -178,8 +174,6 @@ defmodule Camerex.LibraryTest do
 
       {:ok, m} = Workspace.manifest(id)
       assert m["params"]["bloom"] == 0.8
-      assert m["params"]["chroma"] == 0.7
-      assert m["params"]["layered"] == true
       assert m["params"]["layer_colors"] == %{"clothing" => [0, 0, 255]}
       assert m["params"]["detect_object"] == true
       assert m["params"]["bg_opacity"] == 0.3

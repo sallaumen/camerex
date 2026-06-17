@@ -3,8 +3,6 @@ defmodule CamerexWeb.GalleryThemeTest do
 
   import Phoenix.LiveViewTest
 
-  alias Camerex.Neon.Palette
-
   @moduletag :tmp_dir
 
   setup %{tmp_dir: tmp} do
@@ -21,14 +19,11 @@ defmodule CamerexWeb.GalleryThemeTest do
     assert html =~ "neon-cta"
   end
 
-  test "swatches dos 6 presets com data-swatch e cor exata da Palette", %{conn: conn} do
+  test "abrir 'nova conversão' mostra o painel cor-por-parte (pickers de cor)", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/")
     view |> element("#new-conversion") |> render_click()
-    html = render(view)
 
-    for preset <- Palette.all() do
-      assert html =~ ~s(data-swatch="#{preset.id}")
-      assert html =~ Palette.hex(hd(preset.colors))
-    end
+    assert has_element?(view, "#layer-pickers")
+    assert has_element?(view, "input[type=color][name=layer_clothing]")
   end
 end

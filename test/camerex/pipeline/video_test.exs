@@ -27,7 +27,6 @@ defmodule Camerex.Pipeline.VideoTest do
       "halo" => 0.6,
       "trail" => 0.7,
       "detail" => 0.5,
-      "swap_sides" => false,
       "model" => "u2netp"
     }
 
@@ -70,7 +69,7 @@ defmodule Camerex.Pipeline.VideoTest do
     assert File.exists?(Workspace.item_path(id, "thumb_neon.jpg"))
   end
 
-  test "cor-por-parte: layered: true converte de ponta a ponta (parser por frame)",
+  test "cor-por-parte converte de ponta a ponta (parser por frame)",
        %{tmp_dir: tmp_dir} do
     src = Path.join(tmp_dir, "clip.mp4")
 
@@ -80,11 +79,10 @@ defmodule Camerex.Pipeline.VideoTest do
         ~w(-y -v error -f lavfi -i testsrc=duration=1:size=64x48:rate=8 #{src})
       )
 
-    # mesma funcionalidade da foto: liga layered e escolhe a cor de um grupo
+    # mesma funcionalidade da foto: escolhe a cor de um grupo (cor-por-parte)
     params = %{
       "halo" => 0.6,
       "trail" => 0.5,
-      "layered" => true,
       "layer_colors" => %{"clothing" => [0, 0, 255]}
     }
 

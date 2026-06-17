@@ -7,7 +7,6 @@ defmodule Camerex.WorkspaceTest do
     "halo" => 0.6,
     "trail" => 0.7,
     "detail" => 0.5,
-    "swap_sides" => false,
     "model" => "u2net"
   }
 

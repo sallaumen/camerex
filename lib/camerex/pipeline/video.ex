@@ -86,8 +86,7 @@ defmodule Camerex.Pipeline.Video do
   `run/2` (via `do_render`) e pela CLI `mix camerex.video`.
 
   opts (defaults do contrato): `preset:` (id da Palette, default "forro-teal"),
-  `halo:` 0.6, `detail:` 0.5, `trail:` 0.7, `swap_sides:` false,
-  `model:` "u2netp".
+  `halo:` 0.6, `detail:` 0.5, `trail:` 0.7, `model:` "u2netp".
   """
   @spec render_file(
           Path.t(),

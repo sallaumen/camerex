@@ -62,30 +62,21 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       :ok
     end
 
-    test "mostra os 6 swatches; seleção controla o 'inverter lados'", %{conn: conn} do
+    test "cor-por-parte é o padrão: pickers de cor à vista, sem swatches/chroma", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
       view |> element("#new-conversion") |> render_click()
 
-      for id <- ~w(forro-laranja forro-teal forro-duotone pulp miami ouro) do
-        assert has_element?(view, "#preset-swatches button[phx-value-id=#{id}]")
-      end
-
-      # default forro-laranja é mono: sem "inverter lados"
-      refute has_element?(view, "#swap-sides")
-
-      view |> element("button[phx-value-id=forro-duotone]") |> render_click()
-      assert has_element?(view, "button[phx-value-id=forro-duotone][data-selected=true]")
-      assert has_element?(view, "#swap-sides")
-
-      view |> element("button[phx-value-id=forro-teal]") |> render_click()
+      # cor-por-parte virou o único modo → pickers sempre presentes…
+      assert has_element?(view, "#layer-pickers")
+      # …e a UI antiga (swatches de preset, slider 'cor', 'inverter lados') saiu
+      refute has_element?(view, "#preset-swatches")
+      refute has_element?(view, "#convert-form input[name=chroma]")
       refute has_element?(view, "#swap-sides")
     end
 
     test "upload de foto cria item queued com params e enfileira o job", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
       view |> element("#new-conversion") |> render_click()
-
-      view |> element("button[phx-value-id=forro-teal]") |> render_click()
 
       photo =
         file_input(view, "#convert-form", :media, [
@@ -104,7 +95,7 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
 
       assert [item] = Workspace.list_items()
       assert item["type"] == "photo"
-      assert item["preset"] == "forro-teal"
+      assert item["preset"] == "forro-laranja"
       assert item["original_filename"] == "casal.jpg"
       assert item["params"]["halo"] == 0.8
       assert item["params"]["trail"] == 0.7
@@ -143,23 +134,7 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
     end
   end
 
-  describe "cor-por-parte esconde controles irrelevantes" do
-    test "ligar cor-por-parte esconde swatches de preset e o slider 'cor'", %{conn: conn} do
-      {:ok, view, _} = live(conn, ~p"/")
-      view |> element("#new-conversion") |> render_click()
-
-      # sem layered: swatches de preset e 'cor' (chroma) estão visíveis
-      assert has_element?(view, "#preset-swatches")
-      assert has_element?(view, "#convert-form input[name=chroma]")
-
-      view |> form("#convert-form", %{"layered" => "true"}) |> render_change()
-
-      # com layered: a cor vem dos pickers → swatches e 'cor' somem, pickers entram
-      refute has_element?(view, "#preset-swatches")
-      refute has_element?(view, "#convert-form input[name=chroma]")
-      assert has_element?(view, "#layer-pickers")
-    end
-
+  describe "controles do painel cor-por-parte" do
     test "reprocesso de foto esconde 'rastro' (no-op em foto; halo segue)",
          %{conn: conn, tmp: tmp} do
       id = create_photo_item!(tmp, %{status: "done"})
@@ -170,40 +145,32 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert has_element?(view, "#convert-form input[name=halo]")
     end
 
-    test "preenchimento: toggle só com layered; slider de opacidade ao ligar", %{conn: conn} do
+    test "preenchimento: toggle sempre à vista; sliders de opacidade só ao ligar",
+         %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/")
       view |> element("#new-conversion") |> render_click()
 
-      # sem layered, sem preenchimento
-      refute has_element?(view, "#fill-toggle")
-
-      view |> form("#convert-form", %{"layered" => "true"}) |> render_change()
-      # com layered: o toggle aparece, mas os sliders de opacidade ainda não
+      # cor-por-parte é padrão → o toggle de preenchimento está sempre presente,
+      # mas os sliders de opacidade só aparecem quando ligado
       assert has_element?(view, "#fill-toggle")
       refute has_element?(view, "#convert-form input[name=fill_color]")
 
-      view |> form("#convert-form", %{"layered" => "true", "fill" => "true"}) |> render_change()
+      view |> form("#convert-form", %{"fill" => "true"}) |> render_change()
       # com preenchimento ligado: entram os DOIS sliders (cor e textura)
       assert has_element?(view, "#convert-form input[name=fill_color]")
       assert has_element?(view, "#convert-form input[name=fill_texture]")
     end
 
-    test "objeto/instrumento: toggle só com layered; picker de cor ao ligar", %{conn: conn} do
+    test "objeto/instrumento: toggle sempre à vista; picker de cor só ao ligar",
+         %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/")
       view |> element("#new-conversion") |> render_click()
 
-      # sem layered: nem o toggle nem o picker do objeto existem
-      refute has_element?(view, "#object-toggle")
-      refute has_element?(view, "#convert-form input[name=layer_object]")
-
-      view |> form("#convert-form", %{"layered" => "true"}) |> render_change()
-      # com layered: o toggle aparece, mas o picker do objeto ainda não
+      # o toggle do objeto está sempre presente, mas o picker só ao ligar
       assert has_element?(view, "#object-toggle")
       refute has_element?(view, "#convert-form input[name=layer_object]")
 
-      view
-      |> form("#convert-form", %{"layered" => "true", "detect_object" => "true"})
-      |> render_change()
+      view |> form("#convert-form", %{"detect_object" => "true"}) |> render_change()
 
       # objeto ligado: entra o picker de cor da camada do objeto
       assert has_element?(view, "#object-color")
@@ -245,10 +212,10 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       {:ok, view, _} = live(conn, ~p"/")
       view |> element("#new-conversion") |> render_click()
 
-      # liga configs NOVAS (layered, fundo transparente, opacidade do fundo)
+      # liga configs NOVAS (preenchimento, fundo transparente, opacidade do fundo)
       view
       |> form("#convert-form", %{
-        "layered" => "true",
+        "fill" => "true",
         "transparent_bg" => "true",
         "bg_opacity" => "0.4"
       })
@@ -260,7 +227,7 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       # zera tudo de volta
       view
       |> form("#convert-form", %{
-        "layered" => "false",
+        "fill" => "false",
         "transparent_bg" => "false",
         "bg_opacity" => "0"
       })
@@ -271,7 +238,7 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       # aplica o preset salvo -> restaura as 3 configs novas
       view |> element("button[phx-value-id='meu-preset']") |> render_click()
 
-      assert has_element?(view, "#layer-pickers")
+      assert has_element?(view, "#fill-toggle input[type=checkbox][checked]")
       assert has_element?(view, "#transparent-toggle input[type=checkbox][checked]")
       assert has_element?(view, ~s(#convert-form input[name=bg_opacity][value="0.4"]))
     end

@@ -1,26 +1,21 @@
 defmodule CamerexWeb.ConvertPanel do
   @moduledoc """
-  Painel direito de conversão: dropzone, presets de cor, sliders, calibragem
-  ao vivo (prévia que reage aos controles, com atalhos de aplicação em massa)
-  e presets salvos do usuário. Em modo reprocesso (`reconvert_item`) o submit
-  reaplica os ajustes ao item existente em vez de criar um novo.
+  Painel direito de conversão: dropzone, cor por parte (pele, cabelo, roupa…),
+  sliders, calibragem ao vivo (prévia que reage aos controles, com atalhos de
+  aplicação em massa) e presets salvos do usuário. Em modo reprocesso
+  (`reconvert_item`) o submit reaplica os ajustes ao item existente em vez de
+  criar um novo.
   """
 
   use Phoenix.Component
-
-  import CamerexWeb.NeonComponents
 
   alias Camerex.Neon.Palette
   alias Camerex.Parser.Layers
   alias Phoenix.LiveView.JS
 
   attr :uploads, :map, required: true
-  attr :presets, :list, required: true
-  attr :preset_id, :string, required: true
   attr :halo, :float, required: true
   attr :bloom, :float, required: true
-  attr :chroma, :float, required: true
-  attr :layered, :boolean, default: false
   attr :layer_colors, :map, default: %{}
   attr :detect_object, :boolean, default: false
   attr :bg_opacity, :float, default: 0.0
@@ -33,7 +28,6 @@ defmodule CamerexWeb.ConvertPanel do
   attr :spread, :float, default: 0.5
   attr :trail, :float, required: true
   attr :detail, :float, required: true
-  attr :swap_sides, :boolean, required: true
   attr :calib, :any, default: nil, doc: ":preparing | sessão da calibragem ao vivo"
   attr :calib_url, :string, default: nil
   attr :calib_error, :string, default: nil
@@ -132,23 +126,6 @@ defmodule CamerexWeb.ConvertPanel do
               </div>
             </div>
 
-            <fieldset
-              :if={not @layered}
-              id="preset-swatches"
-              class="mt-4 flex flex-wrap items-center gap-3"
-            >
-              <.preset_swatch
-                :for={preset <- @presets}
-                preset={preset}
-                selected={preset.id == @preset_id}
-                phx-click="select_preset"
-                phx-value-id={preset.id}
-              />
-              <span class="text-xs text-cx-text-dim">
-                {(Palette.get(@preset_id) || %{name: @preset_id}).name}
-              </span>
-            </fieldset>
-
             <div class="mt-4 space-y-3 text-sm">
               <label class="block">
                 halo ({@halo})
@@ -172,19 +149,6 @@ defmodule CamerexWeb.ConvertPanel do
                   max="1"
                   step="0.05"
                   value={@bloom}
-                  phx-debounce="150"
-                  class="w-full"
-                />
-              </label>
-              <label :if={not @layered} class="block">
-                cor ({@chroma})
-                <input
-                  type="range"
-                  name="chroma"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={@chroma}
                   phx-debounce="150"
                   class="w-full"
                 />
@@ -217,24 +181,8 @@ defmodule CamerexWeb.ConvertPanel do
               </label>
             </div>
 
-            <label
-              :if={duotone?(@preset_id) and not @layered}
-              id="swap-sides"
-              class="mt-3 flex items-center gap-2 text-sm"
-            >
-              <input type="hidden" name="swap_sides" value="false" />
-              <input type="checkbox" name="swap_sides" value="true" checked={@swap_sides} />
-              inverter lados
-            </label>
-
-            <label id="layered-toggle" class="mt-3 flex items-center gap-2 text-sm">
-              <input type="hidden" name="layered" value="false" />
-              <input type="checkbox" name="layered" value="true" checked={@layered} />
-              colorir por parte (pele, cabelo, roupa)
-            </label>
-
-            <div :if={@layered} id="layer-pickers" class="mt-2 space-y-2">
-              <p class="text-xs text-cx-text-dim">cor de cada parte</p>
+            <div id="layer-pickers" class="mt-2 space-y-2">
+              <p class="text-xs text-cx-text-dim">cor de cada parte (pele, cabelo, roupa…)</p>
               <div class="grid grid-cols-2 gap-2 text-sm">
                 <label :for={group <- base_groups()} class="flex items-center gap-2">
                   <input
@@ -465,10 +413,6 @@ defmodule CamerexWeb.ConvertPanel do
       </div>
     </section>
     """
-  end
-
-  defp duotone?(preset_id) do
-    match?(%{mode: :duotone}, Palette.get(preset_id))
   end
 
   # o objeto é uma camada opt-in (2º modelo): some do grid de cores fixas e

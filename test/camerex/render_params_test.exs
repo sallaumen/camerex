@@ -5,8 +5,8 @@ defmodule Camerex.RenderParamsTest do
   alias Camerex.Parser.Layers
   alias Camerex.RenderParams
 
-  @sliders ~w(halo bloom chroma trail detail bg_opacity fill_color fill_texture glow spread)a
-  @booleans ~w(swap_sides layered detect_object transparent_bg fill floor)a
+  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread)a
+  @booleans ~w(detect_object transparent_bg fill floor)a
 
   describe "default/0" do
     test "traz as cores por camada e os defaults dos controles" do
@@ -14,7 +14,7 @@ defmodule Camerex.RenderParamsTest do
       assert d.layer_colors == Layers.default_colors()
       assert d.preset_id == "forro-laranja"
       assert d.halo == 0.6
-      assert d.layered == false
+      assert d.fill == false
     end
   end
 
@@ -29,9 +29,9 @@ defmodule Camerex.RenderParamsTest do
 
     test "booleano vem de igualdade com 'true' (ausente ou 'false' vira false)" do
       d = RenderParams.default()
-      assert RenderParams.from_form(%{"layered" => "true"}, d).layered == true
-      assert RenderParams.from_form(%{"layered" => "false"}, d).layered == false
-      assert RenderParams.from_form(%{}, d).layered == false
+      assert RenderParams.from_form(%{"fill" => "true"}, d).fill == true
+      assert RenderParams.from_form(%{"fill" => "false"}, d).fill == false
+      assert RenderParams.from_form(%{}, d).fill == false
     end
 
     test "pickers de cor (hex) viram {r,g,b} sobre as cores atuais" do
@@ -46,12 +46,12 @@ defmodule Camerex.RenderParamsTest do
   describe "from_manifest/2" do
     test "lê params já tipados do item e o preset" do
       d = RenderParams.default()
-      item = %{"preset" => "miami", "params" => %{"halo" => 0.7, "layered" => true}}
+      item = %{"preset" => "miami", "params" => %{"halo" => 0.7, "fill" => true}}
       out = RenderParams.from_manifest(item, d)
 
       assert out.preset_id == "miami"
       assert out.halo == 0.7
-      assert out.layered == true
+      assert out.fill == true
       # slider ausente cai no fallback (current)
       assert out.bloom == d.bloom
     end

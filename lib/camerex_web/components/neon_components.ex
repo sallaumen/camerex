@@ -1,9 +1,8 @@
 defmodule CamerexWeb.NeonComponents do
-  @moduledoc "Componentes visuais do tema neon: badges de status e swatches de preset."
+  @moduledoc "Componentes visuais do tema neon: badges de status e URL versionada de mídia."
 
   use Phoenix.Component
 
-  alias Camerex.Neon.Palette
   alias Camerex.Workspace
 
   @badges %{
@@ -29,25 +28,6 @@ defmodule CamerexWeb.NeonComponents do
     """
   end
 
-  attr :preset, :map, required: true
-  attr :selected, :boolean, default: false
-  attr :rest, :global
-
-  def preset_swatch(assigns) do
-    ~H"""
-    <button
-      type="button"
-      class={["neon-swatch", @selected && "neon-swatch-selected"]}
-      style={swatch_style(@preset)}
-      data-swatch={@preset.id}
-      data-selected={to_string(@selected)}
-      title={@preset.name}
-      aria-label={"preset de cor #{@preset.name}"}
-      {@rest}
-    ></button>
-    """
-  end
-
   @doc """
   URL da mídia com versão de cache derivada do `completed_at`. Reprocessar
   sobrescreve o mesmo arquivo na mesma URL — sem o `?v=`, o browser reusa
@@ -60,19 +40,5 @@ defmodule CamerexWeb.NeonComponents do
       nil -> base
       stamp -> "#{base}?v=#{:erlang.phash2(stamp)}"
     end
-  end
-
-  # o glow é a própria cor do preset via custom property --glow (box-shadow no CSS)
-  defp swatch_style(%{colors: [color]}) do
-    "background:#{Palette.hex(color)};--glow:#{Palette.hex(color)}"
-  end
-
-  defp swatch_style(%{colors: [left, right]}) do
-    "background:linear-gradient(90deg,#{Palette.hex(left)},#{Palette.hex(right)});--glow:#{Palette.hex(left)}"
-  end
-
-  defp swatch_style(%{colors: [a, b, c]}) do
-    "background:linear-gradient(160deg,#{Palette.hex(a)},#{Palette.hex(b)},#{Palette.hex(c)});" <>
-      "--glow:#{Palette.hex(b)}"
   end
 end

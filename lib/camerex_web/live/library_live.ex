@@ -64,7 +64,6 @@ defmodule CamerexWeb.LibraryLive do
         frame_concurrency: Video.frame_concurrency(),
         colors_json: "",
         colors_json_error: nil,
-        presets: Palette.all(),
         render_params: RenderParams.default(),
         preset_name: "",
         user_presets: UserPresets.all(),
@@ -298,13 +297,6 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   ## Painel de conversão (upload novo)
-
-  def handle_event("select_preset", %{"id" => id}, socket) do
-    swap = if duotone?(id), do: socket.assigns.render_params.swap_sides, else: false
-
-    {:noreply,
-     socket |> put_render_params(preset_id: id, swap_sides: swap) |> rerender_calibration()}
-  end
 
   def handle_event("validate", params, socket) do
     {:noreply, socket |> assign_controls(params) |> rerender_calibration()}
@@ -645,12 +637,8 @@ defmodule CamerexWeb.LibraryLive do
               <% true -> %>
                 <.convert_panel
                   uploads={@uploads}
-                  presets={@presets}
-                  preset_id={@render_params.preset_id}
                   halo={@render_params.halo}
                   bloom={@render_params.bloom}
-                  chroma={@render_params.chroma}
-                  layered={@render_params.layered}
                   layer_colors={@render_params.layer_colors}
                   detect_object={@render_params.detect_object}
                   bg_opacity={@render_params.bg_opacity}
@@ -663,7 +651,6 @@ defmodule CamerexWeb.LibraryLive do
                   spread={@render_params.spread}
                   trail={@render_params.trail}
                   detail={@render_params.detail}
-                  swap_sides={@render_params.swap_sides}
                   calib={@calib}
                   calib_url={@calib_url}
                   calib_error={@calib_error}
@@ -1201,8 +1188,6 @@ defmodule CamerexWeb.LibraryLive do
 
   # u2net para tudo (gate da fase 0 v1); u2netp fica para a prévia
   defp default_model(_type), do: "u2net"
-
-  defp duotone?(preset_id), do: match?(%{mode: :duotone}, Palette.get(preset_id))
 
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(reason), do: inspect(reason)

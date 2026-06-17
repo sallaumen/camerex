@@ -193,14 +193,14 @@ defmodule CamerexWeb.LibraryLiveTest do
       assert poll_calib_img(lv, url_inicial) != url_inicial
     end
 
-    test "trocar o preset de cor re-renderiza a prévia", %{conn: conn, tmp: tmp} do
+    test "trocar a cor de uma camada re-renderiza a prévia", %{conn: conn, tmp: tmp} do
       id = create_photo_item!(tmp, %{status: "done"})
       {:ok, lv, _} = live(conn, "/?item=#{id}")
 
       lv |> element("#reconvert-button") |> render_click()
       url_inicial = poll_calib_img(lv)
 
-      lv |> element(~s(button[phx-click=select_preset][phx-value-id="ouro"])) |> render_click()
+      lv |> form("#convert-form", %{"layer_clothing" => "#0000ff"}) |> render_change()
       assert poll_calib_img(lv, url_inicial) != url_inicial
     end
 
@@ -275,7 +275,6 @@ defmodule CamerexWeb.LibraryLiveTest do
           "halo" => 0.95,
           "trail" => 0.3,
           "detail" => 0.2,
-          "swap_sides" => false,
           "model" => "u2net"
         })
 
@@ -466,30 +465,11 @@ defmodule CamerexWeb.LibraryLiveTest do
       assert render(lv) =~ "0.85"
     end
 
-    test "preset de gradiente aparece na faixa de swatches", %{conn: conn} do
+    test "cor-por-parte é padrão: os pickers de cor estão sempre à vista", %{conn: conn} do
       {:ok, lv, _} = live(conn, "/")
       lv |> element("#new-conversion") |> render_click()
-      assert has_element?(lv, "#preset-swatches button[phx-value-id=aurora]")
-    end
 
-    test "slider de cor (chroma) existe e atualiza o valor exibido", %{conn: conn} do
-      {:ok, lv, _} = live(conn, "/")
-      lv |> element("#new-conversion") |> render_click()
-      assert render(lv) =~ ~s(name="chroma")
-
-      lv |> form("#convert-form", %{"chroma" => "0.75"}) |> render_change()
-      assert render(lv) =~ "0.75"
-    end
-
-    test "toggle 'colorir por parte' revela os pickers de cor", %{conn: conn} do
-      {:ok, lv, _} = live(conn, "/")
-      lv |> element("#new-conversion") |> render_click()
-      refute render(lv) =~ "layer-pickers"
-
-      lv |> form("#convert-form", %{"layered" => "true"}) |> render_change()
-
-      html = render(lv)
-      assert html =~ "layer-pickers"
+      assert render(lv) =~ "layer-pickers"
       assert has_element?(lv, "input[type=color][name=layer_clothing]")
       assert has_element?(lv, "input[type=color][name=layer_skin]")
     end
@@ -510,7 +490,6 @@ defmodule CamerexWeb.LibraryLiveTest do
     setup %{conn: conn} do
       {:ok, lv, _} = live(conn, "/")
       lv |> element("#new-conversion") |> render_click()
-      lv |> form("#convert-form", %{"layered" => "true"}) |> render_change()
       lv |> element("#edit-colors-json") |> render_click()
       %{lv: lv}
     end
@@ -553,22 +532,18 @@ defmodule CamerexWeb.LibraryLiveTest do
       {:ok, lv, _} = live(conn, "/")
       lv |> element("#new-conversion") |> render_click()
 
-      lv |> element("button[phx-value-id=miami]") |> render_click()
       lv |> form("#convert-form", %{"halo" => "0.9"}) |> render_change()
       lv |> form("#save-preset-form", %{"name" => "Meu Show"}) |> render_submit()
 
       assert [preset] = UserPresets.all()
-      assert preset["preset"] == "miami"
       # params agora ficam no sub-mapa "params" (antes era chave plana no topo)
       assert preset["params"]["halo"] == 0.9
 
-      # muda o painel e re-aplica o preset salvo
-      lv |> element("button[phx-value-id=ouro]") |> render_click()
+      # muda o halo e re-aplica o preset salvo → restaura o 0.9
+      lv |> form("#convert-form", %{"halo" => "0.2"}) |> render_change()
       lv |> element(~s(button[phx-click=apply_preset][phx-value-id="meu-show"])) |> render_click()
 
-      html = render(lv)
-      assert html =~ ~s(data-swatch="miami")
-      assert html =~ ~s(value="0.9")
+      assert render(lv) =~ ~s(value="0.9")
     end
   end
 
