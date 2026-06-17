@@ -34,3 +34,12 @@ config :camerex, doctor: Camerex.DoctorStub
 # o boot do app em test roda mark_interrupted_on_boot(): nunca apontar
 # para o workspace real
 config :camerex, workspace_root: Path.expand("tmp/test_workspace")
+
+# :os_mon (mini-dashboard) só precisa das portas cpu_sup/memsup em dev/prod. No
+# teste elas só adicionam um teardown de porta NATIVA que corre com o GC do
+# EXLA/Evision no shutdown do BEAM e flaka o ex_unit (SIGABRT/SIGSEGV, 134/139)
+# MESMO com 0 falhas. SystemStats trata a ausência (campos viram nil).
+config :os_mon,
+  start_cpu_sup: false,
+  start_memsup: false,
+  start_disksup: false
