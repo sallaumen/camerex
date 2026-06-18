@@ -54,4 +54,26 @@ defmodule Camerex.Parser.ApparatusTest do
     assert Nx.to_number(augmented[80][120]) == 19
     assert Nx.to_number(augmented[110][65]) == 4
   end
+
+  test "detect/4 acha o tecido pela COR mesmo quando o U²-Net não o vê" do
+    rows = Nx.iota({200, 200}, axis: 0)
+    cols = Nx.iota({200, 200}, axis: 1)
+    # faixa vertical vermelha (o tecido) sobre fundo cinza
+    band =
+      Nx.logical_and(Nx.greater_equal(cols, 95), Nx.less(cols, 115))
+      |> Nx.logical_and(Nx.less(rows, 170))
+
+    red = Nx.tensor([220, 30, 40], type: :u8) |> Nx.broadcast({200, 200, 3})
+    gray = Nx.broadcast(Nx.u8(128), {200, 200, 3})
+    rgb = Nx.select(Nx.broadcast(Nx.new_axis(band, -1), {200, 200, 3}), red, gray)
+
+    fg = Nx.broadcast(Nx.u8(0), {200, 200})
+    labels = Nx.broadcast(Nx.u8(0), {200, 200})
+
+    # sem cor + sem foreground → nada
+    assert Nx.to_number(Nx.sum(Apparatus.detect(fg, labels))) == 0
+    # com a cor do tecido → acha a faixa vermelha (a pista que o usuário indica)
+    mask = Apparatus.detect(fg, labels, rgb, {220, 30, 40})
+    assert Nx.to_number(mask[80][105]) == 255
+  end
 end

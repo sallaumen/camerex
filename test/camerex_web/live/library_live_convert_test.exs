@@ -183,10 +183,14 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
 
       assert has_element?(view, "#aerial-toggle")
       refute has_element?(view, "#convert-form input[name=layer_apparatus]")
+      refute has_element?(view, "#convert-form input[name=aerial_color]")
 
       view |> form("#convert-form", %{"detect_aerial" => "true"}) |> render_change()
 
-      # tecido ligado: entra o picker de cor da camada do tecido aéreo
+      # tecido ligado: entram o picker da COR DO TECIDO NA FOTO (detecção) e o
+      # picker de cor da camada do tecido aéreo (saída)
+      assert has_element?(view, "#aerial-photo-color")
+      assert has_element?(view, "#convert-form input[name=aerial_color]")
       assert has_element?(view, "#aerial-color")
       assert has_element?(view, "#convert-form input[name=layer_apparatus]")
     end

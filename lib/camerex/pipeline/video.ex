@@ -287,6 +287,7 @@ defmodule Camerex.Pipeline.Video do
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"] == true,
       detect_aerial: p["detect_aerial"] == true,
+      aerial_color: p["aerial_color"],
       bg_opacity: p["bg_opacity"] || 0.0,
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
@@ -329,8 +330,11 @@ defmodule Camerex.Pipeline.Video do
   defp augment_frame_labels(frame, labels, %{detect_object: o, detect_aerial: a} = opts)
        when o or a do
     case opts.segmenter.segment(frame, model: opts.model) do
-      {:ok, raw} -> labels |> frame_object(raw, o) |> frame_aerial(raw, a)
-      _ -> labels
+      {:ok, raw} ->
+        labels |> frame_object(raw, o) |> frame_aerial(raw, frame, opts.aerial_color, a)
+
+      _ ->
+        labels
     end
   end
 
@@ -341,13 +345,14 @@ defmodule Camerex.Pipeline.Video do
 
   defp frame_object(labels, _raw, false), do: labels
 
-  # tecido usa o foreground COMPLETO (todos os componentes), não o maior
-  defp frame_aerial(labels, raw, true) do
+  # tecido usa o foreground COMPLETO (todos os componentes), não o maior; a cor
+  # do tecido (aerial_color) é a pista principal pra recuperar o drapeado
+  defp frame_aerial(labels, raw, frame, color, true) do
     full = raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
-    Apparatus.into_labels(labels, Apparatus.detect(full, labels))
+    Apparatus.into_labels(labels, Apparatus.detect(full, labels, frame, color))
   end
 
-  defp frame_aerial(labels, _raw, false), do: labels
+  defp frame_aerial(labels, _raw, _frame, _color, false), do: labels
 
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(reason), do: inspect(reason)

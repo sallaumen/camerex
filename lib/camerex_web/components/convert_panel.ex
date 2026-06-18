@@ -18,6 +18,7 @@ defmodule CamerexWeb.ConvertPanel do
   attr :layer_colors, :map, default: %{}
   attr :detect_object, :boolean, default: false
   attr :detect_aerial, :boolean, default: false
+  attr :aerial_color, :any, default: {220, 30, 40}
   attr :bg_opacity, :float, default: 0.0
   attr :transparent_bg, :boolean, default: false
   attr :fill, :boolean, default: false
@@ -236,6 +237,22 @@ defmodule CamerexWeb.ConvertPanel do
               <p class="text-xs text-cx-text-dim">
                 destaca o tecido vertical (silk) que a pessoa escala, como camada própria
               </p>
+
+              <label
+                :if={@detect_aerial}
+                id="aerial-photo-color"
+                class="flex items-center gap-2 text-sm"
+              >
+                <input
+                  type="color"
+                  name="aerial_color"
+                  value={Layers.hex(@aerial_color)}
+                  phx-debounce="200"
+                  aria-label="cor real do tecido na foto"
+                  class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
+                /> cor do tecido NA FOTO
+                <span class="text-xs text-cx-text-dim">(pra achar o tecido)</span>
+              </label>
 
               <label :if={@detect_aerial} id="aerial-color" class="flex items-center gap-2 text-sm">
                 <input

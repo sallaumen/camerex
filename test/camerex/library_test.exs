@@ -155,6 +155,7 @@ defmodule Camerex.LibraryTest do
         "layer_colors" => %{"clothing" => [0, 0, 255]},
         "detect_object" => true,
         "detect_aerial" => true,
+        "aerial_color" => [200, 10, 30],
         "bg_opacity" => 0.3,
         "transparent_bg" => true,
         "fill" => true,
@@ -172,6 +173,7 @@ defmodule Camerex.LibraryTest do
       assert m["params"]["layer_colors"] == %{"clothing" => [0, 0, 255]}
       assert m["params"]["detect_object"] == true
       assert m["params"]["detect_aerial"] == true
+      assert m["params"]["aerial_color"] == [200, 10, 30]
       assert m["params"]["bg_opacity"] == 0.3
       assert m["params"]["transparent_bg"] == true
       assert m["params"]["fill"] == true

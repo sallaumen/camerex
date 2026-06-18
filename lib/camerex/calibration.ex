@@ -75,7 +75,7 @@ defmodule Camerex.Calibration do
     labels =
       labels
       |> maybe_object(params["detect_object"], mask)
-      |> maybe_aerial(params["detect_aerial"], fg_full)
+      |> maybe_aerial(params["detect_aerial"], fg_full, rgb, params["aerial_color"])
 
     opts =
       [
@@ -98,10 +98,10 @@ defmodule Camerex.Calibration do
 
   defp maybe_object(labels, _off, _mask), do: labels
 
-  defp maybe_aerial(labels, true, fg_full),
-    do: Apparatus.into_labels(labels, Apparatus.detect(fg_full, labels))
+  defp maybe_aerial(labels, true, fg_full, rgb, color),
+    do: Apparatus.into_labels(labels, Apparatus.detect(fg_full, labels, rgb, color))
 
-  defp maybe_aerial(labels, _off, _fg_full), do: labels
+  defp maybe_aerial(labels, _off, _fg_full, _rgb, _color), do: labels
 
   defp bg_opts(params) do
     [

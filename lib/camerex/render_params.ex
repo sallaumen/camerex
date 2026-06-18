@@ -39,6 +39,7 @@ defmodule Camerex.RenderParams do
           spread: float(),
           detect_object: boolean(),
           detect_aerial: boolean(),
+          aerial_color: rgb(),
           transparent_bg: boolean(),
           fill: boolean(),
           floor: boolean()
@@ -56,6 +57,9 @@ defmodule Camerex.RenderParams do
             spread: 0.5,
             detect_object: false,
             detect_aerial: false,
+            # cor REAL do tecido na foto (pista de detecção do modo aéreo);
+            # default vermelho, que é o silk mais comum
+            aerial_color: {220, 30, 40},
             transparent_bg: false,
             fill: false,
             floor: false
@@ -70,6 +74,7 @@ defmodule Camerex.RenderParams do
     |> Map.new(fn k -> {k, slider(form[to_string(k)], Map.fetch!(current, k))} end)
     |> Map.merge(Map.new(@booleans, fn k -> {k, form[to_string(k)] == "true"} end))
     |> Map.put(:layer_colors, merge_form_colors(form, current.layer_colors))
+    |> Map.put(:aerial_color, form_rgb(form["aerial_color"], current.aerial_color))
     |> then(&struct(current, &1))
   end
 
@@ -80,6 +85,7 @@ defmodule Camerex.RenderParams do
     |> Map.new(fn k -> {k, p[to_string(k)] || Map.fetch!(current, k)} end)
     |> Map.merge(Map.new(@booleans, fn k -> {k, p[to_string(k)] || false} end))
     |> Map.put(:layer_colors, Layers.normalize_colors(p["layer_colors"]))
+    |> Map.put(:aerial_color, list_rgb(p["aerial_color"], current.aerial_color))
     |> then(&struct(current, &1))
   end
 
@@ -91,7 +97,15 @@ defmodule Camerex.RenderParams do
     (@sliders ++ @booleans)
     |> Map.new(fn k -> {to_string(k), Map.fetch!(p, k)} end)
     |> Map.put("layer_colors", serialize_colors(p.layer_colors))
+    |> Map.put("aerial_color", Tuple.to_list(p.aerial_color))
   end
+
+  # cor única (não-camada): hex do <input type=color> / lista do manifest → {r,g,b}
+  defp form_rgb("#" <> _ = hex, _fallback), do: hex_to_rgb(hex)
+  defp form_rgb(_other, fallback), do: fallback
+
+  defp list_rgb([r, g, b], _fallback), do: {r, g, b}
+  defp list_rgb(_other, fallback), do: fallback
 
   defp slider(nil, fallback), do: fallback
 

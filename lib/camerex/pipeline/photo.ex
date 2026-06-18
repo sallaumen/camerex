@@ -32,8 +32,13 @@ defmodule Camerex.Pipeline.Photo do
       segmenter = Application.fetch_env!(:camerex, :segmenter)
 
       case segmenter.segment(rgb, model: "u2net") do
-        {:ok, raw} -> labels |> with_object(raw, object?) |> with_aerial(raw, aerial?)
-        _ -> labels
+        {:ok, raw} ->
+          labels
+          |> with_object(raw, object?)
+          |> with_aerial(raw, rgb, Keyword.get(opts, :aerial_color), aerial?)
+
+        _ ->
+          labels
       end
     else
       labels
@@ -46,11 +51,12 @@ defmodule Camerex.Pipeline.Photo do
   defp with_object(labels, _raw, false), do: labels
 
   # tecido usa o foreground COMPLETO (todos os componentes), não o maior — o
-  # tecido e a pessoa são componentes separados (ver Parser.Apparatus)
-  defp with_aerial(labels, raw, true),
-    do: Apparatus.into_labels(labels, Apparatus.detect(full_foreground(raw), labels))
+  # tecido e a pessoa são componentes separados (ver Parser.Apparatus). A cor do
+  # tecido (aerial_color) é a pista principal que recupera o drapeado inteiro.
+  defp with_aerial(labels, raw, rgb, color, true),
+    do: Apparatus.into_labels(labels, Apparatus.detect(full_foreground(raw), labels, rgb, color))
 
-  defp with_aerial(labels, _raw, false), do: labels
+  defp with_aerial(labels, _raw, _rgb, _color, false), do: labels
 
   defp full_foreground(raw), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
 
@@ -166,6 +172,7 @@ defmodule Camerex.Pipeline.Photo do
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"],
       detect_aerial: p["detect_aerial"],
+      aerial_color: p["aerial_color"],
       bg_opacity: p["bg_opacity"],
       transparent_bg: p["transparent_bg"],
       fill: p["fill"],

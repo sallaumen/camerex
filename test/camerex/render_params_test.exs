@@ -65,7 +65,7 @@ defmodule Camerex.RenderParamsTest do
       keys = RenderParams.default() |> RenderParams.to_manifest() |> Map.keys() |> Enum.sort()
 
       expected =
-        ((@sliders ++ @booleans) |> Enum.map(&to_string/1)) ++ ["layer_colors"]
+        ((@sliders ++ @booleans) |> Enum.map(&to_string/1)) ++ ["layer_colors", "aerial_color"]
 
       assert keys == Enum.sort(expected)
       refute "model" in keys
