@@ -21,7 +21,7 @@ defmodule Camerex.Pipeline.Video do
 
   alias Camerex.{Mask, Neon, Parser, Settings, Workspace}
   alias Camerex.Neon.{Background, Layered}
-  alias Camerex.Parser.{Layers, Object}
+  alias Camerex.Parser.{Apparatus, Layers, Object}
   alias Camerex.Video.{Audio, Decoder, Encoder, Probe}
 
   @work_width 640
@@ -185,7 +185,7 @@ defmodule Camerex.Pipeline.Video do
 
   defp prepare_frame(frame, opts) do
     with {:ok, labels} <- Parser.parse(frame) do
-      labels = object_labels(frame, labels, opts)
+      labels = augment_frame_labels(frame, labels, opts)
       {_h, w, _} = Nx.shape(frame)
       line = Layered.line_art(frame, labels, detail: opts.detail)
       raw_field = Layered.color_field(labels, opts.layer_colors, w)
@@ -286,6 +286,7 @@ defmodule Camerex.Pipeline.Video do
       trail_decay: p["trail"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"] == true,
+      detect_aerial: p["detect_aerial"] == true,
       bg_opacity: p["bg_opacity"] || 0.0,
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
@@ -322,17 +323,31 @@ defmodule Camerex.Pipeline.Video do
     end
   end
 
-  # opt-in por frame: roda o U²-Net e injeta o objeto (instrumento etc.) como a
-  # classe 18 (ver Camerex.Parser.Object). Custa uma passada a mais do segmenter
-  # por frame — aceitável pelo ganho de qualidade (paraleliza-se depois).
-  defp object_labels(frame, labels, %{detect_object: true} = opts) do
+  # opt-in por frame: roda o U²-Net UMA vez (se objeto OU tecido aéreo ligado) e
+  # injeta as classes virtuais — objeto na mão (18) e/ou tecido aéreo (19). Custa
+  # uma passada a mais do segmenter por frame (já paralelizado pelo async_stream).
+  defp augment_frame_labels(frame, labels, %{detect_object: o, detect_aerial: a} = opts)
+       when o or a do
     case opts.segmenter.segment(frame, model: opts.model) do
-      {:ok, raw} -> Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
+      {:ok, raw} -> labels |> frame_object(raw, o) |> frame_aerial(raw, a)
       _ -> labels
     end
   end
 
-  defp object_labels(_frame, labels, _opts), do: labels
+  defp augment_frame_labels(_frame, labels, _opts), do: labels
+
+  defp frame_object(labels, raw, true),
+    do: Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
+
+  defp frame_object(labels, _raw, false), do: labels
+
+  # tecido usa o foreground COMPLETO (todos os componentes), não o maior
+  defp frame_aerial(labels, raw, true) do
+    full = raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
+    Apparatus.into_labels(labels, Apparatus.detect(full, labels))
+  end
+
+  defp frame_aerial(labels, _raw, false), do: labels
 
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(reason), do: inspect(reason)

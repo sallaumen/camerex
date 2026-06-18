@@ -154,6 +154,7 @@ defmodule Camerex.LibraryTest do
         "model" => "u2net",
         "layer_colors" => %{"clothing" => [0, 0, 255]},
         "detect_object" => true,
+        "detect_aerial" => true,
         "bg_opacity" => 0.3,
         "transparent_bg" => true,
         "fill" => true,
@@ -170,6 +171,7 @@ defmodule Camerex.LibraryTest do
       assert m["params"]["bloom"] == 0.8
       assert m["params"]["layer_colors"] == %{"clothing" => [0, 0, 255]}
       assert m["params"]["detect_object"] == true
+      assert m["params"]["detect_aerial"] == true
       assert m["params"]["bg_opacity"] == 0.3
       assert m["params"]["transparent_bg"] == true
       assert m["params"]["fill"] == true

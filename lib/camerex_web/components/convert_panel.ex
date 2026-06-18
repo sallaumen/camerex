@@ -17,6 +17,7 @@ defmodule CamerexWeb.ConvertPanel do
   attr :bloom, :float, required: true
   attr :layer_colors, :map, default: %{}
   attr :detect_object, :boolean, default: false
+  attr :detect_aerial, :boolean, default: false
   attr :bg_opacity, :float, default: 0.0
   attr :transparent_bg, :boolean, default: false
   attr :fill, :boolean, default: false
@@ -227,6 +228,27 @@ defmodule CamerexWeb.ConvertPanel do
                 {object_group().label}
               </label>
 
+              <label id="aerial-toggle" class="mt-3 flex items-center gap-2">
+                <input type="hidden" name="detect_aerial" value="false" />
+                <input type="checkbox" name="detect_aerial" value="true" checked={@detect_aerial} />
+                modo acrobacia aérea (tecido)
+              </label>
+              <p class="text-xs text-cx-text-dim">
+                destaca o tecido vertical (silk) que a pessoa escala, como camada própria
+              </p>
+
+              <label :if={@detect_aerial} id="aerial-color" class="flex items-center gap-2 text-sm">
+                <input
+                  type="color"
+                  name={"layer_#{apparatus_group().key}"}
+                  value={Layers.hex(Map.get(@layer_colors, :apparatus, apparatus_group().default))}
+                  phx-debounce="200"
+                  aria-label={"cor da camada #{apparatus_group().label}"}
+                  class="h-7 w-9 rounded border border-cx-border bg-cx-bg"
+                />
+                {apparatus_group().label}
+              </label>
+
               <label id="fill-toggle" class="mt-3 flex items-center gap-2">
                 <input type="hidden" name="fill" value="false" />
                 <input type="checkbox" name="fill" value="true" checked={@fill} /> preencher as partes
@@ -415,8 +437,11 @@ defmodule CamerexWeb.ConvertPanel do
 
   # o objeto é uma camada opt-in (2º modelo): some do grid de cores fixas e
   # ganha seu picker próprio só quando ligado, p/ não sugerir que sempre existe
-  defp base_groups, do: Enum.reject(Layers.groups(), &(&1.key == :object))
+  # :object e :apparatus são camadas opt-in (2º modelo): saem do grid de cores
+  # fixas e ganham picker próprio só quando ligadas
+  defp base_groups, do: Enum.reject(Layers.groups(), &(&1.key in [:object, :apparatus]))
   defp object_group, do: Enum.find(Layers.groups(), &(&1.key == :object))
+  defp apparatus_group, do: Enum.find(Layers.groups(), &(&1.key == :apparatus))
 
   # rastro só afeta vídeo (decaimento entre frames); num reprocesso de foto é
   # no-op, então some — não confunde com um controle que não faz nada.

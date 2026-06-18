@@ -23,7 +23,7 @@ defmodule Camerex.RenderParams do
 
   # sliders viram float (parse com fallback); booleanos vêm de `== "true"`
   @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread)a
-  @booleans ~w(detect_object transparent_bg fill floor)a
+  @booleans ~w(detect_object detect_aerial transparent_bg fill floor)a
 
   @type rgb :: {0..255, 0..255, 0..255}
   @type t :: %__MODULE__{
@@ -38,6 +38,7 @@ defmodule Camerex.RenderParams do
           glow: float(),
           spread: float(),
           detect_object: boolean(),
+          detect_aerial: boolean(),
           transparent_bg: boolean(),
           fill: boolean(),
           floor: boolean()
@@ -54,6 +55,7 @@ defmodule Camerex.RenderParams do
             glow: 0.85,
             spread: 0.5,
             detect_object: false,
+            detect_aerial: false,
             transparent_bg: false,
             fill: false,
             floor: false

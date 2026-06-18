@@ -176,6 +176,21 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert has_element?(view, "#convert-form input[name=layer_object]")
     end
 
+    test "modo aéreo: toggle sempre à vista; picker do tecido só ao ligar",
+         %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      assert has_element?(view, "#aerial-toggle")
+      refute has_element?(view, "#convert-form input[name=layer_apparatus]")
+
+      view |> form("#convert-form", %{"detect_aerial" => "true"}) |> render_change()
+
+      # tecido ligado: entra o picker de cor da camada do tecido aéreo
+      assert has_element?(view, "#aerial-color")
+      assert has_element?(view, "#convert-form input[name=layer_apparatus]")
+    end
+
     test "fundo: controles sempre presentes (slider de opacidade + toggle transparente)",
          %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/")

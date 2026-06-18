@@ -8,12 +8,20 @@ defmodule Camerex.Calibration do
   """
 
   alias Camerex.{Mask, Parser}
-  alias Camerex.Parser.{Layers, Object}
+  alias Camerex.Parser.{Apparatus, Layers, Object}
   alias Camerex.Pipeline.{FramePreview, Photo}
 
   @preview_width 480
 
-  @type session :: %{rgb: Nx.Tensor.t(), mask: Nx.Tensor.t(), labels: Nx.Tensor.t() | nil}
+  # `mask` = maior componente (objeto na mão); `fg_full` = foreground COMPLETO
+  # (todos os componentes) que o tecido aéreo precisa — guardados na prepare pra
+  # o aéreo/objeto reusarem sem rodar o U²-Net a cada ajuste de controle.
+  @type session :: %{
+          rgb: Nx.Tensor.t(),
+          mask: Nx.Tensor.t(),
+          fg_full: Nx.Tensor.t(),
+          labels: Nx.Tensor.t() | nil
+        }
 
   @doc """
   Prepara a sessão direto de um arquivo de mídia: foto é lida inteira;
@@ -43,7 +51,8 @@ defmodule Camerex.Calibration do
           {:error, _} -> nil
         end
 
-      {:ok, %{rgb: rgb, mask: Mask.largest_component(raw), labels: labels}}
+      fg_full = raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
+      {:ok, %{rgb: rgb, mask: Mask.largest_component(raw), fg_full: fg_full, labels: labels}}
     end
   end
 
@@ -59,12 +68,14 @@ defmodule Camerex.Calibration do
   end
 
   # cor-por-parte (único modo): precisa dos rótulos do parser
-  defp render_neon(%{rgb: rgb, mask: mask, labels: labels}, params) when labels != nil do
-    # objeto reusa a máscara U²-Net que a sessão já tem (sem rodar de novo)
+  defp render_neon(%{rgb: rgb, mask: mask, fg_full: fg_full, labels: labels}, params)
+       when labels != nil do
+    # objeto e tecido reusam o U²-Net que a sessão já tem (sem rodar de novo):
+    # objeto via maior componente, tecido via foreground completo
     labels =
-      if params["detect_object"],
-        do: Object.into_labels(labels, Object.detect(mask, labels)),
-        else: labels
+      labels
+      |> maybe_object(params["detect_object"], mask)
+      |> maybe_aerial(params["detect_aerial"], fg_full)
 
     opts =
       [
@@ -81,6 +92,16 @@ defmodule Camerex.Calibration do
   end
 
   defp render_neon(_session, _params), do: {:error, "parser de partes indisponível"}
+
+  defp maybe_object(labels, true, mask),
+    do: Object.into_labels(labels, Object.detect(mask, labels))
+
+  defp maybe_object(labels, _off, _mask), do: labels
+
+  defp maybe_aerial(labels, true, fg_full),
+    do: Apparatus.into_labels(labels, Apparatus.detect(fg_full, labels))
+
+  defp maybe_aerial(labels, _off, _fg_full), do: labels
 
   defp bg_opts(params) do
     [

@@ -6,7 +6,7 @@ defmodule Camerex.RenderParamsTest do
   alias Camerex.RenderParams
 
   @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread)a
-  @booleans ~w(detect_object transparent_bg fill floor)a
+  @booleans ~w(detect_object detect_aerial transparent_bg fill floor)a
 
   describe "default/0" do
     test "traz as cores por camada e os defaults dos controles" do

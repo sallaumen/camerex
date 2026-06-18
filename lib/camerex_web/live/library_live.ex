@@ -637,6 +637,7 @@ defmodule CamerexWeb.LibraryLive do
                   bloom={@render_params.bloom}
                   layer_colors={@render_params.layer_colors}
                   detect_object={@render_params.detect_object}
+                  detect_aerial={@render_params.detect_aerial}
                   bg_opacity={@render_params.bg_opacity}
                   transparent_bg={@render_params.transparent_bg}
                   fill={@render_params.fill}

@@ -8,7 +8,7 @@ defmodule Camerex.Pipeline.Photo do
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
   alias Camerex.Neon.{Background, Layered, Scene}
-  alias Camerex.Parser.{Layers, Object}
+  alias Camerex.Parser.{Apparatus, Layers, Object}
 
   @doc """
   Render por camada semântica (ÚNICO modo): parseia as partes
@@ -17,27 +17,42 @@ defmodule Camerex.Pipeline.Photo do
   @spec render_layered(Nx.Tensor.t(), keyword()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
   def render_layered(rgb, opts \\ []) do
     with {:ok, labels} <- Parser.parse(rgb) do
-      {:ok, render_with_labels(rgb, maybe_detect_object(rgb, labels, opts), opts)}
+      {:ok, render_with_labels(rgb, augment_labels(rgb, labels, opts), opts)}
     end
   end
 
-  # opt-in: roda o U²-Net e injeta o objeto na mão (instrumento etc.) como a
-  # classe 18 (ver Camerex.Parser.Object). Custa uma passada a mais do segmenter.
-  defp maybe_detect_object(rgb, labels, opts) do
-    if Keyword.get(opts, :detect_object, false) do
+  # opt-in: roda o U²-Net UMA vez (se objeto OU tecido aéreo ligado) e injeta as
+  # classes virtuais — objeto na mão (18, via maior componente) e/ou tecido aéreo
+  # (19, via foreground COMPLETO − pessoa). Ver Parser.Object / Parser.Apparatus.
+  defp augment_labels(rgb, labels, opts) do
+    object? = Keyword.get(opts, :detect_object, false)
+    aerial? = Keyword.get(opts, :detect_aerial, false)
+
+    if object? or aerial? do
       segmenter = Application.fetch_env!(:camerex, :segmenter)
 
       case segmenter.segment(rgb, model: "u2net") do
-        {:ok, raw} ->
-          Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
-
-        _ ->
-          labels
+        {:ok, raw} -> labels |> with_object(raw, object?) |> with_aerial(raw, aerial?)
+        _ -> labels
       end
     else
       labels
     end
   end
+
+  defp with_object(labels, raw, true),
+    do: Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
+
+  defp with_object(labels, _raw, false), do: labels
+
+  # tecido usa o foreground COMPLETO (todos os componentes), não o maior — o
+  # tecido e a pessoa são componentes separados (ver Parser.Apparatus)
+  defp with_aerial(labels, raw, true),
+    do: Apparatus.into_labels(labels, Apparatus.detect(full_foreground(raw), labels))
+
+  defp with_aerial(labels, _raw, false), do: labels
+
+  defp full_foreground(raw), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
 
   @doc """
   Parte pós-parse do render por camada (a calibragem parseia 1x e chama isto).
@@ -150,6 +165,7 @@ defmodule Camerex.Pipeline.Photo do
       detail: p["detail"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"],
+      detect_aerial: p["detect_aerial"],
       bg_opacity: p["bg_opacity"],
       transparent_bg: p["transparent_bg"],
       fill: p["fill"],

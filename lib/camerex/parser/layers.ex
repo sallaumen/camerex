@@ -16,7 +16,11 @@ defmodule Camerex.Parser.Layers do
     # objeto na mão (instrumento etc.): classe VIRTUAL 18 — não vem do ATR, é
     # injetada pelo `Camerex.Parser.Object` (U²-Net foreground − pessoa) quando a
     # detecção de objeto está ligada. Sem essa etapa, a classe 18 nunca aparece.
-    %{key: :object, label: "objeto/instrumento", ids: [18], default: {90, 200, 255}}
+    %{key: :object, label: "objeto/instrumento", ids: [18], default: {90, 200, 255}},
+    # tecido aéreo (acrobacia): classe VIRTUAL 19 — injetada pelo
+    # `Camerex.Parser.Apparatus` (componente alto/vertical do U²-Net − pessoa)
+    # quando o modo aéreo está ligado. Magenta vivo p/ destacar o drapeado.
+    %{key: :apparatus, label: "tecido aéreo", ids: [19], default: {255, 40, 120}}
   ]
 
   @type rgb :: {0..255, 0..255, 0..255}
