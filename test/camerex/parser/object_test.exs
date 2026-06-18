@@ -59,4 +59,51 @@ defmodule Camerex.Parser.ObjectTest do
     # …e a pessoa (classe 4) fica intacta
     assert Nx.to_number(augmented[100][50]) == 4
   end
+
+  describe "instrumento incompleto (componente pequeno)" do
+    # cena 200×200 (área 40000): pessoa à esquerda + um objeto PEQUENO (~250px =
+    # 0.6%, abaixo do limiar grande de 1%) cuja posição varia. min=1%→400px;
+    # borda=0.2%→80px.
+    defp scene_small_object(:edge) do
+      # faixa fina colada na borda de baixo (instrumento CORTADO pelo quadro)
+      build(person_rect(), {195, 200, 90, 140})
+    end
+
+    defp scene_small_object(:interior) do
+      # mesmo tamanho, mas solto no meio (chuvisco — não toca borda)
+      build(person_rect(), {95, 100, 130, 180})
+    end
+
+    defp person_rect, do: {40, 120, 30, 90}
+
+    defp build({pr0, pr1, pc0, pc1}, {or0, or1, oc0, oc1}) do
+      rows = Nx.iota({200, 200}, axis: 0)
+      cols = Nx.iota({200, 200}, axis: 1)
+
+      rect = fn r0, r1, c0, c1 ->
+        Nx.logical_and(
+          Nx.logical_and(Nx.greater_equal(rows, r0), Nx.less(rows, r1)),
+          Nx.logical_and(Nx.greater_equal(cols, c0), Nx.less(cols, c1))
+        )
+      end
+
+      person = rect.(pr0, pr1, pc0, pc1)
+      object = rect.(or0, or1, oc0, oc1)
+      labels = Nx.select(person, Nx.u8(4), Nx.u8(0))
+      fg = Nx.logical_or(person, object) |> Nx.multiply(255) |> Nx.as_type(:u8)
+      {fg, labels}
+    end
+
+    test "objeto pequeno que TOCA a borda do quadro é mantido (instrumento cortado)" do
+      {fg, labels} = scene_small_object(:edge)
+      mask = Object.detect(fg, labels)
+      assert Nx.to_number(Nx.sum(Nx.greater(mask, 0))) > 0
+    end
+
+    test "objeto pequeno SOLTO no meio (não toca borda) é descartado como ruído" do
+      {fg, labels} = scene_small_object(:interior)
+      mask = Object.detect(fg, labels)
+      assert Nx.to_number(Nx.sum(Nx.greater(mask, 0))) == 0
+    end
+  end
 end

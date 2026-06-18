@@ -17,8 +17,13 @@ defmodule Camerex.Parser.Object do
   @person_dilate_div 40
   # fecha buracos do objeto (cordas/vãos do instrumento) num corpo só.
   @close_div 50
-  # só componentes grandes viram objeto — corta chuvisco e restos da borda.
+  # um componente vira objeto se for GRANDE (≥ @min_area_frac)…
   @min_area_frac 0.01
+  # …OU menor, mas TOCANDO a borda do quadro (≥ @edge_min_area_frac): é o
+  # instrumento/objeto CORTADO pela moldura. Tocar a borda é o que separa "objeto
+  # incompleto" (real, cortado) de chuvisco solto no meio — então admite o
+  # parcial sem reabrir a porta pro ruído interno.
+  @edge_min_area_frac 0.002
   @object_class 18
 
   @doc """
@@ -47,7 +52,7 @@ defmodule Camerex.Parser.Object do
     |> Evision.Mat.from_nx()
     |> Evision.morphologyEx(Evision.Constant.cv_MORPH_CLOSE(), kernel(round(w / @close_div)))
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
-    |> drop_small_components(round(h * w * @min_area_frac))
+    |> keep_object_components(h, w)
   end
 
   @doc """
@@ -60,15 +65,30 @@ defmodule Camerex.Parser.Object do
     Nx.select(where, Nx.broadcast(Nx.u8(@object_class), Nx.shape(labels)), labels)
   end
 
-  # mantém só componentes conectados ≥ min_area (o objeto), descarta o resto
-  defp drop_small_components(mask_u8, min_area) do
+  # mantém os componentes do objeto: GRANDES, ou menores que TOCAM a borda do
+  # quadro (objeto cortado pela moldura — instrumento incompleto). stats do
+  # connectedComponents: colunas [x, y, largura, altura, área].
+  defp keep_object_components(mask_u8, h, w) do
     {_n, lbls, stats, _c} = Evision.connectedComponentsWithStats(Evision.Mat.from_nx(mask_u8))
-    areas = Evision.Mat.to_nx(stats, Nx.BinaryBackend)[[.., 4]]
+    s = Evision.Mat.to_nx(stats, Nx.BinaryBackend)
+    {x, y, bw, bh, area} = {s[[.., 0]], s[[.., 1]], s[[.., 2]], s[[.., 3]], s[[.., 4]]}
+
+    touches_edge =
+      Nx.equal(x, 0)
+      |> Nx.logical_or(Nx.equal(y, 0))
+      |> Nx.logical_or(Nx.greater_equal(Nx.add(x, bw), w))
+      |> Nx.logical_or(Nx.greater_equal(Nx.add(y, bh), h))
+
+    big = Nx.greater_equal(area, round(h * w * @min_area_frac))
+
+    cut_off =
+      Nx.logical_and(Nx.greater_equal(area, round(h * w * @edge_min_area_frac)), touches_edge)
 
     keep =
-      areas
-      |> Nx.greater_equal(min_area)
+      big
+      |> Nx.logical_or(cut_off)
       |> Nx.as_type(:u8)
+      # rótulo 0 = fundo (toca todas as bordas e é enorme): nunca acende
       |> Nx.put_slice([0], Nx.tensor([0], type: :u8))
 
     lbls_nx = lbls |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.as_type(:s64)
