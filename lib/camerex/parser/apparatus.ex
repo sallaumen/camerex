@@ -26,10 +26,19 @@ defmodule Camerex.Parser.Apparatus do
   tecido) — nem cor nem saliência separam o tecido do fundo.
   """
 
-  alias Camerex.Neon.Palette
+  alias Camerex.Parser.Layers
 
   # dilata a pessoa antes de subtrair (come o anel de descasamento dos modelos)
   @person_dilate_div 35
+  # o cabelo (classe ATR 2) é o mais traiçoeiro: tingido (rosa/vermelho) ele cai
+  # no MESMO matiz de um silk quente, e o SegFormer sub-segmenta a borda esfumada
+  # (vira fundo). Sem proteção, a pista de cor reivindica essa borda e, colada à
+  # faixa de silk vizinha, ela passa no filtro alto/vertical → cabelo vira tecido.
+  # Dilatar GENEROSO em volta do núcleo de cabelo detectado blinda a vizinhança;
+  # como o cabelo é um blob compacto (não corre ao lado do silk como os membros),
+  # essa dilatação não come o drapeado longe da cabeça.
+  @hair_class 2
+  @hair_dilate_div 8
   # fecha vãos do drapeado — gentil, pra não fundir o tecido com blocos largos
   @close_div 120
   # span vertical mínimo: o tecido cruza ≥ 30% da altura do quadro
@@ -49,21 +58,19 @@ defmodule Camerex.Parser.Apparatus do
     * `rgb` — a imagem (pra pista de cor); `nil` desliga a cor.
     * `color` — `{r,g,b}` da cor real do tecido na foto; `nil` desliga a cor.
   """
-  @spec detect(Nx.Tensor.t(), Nx.Tensor.t(), Nx.Tensor.t() | nil, Palette.color() | nil) ::
+  @spec detect(Nx.Tensor.t(), Nx.Tensor.t(), Nx.Tensor.t() | nil, Layers.rgb() | nil) ::
           Nx.Tensor.t()
   def detect(full_fg_u8, labels, rgb \\ nil, color \\ nil) do
     {h, w} = Nx.shape(labels)
     color = normalize_color(color)
 
+    # a pessoa (subtraída do tecido) = TODOS os rótulos ATR, mais uma blindagem
+    # extra em volta do cabelo (ver @hair_dilate_div) p/ não perder a borda tingida
     person =
-      labels
-      |> Nx.greater(0)
-      |> Nx.multiply(255)
-      |> Nx.as_type(:u8)
-      |> Evision.Mat.from_nx()
-      |> Evision.dilate(kernel(round(w / @person_dilate_div)))
-      |> Evision.Mat.to_nx(Nx.BinaryBackend)
-      |> Nx.greater(0)
+      Nx.logical_or(
+        dilated(Nx.greater(labels, 0), w, @person_dilate_div),
+        dilated(Nx.equal(labels, @hair_class), w, @hair_dilate_div)
+      )
 
     full_fg_u8
     |> Nx.greater(0)
@@ -143,6 +150,17 @@ defmodule Camerex.Parser.Apparatus do
 
     lbls_nx = lbls |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.as_type(:s64)
     keep |> Nx.take(lbls_nx) |> Nx.multiply(255) |> Nx.as_type(:u8)
+  end
+
+  # máscara booleana → dilatada por `w/div` (px) → de volta a booleana
+  defp dilated(mask_bool, w, div) do
+    mask_bool
+    |> Nx.multiply(255)
+    |> Nx.as_type(:u8)
+    |> Evision.Mat.from_nx()
+    |> Evision.dilate(kernel(round(w / div)))
+    |> Evision.Mat.to_nx(Nx.BinaryBackend)
+    |> Nx.greater(0)
   end
 
   defp kernel(s) do

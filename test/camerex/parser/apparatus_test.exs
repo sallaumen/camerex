@@ -76,4 +76,38 @@ defmodule Camerex.Parser.ApparatusTest do
     mask = Apparatus.detect(fg, labels, rgb, {220, 30, 40})
     assert Nx.to_number(mask[80][105]) == 255
   end
+
+  test "detect/4 NÃO rouba o cabelo da mesma cor do tecido (regressão: cabelo rosa)" do
+    rows = Nx.iota({200, 200}, axis: 0)
+    cols = Nx.iota({200, 200}, axis: 1)
+
+    rect = fn r0, r1, c0, c1 ->
+      Nx.logical_and(
+        Nx.logical_and(Nx.greater_equal(rows, r0), Nx.less(rows, r1)),
+        Nx.logical_and(Nx.greater_equal(cols, c0), Nx.less(cols, c1))
+      )
+    end
+
+    # tecido: faixa vertical vermelha alta. cabelo: blob vermelho (MESMA cor) colado
+    # na faixa. O ATR só rotula o NÚCLEO do cabelo (classe 2); a borda do cabelo é
+    # vermelha mas fica como fundo (0) — é o que o SegFormer sub-segmenta na vida real.
+    band = rect.(0, 170, 100, 120)
+    hair_blob = rect.(15, 45, 75, 100)
+    hair_core = rect.(22, 40, 80, 97)
+
+    red_region = Nx.logical_or(band, hair_blob)
+    red = Nx.tensor([220, 30, 40], type: :u8) |> Nx.broadcast({200, 200, 3})
+    gray = Nx.broadcast(Nx.u8(128), {200, 200, 3})
+    rgb = Nx.select(Nx.broadcast(Nx.new_axis(red_region, -1), {200, 200, 3}), red, gray)
+
+    fg = red_region |> Nx.multiply(255) |> Nx.as_type(:u8)
+    labels = Nx.select(hair_core, Nx.u8(2), Nx.u8(0))
+
+    mask = Apparatus.detect(fg, labels, rgb, {220, 30, 40})
+
+    # o tecido (faixa, longe do cabelo) continua sendo detectado
+    assert Nx.to_number(mask[120][110]) == 255
+    # a borda vermelha do cabelo (rótulo 0, junto do núcleo class 2) NÃO vira tecido
+    assert Nx.to_number(mask[16][80]) == 0
+  end
 end
