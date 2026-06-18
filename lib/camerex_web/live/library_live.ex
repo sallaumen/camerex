@@ -564,7 +564,7 @@ defmodule CamerexWeb.LibraryLive do
           </div>
 
           <form id="concurrency-form" phx-change="set_concurrency" class="text-sm">
-            <label class="text-xs uppercase tracking-wide text-cx-text-dim">
+            <label class="text-xs font-semibold text-cx-text-dim">
               jobs em paralelo
             </label>
             <select

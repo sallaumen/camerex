@@ -41,7 +41,7 @@ defmodule CamerexWeb.DetailPanel do
             enquanto não processou. flex-1 + min-w-0 = metades que truncam. --%>
       <div :if={@item["type"] == "video"} class="flex gap-3">
         <figure class="min-w-0 flex-1">
-          <figcaption class="mb-1.5 text-sm font-medium uppercase tracking-wide text-cx-text-dim">
+          <figcaption class="mb-1.5 text-sm font-medium text-cx-text-dim">
             antes
           </figcaption>
           <video
@@ -53,7 +53,7 @@ defmodule CamerexWeb.DetailPanel do
           ></video>
         </figure>
         <figure :if={@item["status"] == "done"} class="min-w-0 flex-1">
-          <figcaption class="mb-1.5 text-sm font-medium uppercase tracking-wide text-cx-text-dim">
+          <figcaption class="mb-1.5 text-sm font-medium text-cx-text-dim">
             depois (neon)
           </figcaption>
           <video
@@ -74,7 +74,7 @@ defmodule CamerexWeb.DetailPanel do
             alt="antes"
             class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
           />
-          <figcaption class="mt-1.5 text-sm font-medium uppercase tracking-wide text-cx-text-dim">
+          <figcaption class="mt-1.5 text-sm font-medium text-cx-text-dim">
             antes
           </figcaption>
         </figure>
@@ -85,7 +85,7 @@ defmodule CamerexWeb.DetailPanel do
             alt="depois"
             class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
           />
-          <figcaption class="mt-1.5 text-sm font-medium uppercase tracking-wide text-cx-text-dim">
+          <figcaption class="mt-1.5 text-sm font-medium text-cx-text-dim">
             depois (neon)
           </figcaption>
         </figure>

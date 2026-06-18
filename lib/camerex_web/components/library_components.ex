@@ -304,16 +304,16 @@ defmodule CamerexWeb.LibraryComponents do
       id="perf-dashboard"
       class="fixed bottom-3 left-3 z-50 w-56 rounded-lg border border-cx-border bg-cx-surface p-3 text-xs shadow-lg"
     >
-      <p class="mb-2 flex items-center justify-between font-semibold uppercase tracking-wide text-cx-text-dim">
+      <p class="mb-2 flex items-center justify-between font-semibold text-cx-text-dim">
         <span>desempenho</span>
         <span>{@perf.schedulers} cores</span>
       </p>
 
-      <.perf_bar label="CPU" pct={@perf.cpu_pct} />
-      <.perf_bar label="RAM" pct={ram_pct(@perf.mem)} note={ram_note(@perf.mem)} />
+      <.perf_bar label="cpu" pct={@perf.cpu_pct} />
+      <.perf_bar label="ram" pct={ram_pct(@perf.mem)} note={ram_note(@perf.mem)} />
 
       <p class="mb-2 flex justify-between">
-        <span class="text-cx-text-dim">BEAM</span>
+        <span class="text-cx-text-dim">beam</span>
         <span class="text-cx-text">{@perf.beam_mb} MB</span>
       </p>
 
