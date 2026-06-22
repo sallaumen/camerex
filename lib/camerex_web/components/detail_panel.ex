@@ -7,6 +7,7 @@ defmodule CamerexWeb.DetailPanel do
   use Phoenix.Component
 
   import CamerexWeb.NeonComponents
+  import CamerexWeb.UI
 
   alias Camerex.Workspace
 
@@ -26,15 +27,9 @@ defmodule CamerexWeb.DetailPanel do
             </span>
           </div>
         </div>
-        <button
-          type="button"
-          id="close-detail"
-          phx-click="close_detail"
-          aria-label="fechar detalhe"
-          class="rounded border border-cx-border px-2 py-1 text-sm text-cx-text-dim"
-        >
-          fechar ✕
-        </button>
+        <.close_button id="close-detail" phx-click="close_detail" label="fechar detalhe">
+          fechar
+        </.close_button>
       </header>
 
       <%!-- antes | depois lado a lado quando há resultado; só "antes" (cheio)
@@ -48,7 +43,7 @@ defmodule CamerexWeb.DetailPanel do
             controls
             preload="metadata"
             data-role="video-original"
-            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
+            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-well object-contain"
             src={Workspace.media_url(@item["id"], @item["original_file"])}
           ></video>
         </figure>
@@ -60,7 +55,7 @@ defmodule CamerexWeb.DetailPanel do
             controls
             preload="metadata"
             data-role="video-neon"
-            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
+            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-well object-contain"
             src={versioned_media_url(@item, @item["output_file"])}
           ></video>
         </figure>
@@ -72,7 +67,7 @@ defmodule CamerexWeb.DetailPanel do
             id="before"
             src={Workspace.media_url(@item["id"], @item["original_file"])}
             alt="antes"
-            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
+            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-well object-contain"
           />
           <figcaption class="mt-1.5 text-sm font-medium text-cx-text-dim">
             antes
@@ -83,7 +78,7 @@ defmodule CamerexWeb.DetailPanel do
             id="after"
             src={versioned_media_url(@item, @item["output_file"])}
             alt="depois"
-            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-bg object-contain"
+            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-well object-contain"
           />
           <figcaption class="mt-1.5 text-sm font-medium text-cx-text-dim">
             depois (neon)
@@ -93,9 +88,7 @@ defmodule CamerexWeb.DetailPanel do
 
       <div :if={@item["status"] == "processing"} data-role="job-progress">
         <%= if @progress do %>
-          <div class="h-1.5 rounded bg-cx-border">
-            <div class="h-1.5 rounded bg-cx-teal" style={"width: #{pct(@progress)}%"}></div>
-          </div>
+          <.progress done={@progress.done} total={@progress.total} class="mb-0.5" />
           <span class="text-xs text-cx-text-dim">
             {@progress.done}/{@progress.total}{if @progress.eta_s,
               do: " · ~#{round(@progress.eta_s)}s"}
@@ -114,61 +107,44 @@ defmodule CamerexWeb.DetailPanel do
         <dd>{@item["params"]["detail"]}</dd>
       </dl>
 
-      <p :if={@item["error"]} id="error" class="text-sm text-red-300">{@item["error"]}</p>
+      <p :if={@item["error"]} id="error" class="text-sm text-cx-danger">{@item["error"]}</p>
 
       <div class="flex flex-wrap items-center gap-2 text-sm">
-        <a
+        <.btn
           :if={@item["status"] == "done"}
+          variant="primary"
           id="download"
           href={versioned_media_url(@item, @item["output_file"])}
           download={@item["output_file"]}
-          class="rounded bg-cx-teal px-3 py-1.5 font-medium text-cx-bg"
         >
           Baixar
-        </a>
+        </.btn>
 
-        <button
-          type="button"
-          id="reconvert-button"
-          phx-click="reconvert_start"
-          class="rounded border border-cx-teal px-3 py-1.5 text-cx-teal"
-        >
+        <.btn variant="secondary" id="reconvert-button" phx-click="reconvert_start">
           {if @item["status"] == "new", do: "Processar", else: "Reprocessar com ajustes"}
-        </button>
+        </.btn>
 
-        <button
+        <.btn
           :if={@item["status"] in ["failed", "interrupted"]}
-          type="button"
+          variant="primary"
           id="retry"
           phx-click="retry_item"
-          class="rounded bg-cx-orange px-3 py-1.5 font-medium text-cx-bg"
         >
           Tentar de novo
-        </button>
+        </.btn>
 
-        <button
-          type="button"
-          id="duplicate"
-          phx-click="duplicate_item"
-          class="rounded border border-cx-border px-3 py-1.5"
-        >
-          Duplicar
-        </button>
+        <.btn variant="secondary" id="duplicate" phx-click="duplicate_item">Duplicar</.btn>
 
-        <button
-          type="button"
+        <.btn
+          variant="danger"
           id="delete"
           phx-click="delete_item"
           data-confirm="Apagar esta conversão? Os arquivos serão removidos."
-          class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim"
         >
           Apagar
-        </button>
+        </.btn>
       </div>
     </section>
     """
   end
-
-  defp pct(%{done: d, total: t}) when t > 0, do: Float.round(d / t * 100, 1)
-  defp pct(_), do: 0.0
 end
