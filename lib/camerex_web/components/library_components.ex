@@ -89,7 +89,7 @@ defmodule CamerexWeb.LibraryComponents do
         phx-click="toggle_select"
         phx-value-id={@item["id"]}
         aria-label={"selecionar #{@item["original_filename"]}"}
-        class="absolute left-2 top-2 z-10 h-4 w-4 accent-cx-teal"
+        class="absolute left-2 top-2 z-10 h-6 w-6 accent-cx-teal"
       />
 
       <button
@@ -102,13 +102,13 @@ defmodule CamerexWeb.LibraryComponents do
         <div :if={@item["status"] == "done"} class="flex gap-1">
           <img
             src={versioned_media_url(@item, "thumb.jpg")}
-            alt="antes"
+            alt=""
             loading="lazy"
             class="h-24 w-1/2 rounded object-cover"
           />
           <img
             src={versioned_media_url(@item, "thumb_neon.jpg")}
-            alt="depois"
+            alt=""
             loading="lazy"
             class="h-24 w-1/2 rounded object-cover"
           />

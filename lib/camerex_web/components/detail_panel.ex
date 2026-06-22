@@ -66,7 +66,7 @@ defmodule CamerexWeb.DetailPanel do
           <img
             id="before"
             src={Workspace.media_url(@item["id"], @item["original_file"])}
-            alt="antes"
+            alt={"antes — #{@item["original_filename"]}"}
             class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-well object-contain"
           />
           <figcaption class="mt-1.5 text-sm font-medium text-cx-text-dim">
@@ -77,7 +77,7 @@ defmodule CamerexWeb.DetailPanel do
           <img
             id="after"
             src={versioned_media_url(@item, @item["output_file"])}
-            alt="depois"
+            alt={"depois (neon) — #{@item["original_filename"]}"}
             class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-well object-contain"
           />
           <figcaption class="mt-1.5 text-sm font-medium text-cx-text-dim">
