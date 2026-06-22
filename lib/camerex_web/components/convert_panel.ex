@@ -13,6 +13,8 @@ defmodule CamerexWeb.ConvertPanel do
 
   use Phoenix.Component
 
+  import CamerexWeb.UI
+
   alias Camerex.Parser.Layers
   alias Phoenix.LiveView.JS
 
@@ -49,15 +51,13 @@ defmodule CamerexWeb.ConvertPanel do
         <h2 class="text-lg font-semibold">
           {if @reconvert_item, do: "Reprocessar", else: "Nova conversão"}
         </h2>
-        <button
-          type="button"
+        <.close_button
           id="close-convert"
           phx-click="close_convert"
-          aria-label="fechar painel de conversão"
-          class="rounded-lg border border-cx-border px-2.5 py-1 text-sm text-cx-text-dim transition hover:border-cx-teal hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
+          label="fechar painel de conversão"
         >
           fechar
-        </button>
+        </.close_button>
       </header>
 
       <div
@@ -286,65 +286,49 @@ defmodule CamerexWeb.ConvertPanel do
             </.section>
 
             <div class="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="submit"
-                id="convert-submit"
-                class="rounded-lg bg-cx-teal px-4 py-2 text-sm font-semibold text-cx-bg shadow-[0_0_16px_rgb(43_196_178/0.35)] transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-cx-text"
-              >
+              <.btn type="submit" variant="primary" id="convert-submit">
                 {submit_label(@reconvert_item)}
-              </button>
-              <button
+              </.btn>
+              <.btn
                 :if={@reconvert_item == nil}
-                type="button"
+                variant="secondary"
                 id="import-only"
                 phx-click="import_only"
                 title="só importa pra biblioteca; processa quando você quiser"
-                class="rounded-lg border border-cx-border px-4 py-2 text-sm text-cx-text-dim transition hover:border-cx-teal hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
               >
                 só importar
-              </button>
+              </.btn>
             </div>
           </form>
 
           <div :if={@calib} id="calib-apply" class="flex flex-wrap gap-2">
-            <button
+            <.btn
               :if={@folder_count > 0}
-              type="button"
+              variant="secondary"
+              size="sm"
               id="apply-folder"
               phx-click="apply_folder"
               data-confirm={"Aplicar estes ajustes em #{@folder_count} item(ns) desta pasta?"}
-              class="rounded-lg border border-cx-border px-3 py-1.5 text-sm transition hover:border-cx-teal"
             >
               Aplicar nesta pasta ({@folder_count})
-            </button>
-            <button
+            </.btn>
+            <.btn
               :if={@selected_count > 0}
-              type="button"
+              variant="secondary"
+              size="sm"
               id="apply-selection"
               phx-click="apply_selection"
-              class="rounded-lg border border-cx-border px-3 py-1.5 text-sm transition hover:border-cx-teal"
             >
               Aplicar na seleção ({@selected_count})
-            </button>
+            </.btn>
           </div>
 
           <div id="user-presets" class="cx-section space-y-3">
             <p class="cx-section-title">Meus presets</p>
 
             <form id="save-preset-form" phx-submit="save_preset" class="flex items-center gap-2">
-              <input
-                type="text"
-                name="name"
-                value={@preset_name}
-                placeholder="nome do preset…"
-                class="w-full rounded-lg border border-cx-border bg-cx-bg px-3 py-1.5 text-sm focus:border-cx-teal focus:outline-none"
-              />
-              <button
-                type="submit"
-                class="whitespace-nowrap rounded-lg border border-cx-teal px-3 py-1.5 text-sm text-cx-teal transition hover:bg-cx-teal/10"
-              >
-                salvar
-              </button>
+              <.input name="name" value={@preset_name} placeholder="nome do preset…" />
+              <.btn type="submit" variant="secondary" size="sm">salvar</.btn>
             </form>
 
             <ul :if={@user_presets != []} class="space-y-1 text-sm">
@@ -358,15 +342,11 @@ defmodule CamerexWeb.ConvertPanel do
                 >
                   {p["name"]}
                 </button>
-                <button
-                  type="button"
+                <.close_button
+                  label={"apagar preset #{p["name"]}"}
                   phx-click={JS.push("delete_preset", value: %{id: p["id"]})}
                   data-confirm={"Apagar o preset #{p["name"]}?"}
-                  aria-label={"apagar preset #{p["name"]}"}
-                  class="rounded-lg px-2 py-1 text-cx-text-dim transition hover:text-red-300"
-                >
-                  ✕
-                </button>
+                />
               </li>
             </ul>
           </div>

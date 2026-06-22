@@ -70,7 +70,7 @@ defmodule CamerexWeb.UI do
   """
   attr :label, :string, required: true, doc: "rótulo acessível (aria-label)"
   attr :icon, :string, default: "hero-x-mark"
-  attr :rest, :global, include: ~w(phx-click phx-value-modal)
+  attr :rest, :global, include: ~w(phx-click phx-value-modal phx-value-folder data-confirm title)
   slot :inner_block
 
   def close_button(assigns) do
