@@ -35,7 +35,8 @@ defmodule CamerexWeb.GalleryProgressTest do
     )
 
     html = render(lv)
-    assert html =~ "width: 50.0%"
+    assert html =~ ~s(aria-valuenow="50")
+    assert html =~ "scaleX(0.5)"
     assert html =~ "5/10"
     assert html =~ "~13s" or html =~ "~12s"
   end

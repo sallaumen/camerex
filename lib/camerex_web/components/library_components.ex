@@ -8,6 +8,7 @@ defmodule CamerexWeb.LibraryComponents do
   use Phoenix.Component
 
   import CamerexWeb.NeonComponents
+  import CamerexWeb.UI
 
   alias Camerex.Workspace
 
@@ -88,7 +89,7 @@ defmodule CamerexWeb.LibraryComponents do
         phx-click="toggle_select"
         phx-value-id={@item["id"]}
         aria-label={"selecionar #{@item["original_filename"]}"}
-        class="absolute left-2 top-2 z-10 h-4 w-4 accent-[#2BC4B2]"
+        class="absolute left-2 top-2 z-10 h-4 w-4 accent-cx-teal"
       />
 
       <button
@@ -129,9 +130,7 @@ defmodule CamerexWeb.LibraryComponents do
       </button>
 
       <div class="mt-1.5 flex items-center gap-1.5 text-xs">
-        <span data-role="type-chip" class="rounded-full border border-cx-border px-1.5 py-0.5">
-          {type_label(@item["type"])}
-        </span>
+        <.badge tone="neutral" data-role="type-chip">{type_label(@item["type"])}</.badge>
         <.status_badge status={@item["status"]} />
       </div>
 
@@ -141,9 +140,7 @@ defmodule CamerexWeb.LibraryComponents do
 
       <div :if={@item["status"] == "processing"} data-role="job-progress" class="mt-1.5">
         <%= if @progress do %>
-          <div class="h-1.5 rounded bg-cx-border">
-            <div class="h-1.5 rounded bg-cx-teal" style={"width: #{progress_pct(@progress)}%"}></div>
-          </div>
+          <.progress done={@progress.done} total={@progress.total} class="mb-0.5" />
           <span class="text-xs text-cx-text-dim">
             {@progress.done}/{@progress.total}{if @progress.eta_s,
               do: " · ~#{round(@progress.eta_s)}s"}
@@ -219,9 +216,7 @@ defmodule CamerexWeb.LibraryComponents do
     >
       <strong>{@count} selecionado(s)</strong>
 
-      <button type="button" phx-click="bulk_process" class="neon-cta !mt-0">
-        processar com ajustes atuais
-      </button>
+      <.btn variant="primary" phx-click="bulk_process">processar com ajustes atuais</.btn>
 
       <form
         :if={@user_presets != []}
@@ -243,26 +238,18 @@ defmodule CamerexWeb.LibraryComponents do
         </select>
       </form>
 
-      <button
-        type="button"
-        phx-click="bulk_duplicate"
-        class="rounded border border-cx-border px-3 py-1.5"
-      >
-        duplicar
-      </button>
+      <.btn variant="secondary" size="sm" phx-click="bulk_duplicate">duplicar</.btn>
 
-      <button
-        type="button"
+      <.btn
+        variant="danger"
+        size="sm"
         phx-click="bulk_delete"
         data-confirm="Apagar os itens selecionados? Os arquivos serão removidos."
-        class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim"
       >
         apagar
-      </button>
+      </.btn>
 
-      <button type="button" phx-click="clear_selection" class="text-cx-text-dim underline">
-        limpar
-      </button>
+      <.btn variant="ghost" size="sm" phx-click="clear_selection">limpar</.btn>
     </div>
     """
   end
@@ -286,9 +273,6 @@ defmodule CamerexWeb.LibraryComponents do
 
   defp type_label("video"), do: "vídeo"
   defp type_label(_), do: "foto"
-
-  defp progress_pct(%{done: d, total: t}) when t > 0, do: Float.round(d / t * 100, 1)
-  defp progress_pct(_), do: 0.0
 
   @doc """
   Mini-dashboard fixo (canto inferior esquerdo): barras de CPU e RAM do sistema
