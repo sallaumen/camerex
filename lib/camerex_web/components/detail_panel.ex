@@ -61,8 +61,43 @@ defmodule CamerexWeb.DetailPanel do
         </figure>
       </div>
 
-      <div :if={@item["type"] != "video"} class="flex gap-3">
-        <figure class="min-w-0 flex-1">
+      <div :if={@item["type"] != "video"}>
+        <%!-- done: revelador antes/depois arrastável; senão: só "antes" --%>
+        <div
+          :if={@item["status"] == "done"}
+          id={"reveal-#{@item["id"]}"}
+          phx-hook="BeforeAfter"
+          class="cx-reveal mx-auto max-h-[72vh]"
+        >
+          <img
+            id="after"
+            src={versioned_media_url(@item, @item["output_file"])}
+            alt={"depois (neon) — #{@item["original_filename"]}"}
+            class="cx-reveal-after"
+          />
+          <div data-reveal-before class="cx-reveal-before">
+            <img
+              id="before"
+              src={Workspace.media_url(@item["id"], @item["original_file"])}
+              alt={"antes — #{@item["original_filename"]}"}
+            />
+          </div>
+          <button
+            type="button"
+            data-reveal-handle
+            class="cx-reveal-handle"
+            role="slider"
+            aria-label="comparar antes e depois (arraste ou use as setas)"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="50"
+          ></button>
+        </div>
+        <p :if={@item["status"] == "done"} class="mt-1.5 text-center text-xs text-cx-text-dim">
+          arraste pra comparar · esquerda antes · direita depois (neon)
+        </p>
+
+        <figure :if={@item["status"] != "done"}>
           <img
             id="before"
             src={Workspace.media_url(@item["id"], @item["original_file"])}
@@ -71,17 +106,6 @@ defmodule CamerexWeb.DetailPanel do
           />
           <figcaption class="mt-1.5 text-sm font-medium text-cx-text-dim">
             antes
-          </figcaption>
-        </figure>
-        <figure :if={@item["status"] == "done"} class="min-w-0 flex-1">
-          <img
-            id="after"
-            src={versioned_media_url(@item, @item["output_file"])}
-            alt={"depois (neon) — #{@item["original_filename"]}"}
-            class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-well object-contain"
-          />
-          <figcaption class="mt-1.5 text-sm font-medium text-cx-text-dim">
-            depois (neon)
           </figcaption>
         </figure>
       </div>

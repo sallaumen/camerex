@@ -98,6 +98,10 @@ defmodule CamerexWeb.LibraryComponentsTest do
 
       assert html =~ ~s(id="before")
       assert html =~ ~s(id="after")
+      # foto done usa o revelador antes/depois (handle arrastável via hook)
+      assert html =~ "cx-reveal"
+      assert html =~ "data-reveal-handle"
+      assert html =~ ~s(phx-hook="BeforeAfter")
       assert html =~ "Baixar"
       assert html =~ "Reprocessar com ajustes"
       assert html =~ "Duplicar"

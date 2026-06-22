@@ -29,6 +29,46 @@ import topbar from "../vendor/topbar"
 // elemento que o abriu quando ele fecha. O foco inicial fica por conta do
 // phx-mounted={JS.focus()} dos campos. Usado por CamerexWeb.UI.modal/1.
 const Hooks = {
+  // Comparador antes/depois com handle arrastável (clip-path no "antes" sobre o
+  // "depois" de base). Pointer events; respeita o container inteiro como pista.
+  BeforeAfter: {
+    mounted() {
+      this.before = this.el.querySelector("[data-reveal-before]")
+      this.handle = this.el.querySelector("[data-reveal-handle]")
+      this.set(50)
+      this.onMove = (e) => {
+        const rect = this.el.getBoundingClientRect()
+        const pct = ((e.clientX - rect.left) / rect.width) * 100
+        this.set(Math.max(0, Math.min(100, pct)))
+      }
+      this.onUp = () => {
+        window.removeEventListener("pointermove", this.onMove)
+        window.removeEventListener("pointerup", this.onUp)
+      }
+      this.onDown = (e) => {
+        e.preventDefault()
+        window.addEventListener("pointermove", this.onMove)
+        window.addEventListener("pointerup", this.onUp)
+      }
+      this.el.addEventListener("pointerdown", this.onDown)
+      this.handle.addEventListener("keydown", this.onKey = (e) => {
+        if (e.key === "ArrowLeft") this.set(this.pct - 5)
+        else if (e.key === "ArrowRight") this.set(this.pct + 5)
+      })
+    },
+    set(pct) {
+      this.pct = Math.max(0, Math.min(100, pct))
+      if (this.before) this.before.style.clipPath = `inset(0 ${100 - this.pct}% 0 0)`
+      if (this.handle) {
+        this.handle.style.left = `${this.pct}%`
+        this.handle.setAttribute("aria-valuenow", Math.round(this.pct))
+      }
+    },
+    destroyed() {
+      window.removeEventListener("pointermove", this.onMove)
+      window.removeEventListener("pointerup", this.onUp)
+    },
+  },
   FocusTrap: {
     mounted() {
       this.previouslyFocused = document.activeElement
