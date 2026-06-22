@@ -510,11 +510,11 @@ defmodule CamerexWeb.LibraryLive do
       <.perf_dashboard perf={@perf} frame_concurrency={@frame_concurrency} />
       <div
         id="library-root"
-        class="flex min-h-screen w-full gap-4 p-4 pb-12"
+        class="flex min-h-screen w-full flex-col gap-4 p-4 pb-12 lg:flex-row"
         phx-window-keydown="escape_pressed"
         phx-key="escape"
       >
-        <aside class="w-64 shrink-0 space-y-5">
+        <aside class="w-full space-y-5 lg:w-64 lg:shrink-0">
           <h1 class="text-xl font-semibold tracking-wide">
             camerex<span class="text-cx-orange">_</span>
           </h1>
