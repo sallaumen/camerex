@@ -9,30 +9,84 @@
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
 @source "../../_build/dev/phoenix-colocated/camerex/*/";
 
-/* Tokens do tema camerex (contrato §8): geram as utilities bg-cx-*,
-   text-cx-* e border-cx-* usadas nos LiveViews */
+/* Tokens do tema camerex "neon refinado" (ver docs/design/2026-06-22-redesign-neon-refinado.md):
+   geram bg-cx-*, text-cx-*, border-cx-*. Escada de superfície por luz; bordas em 2
+   papéis (hairline decorativa + -strong funcional ≥3:1); texto em 3 níveis; acentos
+   racionados; raio/tipo/motion sistematizados. Contraste WCAG calculado nos comentários. */
 @theme {
-  --color-cx-bg: #10201a;
-  --color-cx-surface: #16281f;
-  --color-cx-border: #2a4a3c;
-  --color-cx-text: #c9e5d8;
-  /* um pouco mais claro que o original (#7fa293) p/ legibilidade do texto secundário */
-  --color-cx-text-dim: #95b6a7;
-  --color-cx-teal: #2bc4b2;
-  --color-cx-orange: #ff8a5c;
+  /* superfícies — escada de elevação por luminância (não por sombra) */
+  --color-cx-well: #0c1612; /* poço do preview/thumb */
+  --color-cx-bg: #101a15; /* canvas/galeria */
+  --color-cx-surface: #1a2a22; /* cards/painéis — 1.19:1 vs bg */
+  --color-cx-elevated: #25392f; /* modal/popover/dropdown */
+  /* bordas — hairline decorativa + funcional de UI (≥3:1, WCAG 1.4.11) */
+  --color-cx-border: #2e493c; /* hairline: separa cards/seções */
+  --color-cx-border-strong: #547f6b; /* input/switch/slider/foco — 3.3:1 vs surface */
+  /* texto — 3 níveis */
+  --color-cx-text: #d3e5db; /* corpo — 11.6:1 */
+  --color-cx-text-dim: #a1b7ac; /* secundário — 7.2:1 */
+  --color-cx-text-faint: #7c9287; /* caption/disabled — 4.6:1 (nunca corpo) */
+  /* acentos + estados (racionados: só CTA/foco/ativo/arte) */
+  --color-cx-teal: #2bc4b2; /* identidade — 7.75:1 */
+  --color-cx-teal-strong: #1fae9e; /* hover/preenchido */
+  --color-cx-orange: #ff8e59; /* acento quente, parcimônia */
+  --color-cx-success: #2bc4b2;
+  --color-cx-warning: #e8c34a;
+  --color-cx-danger: #f06a5e; /* vermelho único de erro */
+  /* raio */
+  --radius-control: 0.375rem; /* input/slider/swatch/botão */
+  --radius-card: 0.625rem; /* card/seção/painel */
+  --radius-lg: 1rem; /* modal */
+  /* motion */
+  --cx-dur-fast: 120ms;
+  --cx-dur-base: 180ms;
+  --cx-dur-slow: 220ms;
+  --cx-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --cx-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* tipografia (Tailwind v4 lê --text-*--line-height / --letter-spacing) */
+  --text-display: 2rem;
+  --text-display--line-height: 1.15;
+  --text-display--letter-spacing: -0.02em;
+  --text-h1: 1.5rem;
+  --text-h1--line-height: 1.2;
+  --text-h1--letter-spacing: -0.015em;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.3;
+  --text-h2--letter-spacing: -0.01em;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.4;
+  --text-label--letter-spacing: 0.01em;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.35;
+  --text-caption--letter-spacing: 0.02em;
 }
 
-/* base maior: como tudo no Tailwind é em rem, isto escala fontes E espaçamentos
-   juntos — leitura confortável sem precisar dar zoom no navegador (~112%) */
+/* glow assinatura + canal teal p/ alpha (sombras compostas — fora do @theme).
+   Uso permitido: CTA primário, :focus-visible/:active de controle, swatch selecionado,
+   badge processing e a arte. Proibido em repouso de swatch/slider/card/botão. */
+:root {
+  --cx-teal-rgb: 43 196 178;
+  --cx-glow-signature: 0 0 2px rgb(var(--cx-teal-rgb) / 0.8), 0 0 8px rgb(var(--cx-teal-rgb) / 0.42),
+    0 0 22px rgb(var(--cx-teal-rgb) / 0.18);
+  --cx-glow-hover: 0 0 2px rgb(var(--cx-teal-rgb) / 0.9), 0 0 10px rgb(var(--cx-teal-rgb) / 0.55),
+    0 0 28px rgb(var(--cx-teal-rgb) / 0.3);
+  --cx-glow-status: 0 0 6px rgb(232 195 74 / 0.45), 0 0 16px rgb(232 195 74 / 0.22);
+}
+
+/* base 16px (default do browser): densidade de ferramenta pro. Tudo no Tailwind é em
+   rem, então rem ainda respeita o zoom/preferência do usuário. A base 18px antiga
+   forçava a UI inteira a viver em text-sm/xs (o "grandão"). */
 html {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
 
-/* ── tema neon (Fase 5) ─────────────────────────────────────────── */
+/* ── tema neon refinado (tokenizado; glow racionado) ────────────── */
 
 .neon-badge {
   display: inline-flex;
@@ -42,46 +96,38 @@ html {
   border-radius: 9999px;
   padding: 0.125rem 0.625rem;
   font-size: 0.75rem;
-  letter-spacing: 0.03em;
-  background: #10201a;
+  letter-spacing: 0.02em;
+  background: var(--color-cx-bg);
 }
 
-.badge-new { color: #cfe3da; border-color: #3a5a4c; }
-.badge-queued { color: #7fa293; border-color: #2a4a3c; }
-.badge-processing { color: #ffd166; border-color: #ffd166; animation: neon-pulse 1.2s ease-in-out infinite; }
-.badge-done { color: #2bc4b2; border-color: #2bc4b2; }
-.badge-failed { color: #ff5c5c; border-color: #ff5c5c; }
-.badge-interrupted { color: #ff8a5c; border-color: #ff8a5c; }
+.badge-new { color: var(--color-cx-text-dim); border-color: var(--color-cx-border); }
+.badge-queued { color: var(--color-cx-text-faint); border-color: var(--color-cx-border); }
+.badge-processing { color: var(--color-cx-warning); border-color: var(--color-cx-warning); }
+.badge-done { color: var(--color-cx-teal); border-color: var(--color-cx-teal); }
+.badge-failed { color: var(--color-cx-danger); border-color: var(--color-cx-danger); }
+.badge-interrupted { color: var(--color-cx-orange); border-color: var(--color-cx-orange); }
 
+/* pulso só no estado ao vivo (o bloco global de reduced-motion o desliga) */
+.badge-processing { animation: neon-pulse 1.4s ease-in-out infinite; }
 @keyframes neon-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  50% { opacity: 0.55; }
 }
-
-.neon-swatch {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 9999px;
-  border: 2px solid #2a4a3c;
-  box-shadow: 0 0 12px 2px var(--glow);
-  cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease;
-}
-
-.neon-swatch:hover { transform: scale(1.08); box-shadow: 0 0 18px 4px var(--glow); }
-.neon-swatch-selected { border-color: #c9e5d8; box-shadow: 0 0 18px 5px var(--glow); }
 
 .neon-card {
-  border: 1px solid #2a4a3c;
-  border-radius: 0.75rem;
-  background: #16281f;
-  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  border: 1px solid var(--color-cx-border);
+  border-radius: var(--radius-card);
+  background: var(--color-cx-surface);
+  transition: transform var(--cx-dur-base) var(--cx-ease-out),
+    border-color var(--cx-dur-base) var(--cx-ease-out),
+    background-color var(--cx-dur-base) var(--cx-ease-out);
 }
 
+/* elevação por luz + borda teal no hover — sem drop-shadow */
 .neon-card:hover {
-  transform: translateY(-2px);
-  border-color: #2bc4b2;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+  transform: translateY(-1px);
+  border-color: var(--color-cx-teal);
+  background: var(--color-cx-elevated);
 }
 
 .neon-empty {
@@ -90,30 +136,33 @@ html {
   align-items: center;
   gap: 0.75rem;
   padding: 4rem 1rem;
-  border: 1px dashed #2a4a3c;
-  border-radius: 0.75rem;
-  color: #7fa293;
+  border: 1px dashed var(--color-cx-border);
+  border-radius: var(--radius-card);
+  color: var(--color-cx-text-dim);
   text-align: center;
 }
 
-.neon-empty-title { font-size: 1.125rem; color: #c9e5d8; }
+.neon-empty-title { font-size: 1.125rem; color: var(--color-cx-text); }
 
+/* CTA primário: o dono do glow (assinatura), intensifica no hover */
 .neon-cta {
   margin-top: 0.5rem;
   padding: 0.5rem 1.25rem;
   border-radius: 9999px;
-  border: 1px solid #2bc4b2;
-  color: #2bc4b2;
-  box-shadow: 0 0 12px rgb(43 196 178 / 0.35);
-  transition: box-shadow 150ms ease;
+  border: 1px solid var(--color-cx-teal);
+  color: var(--color-cx-teal);
+  box-shadow: var(--cx-glow-signature);
+  transition: box-shadow var(--cx-dur-base) var(--cx-ease-out),
+    transform var(--cx-dur-fast) var(--cx-ease-out);
 }
 
-.neon-cta:hover { box-shadow: 0 0 20px rgb(43 196 178 / 0.6); }
+.neon-cta:hover { box-shadow: var(--cx-glow-hover); }
+.neon-cta:active { transform: scale(0.97); }
 
-/* ── kit de controles do painel de conversão ───────────────────── */
+/* ── kit de controles ───────────────────────────────────────────── */
 
-/* slider: trilho fino preenchido em teal até o thumb (--cx-fill, % do valor,
-   vem inline), thumb teal com halo. Substitui o range azul nativo do browser. */
+/* slider: trilho fino preenchido em teal até o thumb (--cx-fill inline);
+   thumb mate em repouso (só anel sólido), acende no foco/ativo */
 .cx-range {
   -webkit-appearance: none;
   appearance: none;
@@ -128,7 +177,7 @@ html {
   background: linear-gradient(
     to right,
     var(--color-cx-teal) var(--cx-fill, 50%),
-    color-mix(in srgb, var(--color-cx-border) 75%, transparent) var(--cx-fill, 50%)
+    color-mix(in srgb, var(--color-cx-border-strong) 55%, transparent) var(--cx-fill, 50%)
   );
 }
 .cx-range::-webkit-slider-thumb {
@@ -140,16 +189,20 @@ html {
   border-radius: 9999px;
   background: var(--color-cx-teal);
   border: 2px solid var(--color-cx-bg);
-  box-shadow: 0 0 0 3px rgb(43 196 178 / 0.16), 0 0 10px 1px rgb(43 196 178 / 0.55);
-  transition: transform 100ms ease, box-shadow 100ms ease;
+  box-shadow: 0 0 0 3px rgb(var(--cx-teal-rgb) / 0.16);
+  transition: transform var(--cx-dur-fast) var(--cx-ease-out),
+    box-shadow var(--cx-dur-fast) var(--cx-ease-out);
 }
 .cx-range:hover::-webkit-slider-thumb { transform: scale(1.12); }
 .cx-range:focus-visible { outline: none; }
-.cx-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--color-cx-text); }
+.cx-range:focus-visible::-webkit-slider-thumb,
+.cx-range:active::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px var(--color-cx-teal), var(--cx-glow-signature);
+}
 .cx-range::-moz-range-track {
   height: 0.375rem;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--color-cx-border) 75%, transparent);
+  background: color-mix(in srgb, var(--color-cx-border-strong) 55%, transparent);
 }
 .cx-range::-moz-range-progress {
   height: 0.375rem;
@@ -162,10 +215,14 @@ html {
   border-radius: 9999px;
   background: var(--color-cx-teal);
   border: 2px solid var(--color-cx-bg);
-  box-shadow: 0 0 0 3px rgb(43 196 178 / 0.16), 0 0 10px 1px rgb(43 196 178 / 0.55);
+  box-shadow: 0 0 0 3px rgb(var(--cx-teal-rgb) / 0.16);
+}
+.cx-range:focus-visible::-moz-range-thumb,
+.cx-range:active::-moz-range-thumb {
+  box-shadow: 0 0 0 2px var(--color-cx-teal), var(--cx-glow-signature);
 }
 
-/* switch: trilho pill que acende teal quando :checked (era checkbox nativo) */
+/* switch: trilho pill que acende teal quando :checked */
 .cx-switch {
   -webkit-appearance: none;
   appearance: none;
@@ -174,9 +231,9 @@ html {
   width: 2.25rem;
   height: 1.25rem;
   border-radius: 9999px;
-  background: var(--color-cx-border);
+  background: var(--color-cx-border-strong);
   cursor: pointer;
-  transition: background 140ms ease;
+  transition: background var(--cx-dur-fast) var(--cx-ease-out);
 }
 .cx-switch::after {
   content: "";
@@ -186,16 +243,17 @@ html {
   width: 0.875rem;
   height: 0.875rem;
   border-radius: 9999px;
-  background: var(--color-cx-text-dim);
+  background: var(--color-cx-text);
   transform: translateY(-50%);
-  transition: transform 140ms ease, background 140ms ease;
+  transition: transform var(--cx-dur-fast) var(--cx-ease-in-out),
+    background var(--cx-dur-fast) var(--cx-ease-out);
 }
 .cx-switch:checked { background: var(--color-cx-teal); }
 .cx-switch:checked::after {
   transform: translate(1rem, -50%);
   background: var(--color-cx-bg);
 }
-.cx-switch:focus-visible { outline: 2px solid var(--color-cx-text); outline-offset: 2px; }
+.cx-switch:focus-visible { outline: 2px solid var(--color-cx-teal); outline-offset: 2px; }
 
 /* swatch: input color sem a moldura cinza nativa, cantos suaves + anel sutil */
 .cx-swatch {
@@ -206,111 +264,33 @@ html {
   height: 2rem;
   padding: 0;
   border: none;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-control);
   background: transparent;
   cursor: pointer;
   box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.14), 0 1px 3px rgb(0 0 0 / 0.4);
-  transition: transform 100ms ease;
+  transition: transform var(--cx-dur-fast) var(--cx-ease-out);
 }
 .cx-swatch:hover { transform: scale(1.07); }
 .cx-swatch::-webkit-color-swatch-wrapper { padding: 0; }
-.cx-swatch::-webkit-color-swatch { border: none; border-radius: 0.5rem; }
-.cx-swatch::-moz-color-swatch { border: none; border-radius: 0.5rem; }
+.cx-swatch::-webkit-color-swatch { border: none; border-radius: var(--radius-control); }
+.cx-swatch::-moz-color-swatch { border: none; border-radius: var(--radius-control); }
 .cx-swatch:focus-visible { outline: 2px solid var(--color-cx-teal); outline-offset: 2px; }
 
 /* seção do painel: card suave que agrupa controles afins */
 .cx-section {
   border: 1px solid var(--color-cx-border);
-  border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--color-cx-surface) 50%, transparent);
-  padding: 0.875rem 1rem;
+  border-radius: var(--radius-card);
+  background: var(--color-cx-surface);
+  padding: 0.75rem 1rem;
 }
 .cx-section-title {
-  font-size: 0.8125rem;
+  font-size: var(--text-label);
   font-weight: 600;
   color: var(--color-cx-text);
 }
 
-/* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
-   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
-   Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
-@plugin "../vendor/daisyui" {
-  themes: false;
-}
-
-/* daisyUI theme plugin. You can update this file by fetching the latest version with:
-  curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.js
-  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
-  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
-@plugin "../vendor/daisyui-theme" {
-  name: "dark";
-  default: false;
-  prefersdark: true;
-  color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1.5px;
-  --depth: 1;
-  --noise: 0;
-}
-
-@plugin "../vendor/daisyui-theme" {
-  name: "light";
-  default: true;
-  prefersdark: false;
-  color-scheme: "light";
-  --color-base-100: oklch(98% 0 0);
-  --color-base-200: oklch(96% 0.001 286.375);
-  --color-base-300: oklch(92% 0.004 286.32);
-  --color-base-content: oklch(21% 0.006 285.885);
-  --color-primary: oklch(70% 0.213 47.604);
-  --color-primary-content: oklch(98% 0.016 73.684);
-  --color-secondary: oklch(55% 0.027 264.364);
-  --color-secondary-content: oklch(98% 0.002 247.839);
-  --color-accent: oklch(0% 0 0);
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(44% 0.017 285.786);
-  --color-neutral-content: oklch(98% 0 0);
-  --color-info: oklch(62% 0.214 259.815);
-  --color-info-content: oklch(97% 0.014 254.604);
-  --color-success: oklch(70% 0.14 182.503);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1.5px;
-  --depth: 1;
-  --noise: 0;
-}
+/* daisyUI removido (era a fonte do tema azul/roxo oklch ~252-292 que vazava no <html>).
+   O camerex é dark-fixo com tokens cx-* próprios; não há toggle de tema. */
 
 /* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
@@ -322,5 +302,26 @@ html {
 
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* Acessibilidade: respeita quem pede menos movimento (WCAG 2.3.3). Mata
+   translate/scale-up/shimmer/neon-pulse; opacity e :active continuam (feedback essencial). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Foco visível padrão em todos os interativos (WCAG 2.4.7): anel sólido teal que
+   sozinho bate 3:1 (blur/glow não contam p/ WCAG). */
+:where(a, button, [role="button"], input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--color-cx-teal);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
 
 /* This file is for your main application CSS */
