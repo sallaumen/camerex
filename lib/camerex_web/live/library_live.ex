@@ -510,11 +510,11 @@ defmodule CamerexWeb.LibraryLive do
       <.perf_dashboard perf={@perf} frame_concurrency={@frame_concurrency} />
       <div
         id="library-root"
-        class="flex min-h-screen w-full flex-col gap-4 p-4 pb-12 lg:flex-row"
+        class="flex min-h-screen w-full flex-col gap-4 p-4 pb-12 lg:h-screen lg:flex-row lg:overflow-hidden"
         phx-window-keydown="escape_pressed"
         phx-key="escape"
       >
-        <aside class="w-full space-y-5 lg:w-64 lg:shrink-0">
+        <aside class="w-full space-y-5 lg:w-64 lg:shrink-0 lg:overflow-y-auto lg:pb-10">
           <h1 class="text-xl font-semibold tracking-wide">
             camerex<span class="text-cx-orange">_</span>
           </h1>
@@ -579,7 +579,7 @@ defmodule CamerexWeb.LibraryLive do
           </form>
         </aside>
 
-        <main class="min-w-0 flex-1 space-y-4">
+        <main class="min-w-0 flex-1 space-y-4 lg:overflow-y-auto lg:pb-10">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-3">
               <.breadcrumb folder={@folder} />
