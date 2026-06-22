@@ -699,123 +699,87 @@ defmodule CamerexWeb.LibraryLive do
         </main>
       </div>
 
-      <%!-- sem phx-click no overlay: cliques DENTRO do painel borbulham até aqui
-            e fechariam o modal; o phx-click-away do painel já cobre o clique fora.
-            Esc é tratado no handler global do #library-root (modal tem prioridade) --%>
-      <div
-        :if={@modal}
-        id="modal-overlay"
-        class="fixed inset-0 z-40 flex items-center justify-center bg-black/60"
-      >
-        <div
-          class="w-full max-w-lg rounded-lg border border-cx-border bg-cx-surface p-5"
-          phx-click-away="close_modal"
-        >
-          <div
-            :if={@modal == :import}
-            id="import-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="import-modal-title"
-            class="space-y-3"
-          >
-            <h2 id="import-modal-title" class="text-lg font-semibold">importar pasta do disco</h2>
-            <p class="text-sm text-cx-text-dim">
-              as mídias são copiadas para a biblioteca em <strong>/{if @folder == "", do: "biblioteca", else: @folder}</strong>,
-              espelhando as subpastas.
-            </p>
-            <form id="import-form" phx-submit="import_scan" class="flex gap-2">
-              <input
-                type="text"
-                name="path"
-                value={@import_path}
-                placeholder="/Users/voce/Videos/forro"
-                autocomplete="off"
-                phx-mounted={JS.focus()}
-                class="w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5 text-sm"
-              />
-              <.btn type="submit" variant="primary" size="sm">escanear</.btn>
-            </form>
+      <%!-- modais: um por vez (@modal). Overlay/card/dialog/fechar vêm do <.modal>;
+            Esc é tratado no handler global do #library-root (modal tem prioridade). --%>
+      <.modal :if={@modal == :import} id="import-modal" title="importar pasta do disco">
+        <p class="text-sm text-cx-text-dim">
+          as mídias são copiadas para a biblioteca em <strong>/{if @folder == "", do: "biblioteca", else: @folder}</strong>,
+          espelhando as subpastas.
+        </p>
+        <form id="import-form" phx-submit="import_scan" class="flex gap-2">
+          <input
+            type="text"
+            name="path"
+            value={@import_path}
+            placeholder="/Users/voce/Videos/forro"
+            autocomplete="off"
+            phx-mounted={JS.focus()}
+            class="cx-input"
+          />
+          <.btn type="submit" variant="primary" size="sm">escanear</.btn>
+        </form>
 
-            <div :if={@import_scan} id="import-scan-result" class="text-sm">
-              <%= case @import_scan do %>
-                <% {:ok, %{media: media, total_bytes: bytes}} -> %>
-                  <p>
-                    <strong>{length(media)}</strong>
-                    mídia(s) encontrada(s) · {Float.round(bytes / 1_048_576, 1)} MB
-                  </p>
-                  <.btn :if={media != []} variant="primary" id="import-run" phx-click="import_run">
-                    importar tudo
-                  </.btn>
-                <% {:error, msg} -> %>
-                  <p class="text-cx-orange">{msg}</p>
-              <% end %>
-            </div>
-          </div>
-
-          <div
-            :if={@modal == :new_folder}
-            id="new-folder-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="new-folder-modal-title"
-            class="space-y-3"
-          >
-            <h2 id="new-folder-modal-title" class="text-lg font-semibold">nova pasta</h2>
-            <p :if={@folder != ""} class="text-sm text-cx-text-dim">
-              dentro de /{@folder}
-            </p>
-            <form id="new-folder-form" phx-submit="create_folder" class="flex gap-2">
-              <input
-                type="text"
-                name="name"
-                value={@new_folder_name}
-                placeholder="nome da pasta…"
-                autocomplete="off"
-                phx-mounted={JS.focus()}
-                class="w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5 text-sm"
-              />
-              <.btn type="submit" variant="primary" size="sm">criar</.btn>
-            </form>
-          </div>
-
-          <div
-            :if={@modal == :colors_json}
-            id="colors-json-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="colors-json-title"
-            class="space-y-3"
-          >
-            <h2 id="colors-json-title" class="text-lg font-semibold">cores por parte (JSON)</h2>
-            <p class="text-sm text-cx-text-dim">
-              cole as cores em hex (<code>"#RRGGBB"</code>) ou <code>[r, g, b]</code>. partes ausentes
-              ficam no padrão; chaves desconhecidas são ignoradas.
-            </p>
-            <form id="colors-json-form" phx-submit="apply_colors_json" class="space-y-2">
-              <textarea
-                name="json"
-                rows="12"
-                spellcheck="false"
-                phx-mounted={JS.focus()}
-                class="w-full rounded border border-cx-border bg-cx-bg p-2 font-mono text-sm text-cx-text"
-              >{@colors_json}</textarea>
-              <p
-                :if={@colors_json_error}
-                id="colors-json-error"
-                role="alert"
-                class="text-sm text-cx-orange"
-              >
-                {@colors_json_error}
+        <div :if={@import_scan} id="import-scan-result" class="text-sm">
+          <%= case @import_scan do %>
+            <% {:ok, %{media: media, total_bytes: bytes}} -> %>
+              <p>
+                <strong>{length(media)}</strong>
+                mídia(s) encontrada(s) · {Float.round(bytes / 1_048_576, 1)} MB
               </p>
-              <div class="flex items-center gap-2">
-                <.btn type="submit" variant="primary">aplicar cores</.btn>
-                <.btn variant="secondary" size="sm" phx-click="close_modal">cancelar</.btn>
-              </div>
-            </form>
-          </div>
+              <.btn :if={media != []} variant="primary" id="import-run" phx-click="import_run">
+                importar tudo
+              </.btn>
+            <% {:error, msg} -> %>
+              <p class="text-cx-orange">{msg}</p>
+          <% end %>
         </div>
-      </div>
+      </.modal>
+
+      <.modal :if={@modal == :new_folder} id="new-folder-modal" title="nova pasta">
+        <p :if={@folder != ""} class="text-sm text-cx-text-dim">
+          dentro de /{@folder}
+        </p>
+        <form id="new-folder-form" phx-submit="create_folder" class="flex gap-2">
+          <input
+            type="text"
+            name="name"
+            value={@new_folder_name}
+            placeholder="nome da pasta…"
+            autocomplete="off"
+            phx-mounted={JS.focus()}
+            class="cx-input"
+          />
+          <.btn type="submit" variant="primary" size="sm">criar</.btn>
+        </form>
+      </.modal>
+
+      <.modal :if={@modal == :colors_json} id="colors-json-modal" title="cores por parte (JSON)">
+        <p class="text-sm text-cx-text-dim">
+          cole as cores em hex (<code>"#RRGGBB"</code>) ou <code>[r, g, b]</code>. partes ausentes
+          ficam no padrão; chaves desconhecidas são ignoradas.
+        </p>
+        <form id="colors-json-form" phx-submit="apply_colors_json" class="space-y-2">
+          <textarea
+            name="json"
+            rows="12"
+            spellcheck="false"
+            phx-mounted={JS.focus()}
+            class="w-full rounded-control border border-cx-border-strong bg-cx-bg p-2 font-mono text-sm text-cx-text"
+          >{@colors_json}</textarea>
+          <p
+            :if={@colors_json_error}
+            id="colors-json-error"
+            role="alert"
+            class="text-sm text-cx-orange"
+          >
+            {@colors_json_error}
+          </p>
+          <div class="flex items-center gap-2">
+            <.btn type="submit" variant="primary">aplicar cores</.btn>
+            <.btn variant="secondary" size="sm" phx-click="close_modal">cancelar</.btn>
+          </div>
+        </form>
+      </.modal>
     </Layouts.app>
     """
   end

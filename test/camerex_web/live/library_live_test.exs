@@ -356,12 +356,12 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       # regressão: phx-click no overlay fechava o modal em QUALQUER clique
       # interno (borbulhado), inclusive no input de caminho — import inusável
-      assert has_element?(lv, "#modal-overlay")
-      refute has_element?(lv, "#modal-overlay[phx-click]")
+      assert has_element?(lv, "#import-modal-overlay")
+      refute has_element?(lv, "#import-modal-overlay[phx-click]")
 
       # Esc fecha via handler global da página
       lv |> element("#library-root") |> render_keydown()
-      refute has_element?(lv, "#modal-overlay")
+      refute has_element?(lv, "#import-modal-overlay")
     end
 
     test "scan de caminho inexistente mostra erro no modal", %{conn: conn} do
@@ -379,10 +379,10 @@ defmodule CamerexWeb.LibraryLiveTest do
       {:ok, lv, _} = live(conn, "/?item=#{id}")
 
       lv |> element("#import-button") |> render_click()
-      assert has_element?(lv, "#modal-overlay")
+      assert has_element?(lv, "#import-modal-overlay")
 
       lv |> element("#library-root") |> render_keydown()
-      refute has_element?(lv, "#modal-overlay")
+      refute has_element?(lv, "#import-modal-overlay")
       assert render(lv) =~ "detail-panel"
     end
 

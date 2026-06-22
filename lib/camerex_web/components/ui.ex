@@ -83,6 +83,43 @@ defmodule CamerexWeb.UI do
   end
 
   @doc """
+  Modal: overlay escuro + card centralizado com semântica de dialog (role,
+  aria-modal, aria-labelledby), título com botão de fechar e click-away pra
+  fechar. Esc é tratado pelo handler global da página. Aplique o `:if` na
+  chamada — só um modal por vez.
+  """
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :on_close, :any, default: "close_modal", doc: "evento de fechar (phx-click/click-away)"
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def modal(assigns) do
+    ~H"""
+    <div
+      id={"#{@id}-overlay"}
+      class="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-black/60 p-4"
+      {@rest}
+    >
+      <div
+        id={@id}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={"#{@id}-title"}
+        phx-click-away={@on_close}
+        class="w-full max-w-lg space-y-3 rounded-lg border border-cx-border bg-cx-elevated p-5 shadow-xl"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <h2 id={"#{@id}-title"} class="text-lg font-semibold">{@title}</h2>
+          <.close_button label="fechar" phx-click={@on_close} />
+        </div>
+        {render_slot(@inner_block)}
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Badge/chip de estado ou tipo. Unifica status e type-chip num único componente.
   `processing` pulsa (desligado em prefers-reduced-motion pelo bloco global do app.css).
   """
@@ -184,7 +221,7 @@ defmodule CamerexWeb.UI do
 
   attr :rest, :global,
     include:
-      ~w(placeholder min max step required disabled phx-debounce phx-change id autocomplete inputmode)
+      ~w(placeholder min max step required disabled phx-debounce phx-change phx-mounted id autocomplete inputmode)
 
   def input(assigns) do
     ~H"""
