@@ -8,7 +8,7 @@ defmodule Camerex.Pipeline.Photo do
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
   alias Camerex.Neon.{Background, Layered, Scene}
-  alias Camerex.Parser.{Apparatus, Layers, Object}
+  alias Camerex.Parser.{Apparatus, Hair, Layers, Object}
 
   @doc """
   Render por camada semântica (ÚNICO modo): parseia as partes
@@ -28,6 +28,12 @@ defmodule Camerex.Pipeline.Photo do
   defp augment_labels(rgb, labels, opts) do
     labels
     |> with_object(rgb, Keyword.get(opts, :detect_object, false))
+    |> with_hair(
+      rgb,
+      Keyword.get(opts, :hair_color),
+      Keyword.get(opts, :hair_sensitivity, 0.5),
+      Keyword.get(opts, :detect_hair, false)
+    )
     |> with_aerial(
       rgb,
       Keyword.get(opts, :aerial_color),
@@ -58,6 +64,28 @@ defmodule Camerex.Pipeline.Photo do
 
       :error ->
         labels
+    end
+  end
+
+  # cabelo: FALLBACK por cor só quando o ATR não enxerga cabeça (pose aérea/de
+  # costas) E o usuário indicou a cor. A silhueta vem do MAIOR componente do
+  # u2net (inclui o cabelo); a cor restringe ao cacho. Onde o ATR já acha cabelo
+  # (frontal), confia nele e nem roda o u2net. Ver Parser.Hair.
+  defp with_hair(labels, _rgb, nil, _sens, _on), do: labels
+  defp with_hair(labels, _rgb, _color, _sens, false), do: labels
+
+  defp with_hair(labels, rgb, color, sens, true) do
+    if Hair.present?(labels) do
+      labels
+    else
+      case segment(rgb, "u2net") do
+        {:ok, raw} ->
+          mask = Hair.detect(Mask.largest_component(raw), labels, rgb, color, sensitivity: sens)
+          Hair.into_labels(labels, mask)
+
+        :error ->
+          labels
+      end
     end
   end
 
@@ -183,6 +211,9 @@ defmodule Camerex.Pipeline.Photo do
       detail: p["detail"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"],
+      detect_hair: p["detect_hair"],
+      hair_color: p["hair_color"],
+      hair_sensitivity: p["hair_sensitivity"],
       detect_aerial: p["detect_aerial"],
       aerial_color: p["aerial_color"],
       aerial_sensitivity: p["aerial_sensitivity"],

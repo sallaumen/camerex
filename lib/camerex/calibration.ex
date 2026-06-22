@@ -8,7 +8,7 @@ defmodule Camerex.Calibration do
   """
 
   alias Camerex.{Mask, Parser}
-  alias Camerex.Parser.{Apparatus, Layers, Object}
+  alias Camerex.Parser.{Apparatus, Hair, Layers, Object}
   alias Camerex.Pipeline.{FramePreview, Photo}
 
   @preview_width 480
@@ -81,6 +81,13 @@ defmodule Camerex.Calibration do
     labels =
       labels
       |> maybe_object(params["detect_object"], mask)
+      |> maybe_hair(
+        params["detect_hair"],
+        mask,
+        rgb,
+        params["hair_color"],
+        params["hair_sensitivity"]
+      )
       |> maybe_aerial(
         params["detect_aerial"],
         fg_full,
@@ -109,6 +116,18 @@ defmodule Camerex.Calibration do
     do: Object.into_labels(labels, Object.detect(mask, labels))
 
   defp maybe_object(labels, _off, _mask), do: labels
+
+  # cabelo: FALLBACK por cor só quando o ATR não enxerga cabeça E há cor indicada.
+  # Reusa o `mask` da sessão (maior componente do u2net = silhueta com o cabelo).
+  defp maybe_hair(labels, true, mask, rgb, color, sens) when not is_nil(color) do
+    if Hair.present?(labels) do
+      labels
+    else
+      Hair.into_labels(labels, Hair.detect(mask, labels, rgb, color, sensitivity: sens || 0.5))
+    end
+  end
+
+  defp maybe_hair(labels, _on, _mask, _rgb, _color, _sens), do: labels
 
   defp maybe_aerial(labels, true, fg_full, rgb, color, sens),
     do:

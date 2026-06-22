@@ -21,7 +21,7 @@ defmodule Camerex.Pipeline.Video do
 
   alias Camerex.{Mask, Neon, Parser, Settings, Workspace}
   alias Camerex.Neon.{Background, Layered}
-  alias Camerex.Parser.{Apparatus, Layers, Object}
+  alias Camerex.Parser.{Apparatus, Hair, Layers, Object}
   alias Camerex.Video.{Audio, Decoder, Encoder, Probe}
 
   @work_width 640
@@ -286,6 +286,9 @@ defmodule Camerex.Pipeline.Video do
       trail_decay: p["trail"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       detect_object: p["detect_object"] == true,
+      detect_hair: p["detect_hair"] == true,
+      hair_color: p["hair_color"],
+      hair_sensitivity: p["hair_sensitivity"] || 0.5,
       detect_aerial: p["detect_aerial"] == true,
       aerial_color: p["aerial_color"],
       aerial_sensitivity: p["aerial_sensitivity"] || 0.5,
@@ -331,6 +334,13 @@ defmodule Camerex.Pipeline.Video do
   defp augment_frame_labels(frame, labels, opts) do
     labels
     |> frame_object(frame, opts.segmenter, opts.model, opts.detect_object)
+    |> frame_hair(
+      frame,
+      opts.segmenter,
+      opts.hair_color,
+      opts.hair_sensitivity,
+      opts.detect_hair
+    )
     |> frame_aerial(
       frame,
       opts.segmenter,
@@ -346,6 +356,26 @@ defmodule Camerex.Pipeline.Video do
     case segmenter.segment(frame, model: model) do
       {:ok, raw} -> Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
       _ -> labels
+    end
+  end
+
+  # cabelo: FALLBACK por cor só quando o ATR não enxerga cabeça no frame E há cor
+  # indicada (silhueta = maior componente do u2net; ver Parser.Hair)
+  defp frame_hair(labels, _frame, _seg, nil, _sens, _on), do: labels
+  defp frame_hair(labels, _frame, _seg, _color, _sens, false), do: labels
+
+  defp frame_hair(labels, frame, segmenter, color, sens, true) do
+    if Hair.present?(labels) do
+      labels
+    else
+      case segmenter.segment(frame, model: "u2net") do
+        {:ok, raw} ->
+          mask = Hair.detect(Mask.largest_component(raw), labels, frame, color, sensitivity: sens)
+          Hair.into_labels(labels, mask)
+
+        _ ->
+          labels
+      end
     end
   end
 
