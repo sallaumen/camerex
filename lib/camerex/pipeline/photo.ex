@@ -21,42 +21,52 @@ defmodule Camerex.Pipeline.Photo do
     end
   end
 
-  # opt-in: roda o U²-Net UMA vez (se objeto OU tecido aéreo ligado) e injeta as
-  # classes virtuais — objeto na mão (18, via maior componente) e/ou tecido aéreo
-  # (19, via foreground COMPLETO − pessoa). Ver Parser.Object / Parser.Apparatus.
+  # opt-in: injeta as classes virtuais — objeto na mão (18, maior componente do
+  # U²-Net) e/ou tecido aéreo (19, foreground COMPLETO − pessoa). Cada um roda seu
+  # modelo: objeto no `u2net`, tecido no `u2netp` (pega o drapeado/fitas que o
+  # u2net perde sob luz colorida). Ver Parser.Object / Parser.Apparatus.
   defp augment_labels(rgb, labels, opts) do
-    object? = Keyword.get(opts, :detect_object, false)
-    aerial? = Keyword.get(opts, :detect_aerial, false)
+    labels
+    |> with_object(rgb, Keyword.get(opts, :detect_object, false))
+    |> with_aerial(
+      rgb,
+      Keyword.get(opts, :aerial_color),
+      Keyword.get(opts, :detect_aerial, false)
+    )
+  end
 
-    if object? or aerial? do
-      segmenter = Application.fetch_env!(:camerex, :segmenter)
+  defp with_object(labels, _rgb, false), do: labels
 
-      case segmenter.segment(rgb, model: "u2net") do
-        {:ok, raw} ->
-          labels
-          |> with_object(raw, object?)
-          |> with_aerial(raw, rgb, Keyword.get(opts, :aerial_color), aerial?)
-
-        _ ->
-          labels
-      end
-    else
-      labels
+  defp with_object(labels, rgb, true) do
+    case segment(rgb, "u2net") do
+      {:ok, raw} -> Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
+      :error -> labels
     end
   end
 
-  defp with_object(labels, raw, true),
-    do: Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
+  # tecido usa o foreground COMPLETO (todos os componentes), não o maior — tecido
+  # e pessoa são componentes separados (ver Parser.Apparatus). A cor do tecido
+  # (aerial_color) enriquece a saliência.
+  defp with_aerial(labels, _rgb, _color, false), do: labels
 
-  defp with_object(labels, _raw, false), do: labels
+  defp with_aerial(labels, rgb, color, true) do
+    case segment(rgb, "u2netp") do
+      {:ok, raw} ->
+        Apparatus.into_labels(labels, Apparatus.detect(full_foreground(raw), labels, rgb, color))
 
-  # tecido usa o foreground COMPLETO (todos os componentes), não o maior — o
-  # tecido e a pessoa são componentes separados (ver Parser.Apparatus). A cor do
-  # tecido (aerial_color) é a pista principal que recupera o drapeado inteiro.
-  defp with_aerial(labels, raw, rgb, color, true),
-    do: Apparatus.into_labels(labels, Apparatus.detect(full_foreground(raw), labels, rgb, color))
+      :error ->
+        labels
+    end
+  end
 
-  defp with_aerial(labels, _raw, _rgb, _color, false), do: labels
+  defp segment(rgb, model) do
+    segmenter = Application.fetch_env!(:camerex, :segmenter)
+
+    case segmenter.segment(rgb, model: model) do
+      {:ok, raw} -> {:ok, raw}
+      _ -> :error
+    end
+  end
 
   defp full_foreground(raw), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
 

@@ -324,35 +324,38 @@ defmodule Camerex.Pipeline.Video do
     end
   end
 
-  # opt-in por frame: roda o U²-Net UMA vez (se objeto OU tecido aéreo ligado) e
-  # injeta as classes virtuais — objeto na mão (18) e/ou tecido aéreo (19). Custa
-  # uma passada a mais do segmenter por frame (já paralelizado pelo async_stream).
-  defp augment_frame_labels(frame, labels, %{detect_object: o, detect_aerial: a} = opts)
-       when o or a do
-    case opts.segmenter.segment(frame, model: opts.model) do
+  # opt-in por frame: injeta as classes virtuais — objeto na mão (18, no model do
+  # item) e/ou tecido aéreo (19, no `u2netp`, que pega o drapeado que o u2net
+  # perde). Cada feature ligada custa uma passada do segmenter (paralelizado).
+  defp augment_frame_labels(frame, labels, opts) do
+    labels
+    |> frame_object(frame, opts.segmenter, opts.model, opts.detect_object)
+    |> frame_aerial(frame, opts.segmenter, opts.aerial_color, opts.detect_aerial)
+  end
+
+  defp frame_object(labels, _frame, _seg, _model, false), do: labels
+
+  defp frame_object(labels, frame, segmenter, model, true) do
+    case segmenter.segment(frame, model: model) do
+      {:ok, raw} -> Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
+      _ -> labels
+    end
+  end
+
+  # tecido usa o foreground COMPLETO do u2netp (todos os componentes); a cor do
+  # tecido (aerial_color) enriquece a saliência
+  defp frame_aerial(labels, _frame, _seg, _color, false), do: labels
+
+  defp frame_aerial(labels, frame, segmenter, color, true) do
+    case segmenter.segment(frame, model: "u2netp") do
       {:ok, raw} ->
-        labels |> frame_object(raw, o) |> frame_aerial(raw, frame, opts.aerial_color, a)
+        full = raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
+        Apparatus.into_labels(labels, Apparatus.detect(full, labels, frame, color))
 
       _ ->
         labels
     end
   end
-
-  defp augment_frame_labels(_frame, labels, _opts), do: labels
-
-  defp frame_object(labels, raw, true),
-    do: Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
-
-  defp frame_object(labels, _raw, false), do: labels
-
-  # tecido usa o foreground COMPLETO (todos os componentes), não o maior; a cor
-  # do tecido (aerial_color) é a pista principal pra recuperar o drapeado
-  defp frame_aerial(labels, raw, frame, color, true) do
-    full = raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
-    Apparatus.into_labels(labels, Apparatus.detect(full, labels, frame, color))
-  end
-
-  defp frame_aerial(labels, _raw, _frame, _color, false), do: labels
 
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(reason), do: inspect(reason)

@@ -3,11 +3,14 @@ defmodule Camerex.Parser.ApparatusTest do
 
   alias Camerex.Parser.Apparatus
 
-  # cena 200×200: PESSOA (rótulo 4) num bloco + uma estrutura conforme o caso.
-  # min altura = 35%→70px; min área = 0.5%→200px.
-  defp scene(extra_rect) do
-    rows = Nx.iota({200, 200}, axis: 0)
-    cols = Nx.iota({200, 200}, axis: 1)
+  @red {220, 30, 40}
+
+  # Cena 240×240: rgb com `silk_rects` em VERMELHO saturado sobre cinza (sat~0);
+  # fg = onde há vermelho; labels = `person_rect` como classe 4 (ou 2 = cabelo).
+  defp build(silk_rects, opts \\ []) do
+    w = 240
+    rows = Nx.iota({w, w}, axis: 0)
+    cols = Nx.iota({w, w}, axis: 1)
 
     rect = fn {r0, r1, c0, c1} ->
       Nx.logical_and(
@@ -16,98 +19,89 @@ defmodule Camerex.Parser.ApparatusTest do
       )
     end
 
-    person = rect.({80, 140, 40, 90})
-    extra = rect.(extra_rect)
-    labels = Nx.select(person, Nx.u8(4), Nx.u8(0))
-    # foreground COMPLETO (pessoa + estrutura), como o U²-Net cru (todos os comps)
-    fg = Nx.logical_or(person, extra) |> Nx.multiply(255) |> Nx.as_type(:u8)
-    {fg, labels}
+    empty = Nx.broadcast(Nx.u8(0), {w, w}) |> Nx.greater(1)
+    silk = Enum.reduce(silk_rects, empty, fn r, acc -> Nx.logical_or(acc, rect.(r)) end)
+
+    red = Nx.tensor([220, 30, 40], type: :u8) |> Nx.broadcast({w, w, 3})
+    gray = Nx.broadcast(Nx.u8(128), {w, w, 3})
+    rgb = Nx.select(Nx.broadcast(Nx.new_axis(silk, -1), {w, w, 3}), red, gray)
+    fg = silk |> Nx.multiply(255) |> Nx.as_type(:u8)
+
+    labels =
+      case {Keyword.get(opts, :person), Keyword.get(opts, :hair)} do
+        {nil, nil} -> Nx.broadcast(Nx.u8(0), {w, w})
+        {p, nil} -> Nx.select(rect.(p), Nx.u8(4), Nx.u8(0))
+        {nil, hr} -> Nx.select(rect.(hr), Nx.u8(2), Nx.u8(0))
+      end
+
+    {fg, labels, rgb}
   end
 
-  test "detect/2 isola a estrutura ALTA e VERTICAL (tecido), descartando a pessoa" do
-    # mecha vertical: 20 de largura × 170 de altura (85% do quadro), longe da pessoa
-    {fg, labels} = scene({0, 170, 110, 130})
+  test "fita vertical fina que ALCANÇA O TOPO vira tecido" do
+    # faixa de 14px de largura, do topo até a metade de baixo
+    {fg, labels, rgb} = build([{0, 200, 110, 124}])
 
-    mask = Apparatus.detect(fg, labels)
+    mask = Apparatus.detect(fg, labels, rgb, @red)
 
-    assert Nx.shape(mask) == {200, 200}
-    # corpo da mecha vira máscara…
-    assert Nx.to_number(mask[80][120]) == 255
-    # …e a pessoa NÃO (subtraída, e não é alta/vertical)
-    assert Nx.to_number(mask[110][65]) == 0
+    assert Nx.shape(mask) == {240, 240}
+    assert Nx.type(mask) == {:u, 8}
+    # corpo da fita aceso
+    assert Nx.to_number(mask[100][117]) == 255
   end
 
-  test "detect/2 ignora estrutura BAIXA e LARGA (não é tecido)" do
-    # faixa larga e baixa: 100 de largura × 20 de altura — não passa no 'alto'
-    {fg, labels} = scene({20, 40, 50, 150})
+  test "blob compacto e GROSSO não vira tecido (proteção contra manchas)" do
+    # 70×70 de área cheia, alcança o topo — mas é grosso (não é uma fita)
+    {fg, labels, rgb} = build([{0, 70, 90, 160}])
 
-    mask = Apparatus.detect(fg, labels)
+    mask = Apparatus.detect(fg, labels, rgb, @red)
     assert Nx.to_number(Nx.sum(Nx.greater(mask, 0))) == 0
   end
 
+  test "fita que NÃO alcança o topo é descartada (invariante: tecido vem de cima)" do
+    # faixa fina mas só na metade de BAIXO (rows 130..240) — "só embaixo" não existe
+    {fg, labels, rgb} = build([{130, 240, 110, 124}])
+
+    mask = Apparatus.detect(fg, labels, rgb, @red)
+    assert Nx.to_number(Nx.sum(Nx.greater(mask, 0))) == 0
+  end
+
+  test "fita que CURVA mas continua FINA é mantida inteira (segue ao longo de si)" do
+    # vertical do topo (rows 0..140) + continuação inclinada FINA embaixo (16px) —
+    # como o tecido que curva ao passar pelas pernas; fica tudo conectado
+    {fg, labels, rgb} = build([{0, 140, 110, 126}, {130, 205, 124, 140}])
+
+    mask = Apparatus.detect(fg, labels, rgb, @red)
+    assert Nx.to_number(mask[60][117]) == 255
+    # a continuação de baixo também acende (cresceu pela fita)
+    assert Nx.to_number(Nx.sum(Nx.greater(mask[[150..200, 124..140]], 0))) > 0
+  end
+
+  test "cabelo (classe 2) da cor do tecido não é roubado (regressão: cabelo rosa)" do
+    # fita de silk à direita (alcança topo) + blob de cabelo vermelho (classe 2) à
+    # esquerda, longe dela. O cabelo e sua vizinhança não podem virar tecido.
+    {fg, labels, rgb} = build([{0, 200, 150, 164}], hair: {20, 60, 40, 75})
+
+    mask = Apparatus.detect(fg, labels, rgb, @red)
+    # a fita continua sendo tecido
+    assert Nx.to_number(mask[100][157]) == 255
+    # o cabelo NÃO
+    assert Nx.to_number(mask[40][57]) == 0
+  end
+
   test "into_labels/2 injeta a classe 19 só onde há tecido E o ATR não rotulou" do
-    {fg, labels} = scene({0, 170, 110, 130})
-    mask = Apparatus.detect(fg, labels)
+    {fg, labels, rgb} = build([{0, 200, 110, 124}])
+    mask = Apparatus.detect(fg, labels, rgb, @red)
 
     augmented = Apparatus.into_labels(labels, mask)
-
-    assert Nx.to_number(augmented[80][120]) == 19
-    assert Nx.to_number(augmented[110][65]) == 4
+    assert Nx.to_number(augmented[100][117]) == 19
+    # fora do tecido segue fundo
+    assert Nx.to_number(augmented[100][10]) == 0
   end
 
-  test "detect/4 acha o tecido pela COR mesmo quando o U²-Net não o vê" do
-    rows = Nx.iota({200, 200}, axis: 0)
-    cols = Nx.iota({200, 200}, axis: 1)
-    # faixa vertical vermelha (o tecido) sobre fundo cinza
-    band =
-      Nx.logical_and(Nx.greater_equal(cols, 95), Nx.less(cols, 115))
-      |> Nx.logical_and(Nx.less(rows, 170))
+  test "sem rgb/cor: cai na saliência pura (fita do fg vira tecido)" do
+    {fg, labels, _rgb} = build([{0, 200, 110, 124}])
 
-    red = Nx.tensor([220, 30, 40], type: :u8) |> Nx.broadcast({200, 200, 3})
-    gray = Nx.broadcast(Nx.u8(128), {200, 200, 3})
-    rgb = Nx.select(Nx.broadcast(Nx.new_axis(band, -1), {200, 200, 3}), red, gray)
-
-    fg = Nx.broadcast(Nx.u8(0), {200, 200})
-    labels = Nx.broadcast(Nx.u8(0), {200, 200})
-
-    # sem cor + sem foreground → nada
-    assert Nx.to_number(Nx.sum(Apparatus.detect(fg, labels))) == 0
-    # com a cor do tecido → acha a faixa vermelha (a pista que o usuário indica)
-    mask = Apparatus.detect(fg, labels, rgb, {220, 30, 40})
-    assert Nx.to_number(mask[80][105]) == 255
-  end
-
-  test "detect/4 NÃO rouba o cabelo da mesma cor do tecido (regressão: cabelo rosa)" do
-    rows = Nx.iota({200, 200}, axis: 0)
-    cols = Nx.iota({200, 200}, axis: 1)
-
-    rect = fn r0, r1, c0, c1 ->
-      Nx.logical_and(
-        Nx.logical_and(Nx.greater_equal(rows, r0), Nx.less(rows, r1)),
-        Nx.logical_and(Nx.greater_equal(cols, c0), Nx.less(cols, c1))
-      )
-    end
-
-    # tecido: faixa vertical vermelha alta. cabelo: blob vermelho (MESMA cor) colado
-    # na faixa. O ATR só rotula o NÚCLEO do cabelo (classe 2); a borda do cabelo é
-    # vermelha mas fica como fundo (0) — é o que o SegFormer sub-segmenta na vida real.
-    band = rect.(0, 170, 100, 120)
-    hair_blob = rect.(15, 45, 75, 100)
-    hair_core = rect.(22, 40, 80, 97)
-
-    red_region = Nx.logical_or(band, hair_blob)
-    red = Nx.tensor([220, 30, 40], type: :u8) |> Nx.broadcast({200, 200, 3})
-    gray = Nx.broadcast(Nx.u8(128), {200, 200, 3})
-    rgb = Nx.select(Nx.broadcast(Nx.new_axis(red_region, -1), {200, 200, 3}), red, gray)
-
-    fg = red_region |> Nx.multiply(255) |> Nx.as_type(:u8)
-    labels = Nx.select(hair_core, Nx.u8(2), Nx.u8(0))
-
-    mask = Apparatus.detect(fg, labels, rgb, {220, 30, 40})
-
-    # o tecido (faixa, longe do cabelo) continua sendo detectado
-    assert Nx.to_number(mask[120][110]) == 255
-    # a borda vermelha do cabelo (rótulo 0, junto do núcleo class 2) NÃO vira tecido
-    assert Nx.to_number(mask[16][80]) == 0
+    mask = Apparatus.detect(fg, labels)
+    assert Nx.to_number(mask[100][117]) == 255
   end
 end

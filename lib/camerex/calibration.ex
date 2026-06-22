@@ -13,9 +13,10 @@ defmodule Camerex.Calibration do
 
   @preview_width 480
 
-  # `mask` = maior componente (objeto na mão); `fg_full` = foreground COMPLETO
-  # (todos os componentes) que o tecido aéreo precisa — guardados na prepare pra
-  # o aéreo/objeto reusarem sem rodar o U²-Net a cada ajuste de controle.
+  # `mask` = maior componente (pessoa/objeto, do model da sessão); `fg_full` =
+  # foreground COMPLETO do `u2netp` que o tecido aéreo precisa (pega o drapeado
+  # que o u2net perde). Ambos guardados na prepare pra reusar sem rodar o U²-Net
+  # a cada ajuste de controle (a prévia ao vivo bate com o render final).
   @type session :: %{
           rgb: Nx.Tensor.t(),
           mask: Nx.Tensor.t(),
@@ -42,7 +43,8 @@ defmodule Camerex.Calibration do
     rgb = shrink(rgb)
     segmenter = Application.fetch_env!(:camerex, :segmenter)
 
-    with {:ok, raw} <- segmenter.segment(rgb, model: model) do
+    with {:ok, raw} <- segmenter.segment(rgb, model: model),
+         {:ok, aerial_raw} <- aerial_segment(segmenter, rgb, model, raw) do
       # parseia as partes (cor-por-parte é o ÚNICO modo); parser ausente → labels
       # nil e a prévia avisa que o parser está indisponível
       labels =
@@ -51,10 +53,14 @@ defmodule Camerex.Calibration do
           {:error, _} -> nil
         end
 
-      fg_full = raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
+      fg_full = aerial_raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
       {:ok, %{rgb: rgb, mask: Mask.largest_component(raw), fg_full: fg_full, labels: labels}}
     end
   end
+
+  # fg do tecido aéreo via u2netp (reusa o raw da sessão se já for u2netp)
+  defp aerial_segment(_segmenter, _rgb, "u2netp", raw), do: {:ok, raw}
+  defp aerial_segment(segmenter, rgb, _model, _raw), do: segmenter.segment(rgb, model: "u2netp")
 
   @doc """
   Recompõe a prévia cor-por-parte com os params do painel (`%{"halo" => _,
