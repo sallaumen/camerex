@@ -106,6 +106,7 @@ defmodule CamerexWeb.UI do
         role="dialog"
         aria-modal="true"
         aria-labelledby={"#{@id}-title"}
+        phx-hook="FocusTrap"
         phx-click-away={@on_close}
         class="w-full max-w-lg space-y-3 rounded-lg border border-cx-border bg-cx-elevated p-5 shadow-xl"
       >

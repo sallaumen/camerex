@@ -25,11 +25,48 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/camerex"
 import topbar from "../vendor/topbar"
 
+// Prende o foco do teclado dentro de um dialog (WCAG 2.4.3) e devolve o foco ao
+// elemento que o abriu quando ele fecha. O foco inicial fica por conta do
+// phx-mounted={JS.focus()} dos campos. Usado por CamerexWeb.UI.modal/1.
+const Hooks = {
+  FocusTrap: {
+    mounted() {
+      this.previouslyFocused = document.activeElement
+      this.onKeydown = (e) => {
+        if (e.key !== "Tab") return
+        const els = this.focusable()
+        if (els.length === 0) return
+        const first = els[0]
+        const last = els[els.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+      this.el.addEventListener("keydown", this.onKeydown)
+    },
+    destroyed() {
+      this.el.removeEventListener("keydown", this.onKeydown)
+      if (this.previouslyFocused && this.previouslyFocused.focus) {
+        this.previouslyFocused.focus()
+      }
+    },
+    focusable() {
+      const sel =
+        'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+      return Array.from(this.el.querySelectorAll(sel)).filter((el) => el.offsetParent !== null)
+    },
+  },
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, ...Hooks},
 })
 
 // Show progress bar on live navigation and form submits
