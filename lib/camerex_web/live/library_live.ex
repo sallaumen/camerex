@@ -509,7 +509,7 @@ defmodule CamerexWeb.LibraryLive do
       <.perf_dashboard perf={@perf} frame_concurrency={@frame_concurrency} />
       <div
         id="library-root"
-        class="flex min-h-screen w-full gap-4 p-4"
+        class="flex min-h-screen w-full gap-4 p-4 pb-12"
         phx-window-keydown="escape_pressed"
         phx-key="escape"
       >

@@ -275,8 +275,8 @@ defmodule CamerexWeb.LibraryComponents do
   defp type_label(_), do: "foto"
 
   @doc """
-  Mini-dashboard fixo (canto inferior esquerdo): barras de CPU e RAM do sistema
-  e memória do BEAM, mais o controle de threads/frame do vídeo. `perf` vem de
+  Status bar persistente na base (estilo VS Code/Resolve): cpu/ram/beam como
+  micro-medidores inline + threads/frame do vídeo. `perf` vem de
   `Camerex.SystemStats.snapshot/0`. Emite `set_frame_concurrency` pro LiveView.
   """
   attr :perf, :map, required: true, doc: "snapshot de Camerex.SystemStats"
@@ -286,27 +286,22 @@ defmodule CamerexWeb.LibraryComponents do
     ~H"""
     <div
       id="perf-dashboard"
-      class="fixed bottom-3 left-3 z-50 w-56 rounded-lg border border-cx-border bg-cx-surface p-3 text-xs shadow-lg"
+      class="fixed inset-x-0 bottom-0 z-30 flex items-center gap-x-4 gap-y-1 overflow-x-auto border-t border-cx-border bg-cx-surface px-4 py-1.5 text-xs text-cx-text-dim"
     >
-      <p class="mb-2 flex items-center justify-between font-semibold text-cx-text-dim">
-        <span>desempenho</span>
-        <span>{@perf.schedulers} cores</span>
-      </p>
-
-      <.perf_bar label="cpu" pct={@perf.cpu_pct} />
-      <.perf_bar label="ram" pct={ram_pct(@perf.mem)} note={ram_note(@perf.mem)} />
-
-      <p class="mb-2 flex justify-between">
-        <span class="text-cx-text-dim">beam</span>
-        <span class="text-cx-text">{@perf.beam_mb} MB</span>
-      </p>
+      <span class="font-semibold">desempenho</span>
+      <.perf_meter label="cpu" pct={@perf.cpu_pct} />
+      <.perf_meter label="ram" pct={ram_pct(@perf.mem)} note={ram_note(@perf.mem)} />
+      <span class="hidden whitespace-nowrap sm:inline">
+        beam <span class="text-cx-text tabular-nums">{@perf.beam_mb} MB</span>
+      </span>
+      <span class="hidden whitespace-nowrap md:inline">{@perf.schedulers} cores</span>
 
       <form
         id="frame-concurrency-form"
         phx-change="set_frame_concurrency"
-        class="flex items-center justify-between gap-2 border-t border-cx-border pt-2"
+        class="ml-auto flex items-center gap-2"
       >
-        <label for="frame-concurrency" class="text-cx-text-dim">threads/frame</label>
+        <label for="frame-concurrency" class="whitespace-nowrap">threads/frame</label>
         <input
           type="number"
           id="frame-concurrency"
@@ -316,10 +311,10 @@ defmodule CamerexWeb.LibraryComponents do
           max="64"
           step="1"
           phx-debounce="300"
-          class="w-16 rounded border border-cx-border bg-cx-bg px-2 py-1 text-right text-cx-text"
+          class="w-14 rounded-control border border-cx-border-strong bg-cx-bg px-2 py-0.5 text-right text-cx-text"
         />
+        <span class="hidden text-cx-text-faint lg:inline">vale no próximo vídeo</span>
       </form>
-      <p class="mt-1 text-cx-text-dim">vale no próximo vídeo</p>
     </div>
     """
   end
@@ -328,29 +323,27 @@ defmodule CamerexWeb.LibraryComponents do
   attr :pct, :integer, default: nil
   attr :note, :string, default: nil
 
-  defp perf_bar(assigns) do
+  defp perf_meter(assigns) do
     ~H"""
-    <div class="mb-2">
-      <div class="mb-0.5 flex justify-between">
-        <span class="text-cx-text-dim">{@label}</span>
-        <span class="text-cx-text">
-          {if @pct, do: "#{@pct}%", else: "—"}{if @note, do: " · #{@note}", else: ""}
-        </span>
-      </div>
-      <div class="h-2 overflow-hidden rounded bg-cx-bg">
+    <div class="flex items-center gap-1.5 whitespace-nowrap">
+      <span>{@label}</span>
+      <div class="h-1.5 w-14 overflow-hidden rounded-full bg-cx-elevated">
         <div
-          class={["h-full rounded transition-all duration-500", bar_color(@pct)]}
+          class={["h-full rounded-full transition-all duration-500", bar_color(@pct)]}
           style={"width: #{@pct || 0}%"}
         >
         </div>
       </div>
+      <span class="text-cx-text tabular-nums">
+        {if @pct, do: "#{@pct}%", else: "—"}{if @note, do: " · #{@note}", else: ""}
+      </span>
     </div>
     """
   end
 
   # cor da barra por carga: teal tranquilo · laranja atenção · vermelho no talo
-  defp bar_color(nil), do: "bg-cx-border"
-  defp bar_color(pct) when pct >= 90, do: "bg-red-500"
+  defp bar_color(nil), do: "bg-cx-border-strong"
+  defp bar_color(pct) when pct >= 90, do: "bg-cx-danger"
   defp bar_color(pct) when pct >= 70, do: "bg-cx-orange"
   defp bar_color(_), do: "bg-cx-teal"
 
