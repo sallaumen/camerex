@@ -16,7 +16,8 @@ defmodule CamerexWeb.GalleryThemeTest do
   test "galeria vazia mostra empty state com call-to-action", %{conn: conn} do
     {:ok, _view, html} = live(conn, "/")
     assert html =~ "gallery-empty"
-    assert html =~ "neon-cta"
+    assert html =~ "cx-btn-primary"
+    assert html =~ "+ nova conversão"
   end
 
   test "abrir 'nova conversão' mostra o painel cor-por-parte (pickers de cor)", %{conn: conn} do

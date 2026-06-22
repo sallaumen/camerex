@@ -529,38 +529,40 @@ defmodule CamerexWeb.LibraryLive do
               <code id={"doctor-fix-#{i}"} class="block rounded bg-cx-bg px-2 py-1">
                 {problem.cmd}
               </code>
-              <button
-                type="button"
-                class="text-cx-teal underline"
+              <.btn
+                variant="ghost"
+                size="sm"
                 phx-click={JS.dispatch("camerex:copy", to: "#doctor-fix-#{i}")}
               >
                 copiar
-              </button>
+              </.btn>
             </div>
           </div>
 
           <.folder_tree tree={@tree} current={@folder} root_count={@root_count} />
 
           <div class="space-y-1 text-sm">
-            <button
-              type="button"
+            <.btn
+              variant="secondary"
+              size="sm"
+              class="w-full justify-start"
               phx-click="open_modal"
               phx-value-modal="new_folder"
-              class="w-full rounded border border-cx-border px-2 py-1.5 text-left text-cx-text-dim hover:text-cx-text"
             >
               + nova pasta
-            </button>
-            <button
+            </.btn>
+            <.btn
               :if={@folder != "" and folder_deletable?(@tree, @items, @folder)}
-              type="button"
+              variant="ghost"
+              size="sm"
+              class="w-full justify-start"
               id="delete-folder"
               phx-click="delete_folder"
               phx-value-folder={@folder}
               data-confirm={"Remover a pasta vazia /#{@folder}?"}
-              class="w-full rounded border border-cx-border px-2 py-1.5 text-left text-cx-text-dim"
             >
               remover esta pasta
-            </button>
+            </.btn>
           </div>
 
           <form id="concurrency-form" phx-change="set_concurrency" class="text-sm">
@@ -583,40 +585,29 @@ defmodule CamerexWeb.LibraryLive do
               <.jobs_indicator summary={@jobs_summary} />
             </div>
             <div class="flex items-center gap-2 text-sm">
-              <button
-                type="button"
-                id="new-conversion"
-                phx-click="open_convert"
-                class="neon-cta !mt-0"
-              >
+              <.btn variant="primary" id="new-conversion" phx-click="open_convert">
                 + nova conversão
-              </button>
-              <button
-                type="button"
+              </.btn>
+              <.btn
+                variant="secondary"
                 id="import-button"
                 phx-click="open_modal"
                 phx-value-modal="import"
-                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
               >
                 importar pasta
-              </button>
-              <button
-                :if={@visible_items != []}
-                type="button"
-                phx-click="select_all"
-                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
-              >
+              </.btn>
+              <.btn :if={@visible_items != []} variant="secondary" phx-click="select_all">
                 selecionar tudo
-              </button>
-              <a
+              </.btn>
+              <.btn
                 :if={Enum.any?(@items, &(&1["status"] == "done"))}
+                variant="secondary"
                 id="export-folder"
                 href={~p"/export/folder?folder=#{@folder}"}
                 download
-                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
               >
                 baixar tudo (.zip)
-              </a>
+              </.btn>
             </div>
           </div>
 
@@ -693,25 +684,16 @@ defmodule CamerexWeb.LibraryLive do
             <p class="neon-empty-title">nenhuma conversão nesta pasta</p>
             <p>comece uma nova conversão ou importe uma pasta inteira do disco.</p>
             <div class="mt-2 flex flex-wrap items-center justify-center gap-2">
-              <button type="button" phx-click="open_convert" class="neon-cta">
-                + nova conversão
-              </button>
-              <button
-                type="button"
-                phx-click="open_modal"
-                phx-value-modal="import"
-                class="rounded border border-cx-border px-3 py-1.5 text-cx-text-dim hover:text-cx-text focus-visible:ring-2 focus-visible:ring-cx-teal"
-              >
+              <.btn variant="primary" phx-click="open_convert">+ nova conversão</.btn>
+              <.btn variant="secondary" phx-click="open_modal" phx-value-modal="import">
                 importar pasta
-              </button>
+              </.btn>
             </div>
           </div>
 
           <div :if={@items != [] and @visible_items == []} id="filter-empty" class="neon-empty">
             <p class="neon-empty-title">nada bate com os filtros</p>
-            <button type="button" phx-click="clear_filters" class="neon-cta">
-              limpar filtros
-            </button>
+            <.btn variant="secondary" phx-click="clear_filters">limpar filtros</.btn>
           </div>
         </main>
       </div>
@@ -751,12 +733,7 @@ defmodule CamerexWeb.LibraryLive do
                 phx-mounted={JS.focus()}
                 class="w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5 text-sm"
               />
-              <button
-                type="submit"
-                class="whitespace-nowrap rounded border border-cx-teal px-3 py-1.5 text-sm text-cx-teal"
-              >
-                escanear
-              </button>
+              <.btn type="submit" variant="primary" size="sm">escanear</.btn>
             </form>
 
             <div :if={@import_scan} id="import-scan-result" class="text-sm">
@@ -766,15 +743,9 @@ defmodule CamerexWeb.LibraryLive do
                     <strong>{length(media)}</strong>
                     mídia(s) encontrada(s) · {Float.round(bytes / 1_048_576, 1)} MB
                   </p>
-                  <button
-                    :if={media != []}
-                    type="button"
-                    id="import-run"
-                    phx-click="import_run"
-                    class="neon-cta"
-                  >
+                  <.btn :if={media != []} variant="primary" id="import-run" phx-click="import_run">
                     importar tudo
-                  </button>
+                  </.btn>
                 <% {:error, msg} -> %>
                   <p class="text-cx-orange">{msg}</p>
               <% end %>
@@ -803,12 +774,7 @@ defmodule CamerexWeb.LibraryLive do
                 phx-mounted={JS.focus()}
                 class="w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5 text-sm"
               />
-              <button
-                type="submit"
-                class="whitespace-nowrap rounded border border-cx-teal px-3 py-1.5 text-sm text-cx-teal"
-              >
-                criar
-              </button>
+              <.btn type="submit" variant="primary" size="sm">criar</.btn>
             </form>
           </div>
 
@@ -842,16 +808,8 @@ defmodule CamerexWeb.LibraryLive do
                 {@colors_json_error}
               </p>
               <div class="flex items-center gap-2">
-                <button type="submit" class="rounded bg-cx-teal px-4 py-2 font-medium text-cx-bg">
-                  aplicar cores
-                </button>
-                <button
-                  type="button"
-                  phx-click="close_modal"
-                  class="rounded border border-cx-border px-3 py-1.5 text-sm text-cx-text-dim hover:text-cx-text"
-                >
-                  cancelar
-                </button>
+                <.btn type="submit" variant="primary">aplicar cores</.btn>
+                <.btn variant="secondary" size="sm" phx-click="close_modal">cancelar</.btn>
               </div>
             </form>
           </div>
