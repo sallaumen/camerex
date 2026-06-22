@@ -5,7 +5,7 @@ defmodule Camerex.RenderParamsTest do
   alias Camerex.Parser.Layers
   alias Camerex.RenderParams
 
-  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread)a
+  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread aerial_sensitivity)a
   @booleans ~w(detect_object detect_aerial transparent_bg fill floor)a
 
   describe "default/0" do

@@ -25,6 +25,7 @@ defmodule CamerexWeb.ConvertPanel do
   attr :detect_object, :boolean, default: false
   attr :detect_aerial, :boolean, default: false
   attr :aerial_color, :any, default: {220, 30, 40}
+  attr :aerial_sensitivity, :float, default: 0.5
   attr :bg_opacity, :float, default: 0.0
   attr :transparent_bg, :boolean, default: false
   attr :fill, :boolean, default: false
@@ -221,6 +222,18 @@ defmodule CamerexWeb.ConvertPanel do
                       <span class="text-xs text-cx-text-dim">(pra achá-lo)</span>
                     </span>
                   </label>
+                  <.slider
+                    name="aerial_sensitivity"
+                    label="sensibilidade do tecido"
+                    value={@aerial_sensitivity}
+                    min={0.0}
+                    max={1.0}
+                  />
+                  <p class="text-xs text-cx-text-dim">
+                    mais alto pega mais tecido (e mais risco de mancha); mais baixo fica
+                    limpo. tecido vívido colado em fundo da mesma cor pede valor baixo;
+                    tecido sutil em fundo limpo pede alto.
+                  </p>
                   <.swatch
                     id="aerial-color"
                     name={"layer_#{apparatus_group().key}"}

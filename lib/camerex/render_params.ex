@@ -22,7 +22,7 @@ defmodule Camerex.RenderParams do
   alias Camerex.Parser.Layers
 
   # sliders viram float (parse com fallback); booleanos vêm de `== "true"`
-  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread)a
+  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread aerial_sensitivity)a
   @booleans ~w(detect_object detect_aerial transparent_bg fill floor)a
 
   @type rgb :: {0..255, 0..255, 0..255}
@@ -37,6 +37,7 @@ defmodule Camerex.RenderParams do
           fill_texture: float(),
           glow: float(),
           spread: float(),
+          aerial_sensitivity: float(),
           detect_object: boolean(),
           detect_aerial: boolean(),
           aerial_color: rgb(),
@@ -55,6 +56,7 @@ defmodule Camerex.RenderParams do
             fill_texture: 0.15,
             glow: 0.85,
             spread: 0.5,
+            aerial_sensitivity: 0.5,
             detect_object: false,
             detect_aerial: false,
             # cor REAL do tecido na foto (pista de detecção do modo aéreo);
