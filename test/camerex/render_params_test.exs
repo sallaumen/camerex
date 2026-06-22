@@ -5,8 +5,8 @@ defmodule Camerex.RenderParamsTest do
   alias Camerex.Parser.Layers
   alias Camerex.RenderParams
 
-  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread aerial_sensitivity)a
-  @booleans ~w(detect_object detect_aerial transparent_bg fill floor)a
+  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread aerial_sensitivity hair_sensitivity)a
+  @booleans ~w(detect_object detect_aerial detect_hair transparent_bg fill floor)a
 
   describe "default/0" do
     test "traz as cores por camada e os defaults dos controles" do
@@ -65,7 +65,8 @@ defmodule Camerex.RenderParamsTest do
       keys = RenderParams.default() |> RenderParams.to_manifest() |> Map.keys() |> Enum.sort()
 
       expected =
-        ((@sliders ++ @booleans) |> Enum.map(&to_string/1)) ++ ["layer_colors", "aerial_color"]
+        ((@sliders ++ @booleans) |> Enum.map(&to_string/1)) ++
+          ["layer_colors", "aerial_color", "hair_color"]
 
       assert keys == Enum.sort(expected)
       refute "model" in keys

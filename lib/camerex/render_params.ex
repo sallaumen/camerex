@@ -22,8 +22,8 @@ defmodule Camerex.RenderParams do
   alias Camerex.Parser.Layers
 
   # sliders viram float (parse com fallback); booleanos vêm de `== "true"`
-  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread aerial_sensitivity)a
-  @booleans ~w(detect_object detect_aerial transparent_bg fill floor)a
+  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread aerial_sensitivity hair_sensitivity)a
+  @booleans ~w(detect_object detect_aerial detect_hair transparent_bg fill floor)a
 
   @type rgb :: {0..255, 0..255, 0..255}
   @type t :: %__MODULE__{
@@ -38,9 +38,12 @@ defmodule Camerex.RenderParams do
           glow: float(),
           spread: float(),
           aerial_sensitivity: float(),
+          hair_sensitivity: float(),
           detect_object: boolean(),
           detect_aerial: boolean(),
           aerial_color: rgb(),
+          detect_hair: boolean(),
+          hair_color: rgb(),
           transparent_bg: boolean(),
           fill: boolean(),
           floor: boolean()
@@ -57,11 +60,16 @@ defmodule Camerex.RenderParams do
             glow: 0.85,
             spread: 0.5,
             aerial_sensitivity: 0.5,
+            hair_sensitivity: 0.5,
             detect_object: false,
             detect_aerial: false,
             # cor REAL do tecido na foto (pista de detecção do modo aéreo);
             # default vermelho, que é o silk mais comum
             aerial_color: {220, 30, 40},
+            detect_hair: false,
+            # cor REAL do cabelo na foto (pista quando o detector de partes cega
+            # em pose difícil); default castanho-escuro
+            hair_color: {60, 45, 40},
             transparent_bg: false,
             fill: false,
             floor: false
@@ -77,6 +85,7 @@ defmodule Camerex.RenderParams do
     |> Map.merge(Map.new(@booleans, fn k -> {k, form[to_string(k)] == "true"} end))
     |> Map.put(:layer_colors, merge_form_colors(form, current.layer_colors))
     |> Map.put(:aerial_color, form_rgb(form["aerial_color"], current.aerial_color))
+    |> Map.put(:hair_color, form_rgb(form["hair_color"], current.hair_color))
     |> then(&struct(current, &1))
   end
 
@@ -88,6 +97,7 @@ defmodule Camerex.RenderParams do
     |> Map.merge(Map.new(@booleans, fn k -> {k, p[to_string(k)] || false} end))
     |> Map.put(:layer_colors, Layers.normalize_colors(p["layer_colors"]))
     |> Map.put(:aerial_color, list_rgb(p["aerial_color"], current.aerial_color))
+    |> Map.put(:hair_color, list_rgb(p["hair_color"], current.hair_color))
     |> then(&struct(current, &1))
   end
 
@@ -100,6 +110,7 @@ defmodule Camerex.RenderParams do
     |> Map.new(fn k -> {to_string(k), Map.fetch!(p, k)} end)
     |> Map.put("layer_colors", serialize_colors(p.layer_colors))
     |> Map.put("aerial_color", Tuple.to_list(p.aerial_color))
+    |> Map.put("hair_color", Tuple.to_list(p.hair_color))
   end
 
   # cor única (não-camada): hex do <input type=color> / lista do manifest → {r,g,b}

@@ -26,6 +26,9 @@ defmodule CamerexWeb.ConvertPanel do
   attr :detect_aerial, :boolean, default: false
   attr :aerial_color, :any, default: {220, 30, 40}
   attr :aerial_sensitivity, :float, default: 0.5
+  attr :detect_hair, :boolean, default: false
+  attr :hair_color, :any, default: {60, 45, 40}
+  attr :hair_sensitivity, :float, default: 0.5
   attr :bg_opacity, :float, default: 0.0
   attr :transparent_bg, :boolean, default: false
   attr :fill, :boolean, default: false
@@ -241,6 +244,46 @@ defmodule CamerexWeb.ConvertPanel do
                     label={apparatus_group().label}
                     aria={"cor da camada #{apparatus_group().label}"}
                   />
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <.toggle
+                  id="hair-toggle"
+                  name="detect_hair"
+                  label="resgatar cabelo (poses difíceis)"
+                  checked={@detect_hair}
+                  hint="quando o detector de partes não acha a cabeça (pose aérea, de costas), acha o cabelo pela cor que você indicar"
+                />
+                <div :if={@detect_hair} class="space-y-2 pl-12">
+                  <label
+                    id="hair-photo-color"
+                    class="flex items-center gap-2.5 text-sm text-cx-text"
+                  >
+                    <input
+                      type="color"
+                      name="hair_color"
+                      value={Layers.hex(@hair_color)}
+                      phx-debounce="200"
+                      aria-label="cor real do cabelo na foto"
+                      class="cx-swatch"
+                    />
+                    <span>
+                      cor do cabelo na foto
+                      <span class="text-xs text-cx-text-dim">(pra achá-lo)</span>
+                    </span>
+                  </label>
+                  <.slider
+                    name="hair_sensitivity"
+                    label="sensibilidade do cabelo"
+                    value={@hair_sensitivity}
+                    min={0.0}
+                    max={1.0}
+                  />
+                  <p class="text-xs text-cx-text-dim">
+                    mais alto resgata mais cabelo (e mais risco de pegar fundo parecido); mais
+                    baixo fica conservador. use quando a cabeça some em pose aérea ou de costas.
+                  </p>
                 </div>
               </div>
 

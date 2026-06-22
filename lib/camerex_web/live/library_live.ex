@@ -632,6 +632,9 @@ defmodule CamerexWeb.LibraryLive do
                   detect_aerial={@render_params.detect_aerial}
                   aerial_color={@render_params.aerial_color}
                   aerial_sensitivity={@render_params.aerial_sensitivity}
+                  detect_hair={@render_params.detect_hair}
+                  hair_color={@render_params.hair_color}
+                  hair_sensitivity={@render_params.hair_sensitivity}
                   bg_opacity={@render_params.bg_opacity}
                   transparent_bg={@render_params.transparent_bg}
                   fill={@render_params.fill}
