@@ -31,6 +31,7 @@ defmodule Camerex.Pipeline.Photo do
     |> with_aerial(
       rgb,
       Keyword.get(opts, :aerial_color),
+      Keyword.get(opts, :aerial_sensitivity, 0.5),
       Keyword.get(opts, :detect_aerial, false)
     )
   end
@@ -47,12 +48,13 @@ defmodule Camerex.Pipeline.Photo do
   # tecido usa o foreground COMPLETO (todos os componentes), não o maior — tecido
   # e pessoa são componentes separados (ver Parser.Apparatus). A cor do tecido
   # (aerial_color) enriquece a saliência.
-  defp with_aerial(labels, _rgb, _color, false), do: labels
+  defp with_aerial(labels, _rgb, _color, _sens, false), do: labels
 
-  defp with_aerial(labels, rgb, color, true) do
+  defp with_aerial(labels, rgb, color, sens, true) do
     case segment(rgb, "u2netp") do
       {:ok, raw} ->
-        Apparatus.into_labels(labels, Apparatus.detect(full_foreground(raw), labels, rgb, color))
+        mask = Apparatus.detect(full_foreground(raw), labels, rgb, color, sensitivity: sens)
+        Apparatus.into_labels(labels, mask)
 
       :error ->
         labels
@@ -183,6 +185,7 @@ defmodule Camerex.Pipeline.Photo do
       detect_object: p["detect_object"],
       detect_aerial: p["detect_aerial"],
       aerial_color: p["aerial_color"],
+      aerial_sensitivity: p["aerial_sensitivity"],
       bg_opacity: p["bg_opacity"],
       transparent_bg: p["transparent_bg"],
       fill: p["fill"],

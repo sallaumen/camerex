@@ -39,13 +39,20 @@ defmodule Camerex.Parser.Apparatus do
   @hair_class 2
   @hair_dilate_div 8
 
-  # cor-vibrante: matiz do tecido ±tol (circular 0..179) E muito saturado
-  @hue_tol 18
-  @vibrant_sat 150
-  # porta de saturação na saliência (tira pele/parede de baixa sat)
-  @sat_gate 130
-  # acima desta fração do quadro a cor-vibrante é luz monocromática → desliga
-  @mono_frac 0.40
+  # SENSIBILIDADE (0..1, default 0.5 = comportamento calibrado) afrouxa/aperta
+  # JUNTO os limiares de cor e área (recall ↔ precisão). Subir = pega mais tecido
+  # (e mais risco de mancha); descer = mais limpo (e pode perder pedaço). Em
+  # 0.5 dá os valores antigos: hue_tol 18, vibrant_sat 150, sat_gate 130, e a
+  # guarda anti-monocromático em 40% do quadro. A guarda também sobe com a
+  # sensibilidade pra a cor afrouxada não disparar a guarda cedo (e dar MENOS
+  # tecido num sensitivity ALTO — quebraria o "mais sensível = mais").
+  # matiz afrouxa POUCO (afrouxar muito pega fundo da mesma cor do tecido); o
+  # grosso do recall vem da saturação e da área. Em 0.5 = valores antigos.
+  defp hue_tol(s), do: round(15 + s * 6)
+  defp vibrant_sat(s), do: round(170 - s * 40)
+  defp sat_gate(s), do: round(152 - s * 44)
+  defp min_area_frac(s), do: 0.004 - s * 0.003
+  defp mono_frac(s), do: 0.40 + (s - 0.5) * 0.5
 
   @denoise_div 150
   # ponte vertical: linha 1 × (altura/4) — alta o bastante p/ cruzar o tronco
@@ -59,9 +66,9 @@ defmodule Camerex.Parser.Apparatus do
   @grow_div 40
   @grow_iters 22
 
-  # geometria final: alto, com área mínima, E alcançando o topo (invariante)
+  # geometria final: alto, E alcançando o topo (invariante). A área mínima é
+  # função da sensibilidade (ver min_area_frac/1).
   @min_height_frac 0.18
-  @min_area_frac 0.0025
   @top_frac 0.28
 
   @apparatus_class 19
@@ -73,25 +80,30 @@ defmodule Camerex.Parser.Apparatus do
     * `labels` — rótulos ATR (pra subtrair a pessoa).
     * `rgb` — a imagem (saliência ∩ saturação + cor); `nil` → só saliência.
     * `color` — `{r,g,b}` da cor real do tecido na foto; `nil` desliga a cor.
+    * `opts` — `:sensitivity` (0..1, default 0.5): recall ↔ precisão da cor/área.
   """
-  @spec detect(Nx.Tensor.t(), Nx.Tensor.t(), Nx.Tensor.t() | nil, Layers.rgb() | nil) ::
+  @spec detect(Nx.Tensor.t(), Nx.Tensor.t(), Nx.Tensor.t() | nil, Layers.rgb() | nil, keyword()) ::
           Nx.Tensor.t()
-  def detect(full_fg_u8, labels, rgb \\ nil, color \\ nil) do
+  def detect(full_fg_u8, labels, rgb \\ nil, color \\ nil, opts \\ []) do
     {h, w} = Nx.shape(labels)
+    s = opts |> Keyword.get(:sensitivity, 0.5) |> clamp01()
     person = person_mask(labels, w)
 
     full_fg_u8
     |> Nx.greater(0)
-    |> silk_evidence(rgb, normalize_color(color), h, w)
+    |> silk_evidence(rgb, normalize_color(color), h, w, s)
     |> Nx.logical_and(Nx.logical_not(person))
     |> morph(:open, ellipse(round(w / @denoise_div)))
     |> morph(:close, vline(round(h / @bridge_div)))
     |> morph(:close, ellipse(round(w / @smooth_div)))
     |> keep_thin_ribbons(h, w)
-    |> keep_top_anchored(h, w)
+    |> keep_top_anchored(h, w, s)
     |> Nx.multiply(255)
     |> Nx.as_type(:u8)
   end
+
+  defp clamp01(s) when is_number(s), do: s |> max(0.0) |> min(1.0)
+  defp clamp01(_), do: 0.5
 
   @doc """
   Injeta a classe `19` nos rótulos onde HÁ tecido E o ATR não rotulou nada (não
@@ -111,26 +123,26 @@ defmodule Camerex.Parser.Apparatus do
   end
 
   # sem imagem → só a saliência (não dá pra medir saturação/cor)
-  defp silk_evidence(fg, nil, _color, _h, _w), do: fg
+  defp silk_evidence(fg, nil, _color, _h, _w, _s), do: fg
 
   # núcleo = (saliência ∩ saturado) ∪ cor-vibrante
-  defp silk_evidence(fg, rgb, color, h, w) do
+  defp silk_evidence(fg, rgb, color, h, w, s) do
     [hue_c, sat_c, _v] = rgb |> to_hsv() |> Evision.split()
     sat = sat_c |> Evision.Mat.to_nx(Nx.BinaryBackend)
-    core = Nx.logical_and(fg, Nx.greater(sat, @sat_gate))
-    Nx.logical_or(core, vibrant_color(hue_c, sat, color, h, w))
+    core = Nx.logical_and(fg, Nx.greater(sat, sat_gate(s)))
+    Nx.logical_or(core, vibrant_color(hue_c, sat, color, h, w, s))
   end
 
-  defp vibrant_color(_hue_c, _sat, nil, h, w), do: empty(h, w)
+  defp vibrant_color(_hue_c, _sat, nil, h, w, _s), do: empty(h, w)
 
-  defp vibrant_color(hue_c, sat, {_, _, _} = color, h, w) do
+  defp vibrant_color(hue_c, sat, {_, _, _} = color, h, w, s) do
     target = hue_of(color)
     hue = hue_c |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.as_type(:s32)
     dist = Nx.abs(Nx.subtract(hue, target))
     circular = Nx.min(dist, Nx.subtract(180, dist))
-    vibrant = Nx.logical_and(Nx.less_equal(circular, @hue_tol), Nx.greater(sat, @vibrant_sat))
-    # guarda anti-monocromático
-    if Nx.to_number(Nx.sum(vibrant)) / (h * w) > @mono_frac, do: empty(h, w), else: vibrant
+    vibrant = Nx.logical_and(Nx.less_equal(circular, hue_tol(s)), Nx.greater(sat, vibrant_sat(s)))
+    # guarda anti-monocromático (sobe com a sensibilidade)
+    if Nx.to_number(Nx.sum(vibrant)) / (h * w) > mono_frac(s), do: empty(h, w), else: vibrant
   end
 
   # PROTEÇÃO CONTRA MANCHAS por reconstrução: semeia nas fitas verticais finas e
@@ -147,14 +159,14 @@ defmodule Camerex.Parser.Apparatus do
 
   # INVARIANTE: o tecido pende do topo. Fica só componente alto, de área mínima,
   # cujo bbox COMEÇA no topo (≤ @top_frac). stats: colunas [x, y, largura, alt, área].
-  defp keep_top_anchored(mask, h, w) do
+  defp keep_top_anchored(mask, h, w, s) do
     {_n, lbls, stats, _c} = Evision.connectedComponentsWithStats(to_mat(mask))
-    s = Evision.Mat.to_nx(stats, Nx.BinaryBackend)
-    {y, bh, area} = {s[[.., 1]], s[[.., 3]], s[[.., 4]]}
+    st = Evision.Mat.to_nx(stats, Nx.BinaryBackend)
+    {y, bh, area} = {st[[.., 1]], st[[.., 3]], st[[.., 4]]}
 
     keep =
       Nx.greater_equal(bh, round(h * @min_height_frac))
-      |> Nx.logical_and(Nx.greater_equal(area, round(h * w * @min_area_frac)))
+      |> Nx.logical_and(Nx.greater_equal(area, round(h * w * min_area_frac(s))))
       |> Nx.logical_and(Nx.less_equal(y, round(h * @top_frac)))
       |> Nx.as_type(:u8)
       |> Nx.put_slice([0], Nx.tensor([0], type: :u8))

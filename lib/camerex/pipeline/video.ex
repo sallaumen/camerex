@@ -288,6 +288,7 @@ defmodule Camerex.Pipeline.Video do
       detect_object: p["detect_object"] == true,
       detect_aerial: p["detect_aerial"] == true,
       aerial_color: p["aerial_color"],
+      aerial_sensitivity: p["aerial_sensitivity"] || 0.5,
       bg_opacity: p["bg_opacity"] || 0.0,
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
@@ -330,7 +331,13 @@ defmodule Camerex.Pipeline.Video do
   defp augment_frame_labels(frame, labels, opts) do
     labels
     |> frame_object(frame, opts.segmenter, opts.model, opts.detect_object)
-    |> frame_aerial(frame, opts.segmenter, opts.aerial_color, opts.detect_aerial)
+    |> frame_aerial(
+      frame,
+      opts.segmenter,
+      opts.aerial_color,
+      opts.aerial_sensitivity,
+      opts.detect_aerial
+    )
   end
 
   defp frame_object(labels, _frame, _seg, _model, false), do: labels
@@ -344,13 +351,14 @@ defmodule Camerex.Pipeline.Video do
 
   # tecido usa o foreground COMPLETO do u2netp (todos os componentes); a cor do
   # tecido (aerial_color) enriquece a saliência
-  defp frame_aerial(labels, _frame, _seg, _color, false), do: labels
+  defp frame_aerial(labels, _frame, _seg, _color, _sens, false), do: labels
 
-  defp frame_aerial(labels, frame, segmenter, color, true) do
+  defp frame_aerial(labels, frame, segmenter, color, sens, true) do
     case segmenter.segment(frame, model: "u2netp") do
       {:ok, raw} ->
         full = raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
-        Apparatus.into_labels(labels, Apparatus.detect(full, labels, frame, color))
+        mask = Apparatus.detect(full, labels, frame, color, sensitivity: sens)
+        Apparatus.into_labels(labels, mask)
 
       _ ->
         labels
