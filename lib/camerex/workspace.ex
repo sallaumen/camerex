@@ -190,6 +190,21 @@ defmodule Camerex.Workspace do
   @spec media_url(String.t(), String.t()) :: String.t()
   def media_url(id, file), do: "/media/items/#{id}/#{file}"
 
+  @doc """
+  URL da mídia com versão de cache derivada do `completed_at` do manifest.
+  Reprocessar sobrescreve o mesmo arquivo na mesma URL — sem o `?v=`, o browser
+  reusa a saída antiga do cache e os ajustes parecem não ter efeito.
+  """
+  @spec versioned_media_url(map(), String.t()) :: String.t()
+  def versioned_media_url(item, file) do
+    base = media_url(item["id"], file)
+
+    case item["completed_at"] do
+      nil -> base
+      stamp -> "#{base}?v=#{:erlang.phash2(stamp)}"
+    end
+  end
+
   @thumb_max_px 480
   @thumb_image_exts ~w(.jpg .jpeg .png .webp)
 

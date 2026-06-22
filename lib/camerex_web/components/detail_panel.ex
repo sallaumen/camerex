@@ -56,7 +56,7 @@ defmodule CamerexWeb.DetailPanel do
             preload="metadata"
             data-role="video-neon"
             class="mx-auto max-h-[72vh] w-full rounded-lg border border-cx-border bg-cx-well object-contain"
-            src={versioned_media_url(@item, @item["output_file"])}
+            src={Workspace.versioned_media_url(@item, @item["output_file"])}
           ></video>
         </figure>
       </div>
@@ -71,7 +71,7 @@ defmodule CamerexWeb.DetailPanel do
         >
           <img
             id="after"
-            src={versioned_media_url(@item, @item["output_file"])}
+            src={Workspace.versioned_media_url(@item, @item["output_file"])}
             alt={"depois (neon) — #{@item["original_filename"]}"}
             class="cx-reveal-after"
           />
@@ -138,7 +138,7 @@ defmodule CamerexWeb.DetailPanel do
           :if={@item["status"] == "done"}
           variant="primary"
           id="download"
-          href={versioned_media_url(@item, @item["output_file"])}
+          href={Workspace.versioned_media_url(@item, @item["output_file"])}
           download={@item["output_file"]}
         >
           Baixar

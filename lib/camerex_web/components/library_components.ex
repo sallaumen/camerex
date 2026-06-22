@@ -101,13 +101,13 @@ defmodule CamerexWeb.LibraryComponents do
       >
         <div :if={@item["status"] == "done"} class="flex gap-1">
           <img
-            src={versioned_media_url(@item, "thumb.jpg")}
+            src={Workspace.versioned_media_url(@item, "thumb.jpg")}
             alt=""
             loading="lazy"
             class="h-24 w-1/2 rounded object-cover"
           />
           <img
-            src={versioned_media_url(@item, "thumb_neon.jpg")}
+            src={Workspace.versioned_media_url(@item, "thumb_neon.jpg")}
             alt=""
             loading="lazy"
             class="h-24 w-1/2 rounded object-cover"
