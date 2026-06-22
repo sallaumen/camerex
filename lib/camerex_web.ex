@@ -87,6 +87,8 @@ defmodule CamerexWeb do
       # Core UI components
       import CamerexWeb.CoreComponents
       import CamerexWeb.NeonComponents
+      # Design system (neon refinado)
+      import CamerexWeb.UI
 
       # Common modules used in templates
       alias CamerexWeb.Layouts

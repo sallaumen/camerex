@@ -289,6 +289,95 @@ html {
   color: var(--color-cx-text);
 }
 
+/* ── kit CamerexWeb.UI: botão / input / progresso ───────────────── */
+
+.cx-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-weight: 500;
+  line-height: 1.1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--cx-dur-fast) var(--cx-ease-out),
+    border-color var(--cx-dur-fast) var(--cx-ease-out),
+    color var(--cx-dur-fast) var(--cx-ease-out), box-shadow var(--cx-dur-base) var(--cx-ease-out),
+    transform var(--cx-dur-fast) var(--cx-ease-out);
+}
+.cx-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.cx-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cx-btn-sm {
+  padding: 0.3125rem 0.625rem;
+  font-size: var(--text-label);
+}
+.cx-btn-md {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+}
+/* primário: dono do glow (assinatura) */
+.cx-btn-primary {
+  background: var(--color-cx-teal);
+  color: var(--color-cx-bg);
+  box-shadow: var(--cx-glow-signature);
+}
+.cx-btn-primary:hover:not(:disabled) {
+  background: var(--color-cx-teal-strong);
+  box-shadow: var(--cx-glow-hover);
+}
+.cx-btn-secondary {
+  color: var(--color-cx-text-dim);
+  border-color: var(--color-cx-border-strong);
+}
+.cx-btn-secondary:hover:not(:disabled) {
+  color: var(--color-cx-text);
+  border-color: var(--color-cx-teal);
+}
+.cx-btn-ghost {
+  color: var(--color-cx-text-dim);
+}
+.cx-btn-ghost:hover:not(:disabled) {
+  color: var(--color-cx-text);
+  background: var(--color-cx-surface);
+}
+.cx-btn-danger {
+  color: var(--color-cx-danger);
+  border-color: var(--color-cx-danger);
+}
+.cx-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-cx-danger) 14%, transparent);
+}
+
+.cx-input {
+  width: 100%;
+  border: 1px solid var(--color-cx-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-cx-bg);
+  color: var(--color-cx-text);
+  padding: 0.4375rem 0.625rem;
+  font-size: 0.875rem;
+  transition: border-color var(--cx-dur-fast) var(--cx-ease-out);
+}
+.cx-input::placeholder {
+  color: var(--color-cx-text-faint);
+}
+.cx-input:hover {
+  border-color: var(--color-cx-teal-strong);
+}
+
+/* barra de progresso: desliza suave (composite) a cada push, em vez de saltar */
+.cx-progress-fill {
+  transform-origin: left;
+  transition: transform var(--cx-dur-slow) var(--cx-ease-out);
+}
+
 /* daisyUI removido (era a fonte do tema azul/roxo oklch ~252-292 que vazava no <html>).
    O camerex é dark-fixo com tokens cx-* próprios; não há toggle de tema. */
 
