@@ -88,10 +88,27 @@ defmodule Camerex.Segmenter.Ortex do
     e -> {:error, e}
   end
 
-  # isnet-general-use roda em 1024² com mean 0.5 / std 1.0 (rembg ISNetSession);
-  # u2net/u2netp no default 320² ImageNet
-  defp preprocess_for("isnet-general-use", rgb),
-    do: U2Net.preprocess(rgb, size: 1024, mean: [0.5, 0.5, 0.5], std: [1.0, 1.0, 1.0])
+  # isnet-general-use roda em 1024² com mean 0.5 / std 1.0 (rembg ISNetSession) +
+  # CLAHE no canal L antes: realça o contraste LOCAL e ajuda o SOD a achar a pessoa
+  # em cena escura/luz colorida (provado: silhueta mais completa na aérea escura,
+  # neutro nas bem-iluminadas). u2net/u2netp ficam no default 320² ImageNet.
+  defp preprocess_for("isnet-general-use", rgb) do
+    rgb
+    |> clahe()
+    |> U2Net.preprocess(size: 1024, mean: [0.5, 0.5, 0.5], std: [1.0, 1.0, 1.0])
+  end
 
   defp preprocess_for(_u2net, rgb), do: U2Net.preprocess(rgb)
+
+  # equalização adaptativa de histograma no canal L do Lab (preserva a cor)
+  defp clahe(rgb) do
+    lab = rgb |> Evision.Mat.from_nx_2d() |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2Lab())
+    [l, a, b] = Evision.split(lab)
+    l2 = Evision.createCLAHE(clipLimit: 3.0, tileGridSize: {8, 8}) |> Evision.CLAHE.apply(l)
+
+    [l2, a, b]
+    |> Evision.merge()
+    |> Evision.cvtColor(Evision.Constant.cv_COLOR_Lab2RGB())
+    |> Evision.Mat.to_nx(Nx.BinaryBackend)
+  end
 end
