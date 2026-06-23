@@ -101,6 +101,27 @@ defmodule CamerexWeb.LibraryLiveTest do
     end
   end
 
+  describe "editar em um passo (merge abrir + reprocessar)" do
+    test "lápis na galeria abre o reprocesso direto, sem passar pelo detalhe",
+         %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, lv, _} = live(conn, "/")
+
+      lv |> element(~s(#item-#{id} [phx-click="edit_item"])) |> render_click()
+
+      assert_patch(lv, "/?item=#{id}")
+      assert has_element?(lv, "#convert-panel")
+      refute has_element?(lv, "#detail-panel")
+    end
+
+    test "item processando não oferece o lápis de editar", %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "processing"})
+      {:ok, lv, _} = live(conn, "/")
+
+      refute has_element?(lv, ~s(#item-#{id} [phx-click="edit_item"]))
+    end
+  end
+
   describe "detalhe in-place" do
     test "padrão sem destaque; card abre o detalhe; fechar volta à galeria",
          %{conn: conn, tmp: tmp} do

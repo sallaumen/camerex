@@ -371,6 +371,23 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply, socket}
   end
 
+  # editar direto da galeria/herói: junta "abrir" + "reprocessar" num passo só —
+  # carrega o item, entra no painel de reprocesso (com prévia ao vivo) e fixa o ?item
+  def handle_event("edit_item", %{"id" => id}, socket) do
+    case Workspace.manifest(id) do
+      {:ok, item} ->
+        {:noreply,
+         socket
+         |> assign(current_item: item, reconvert_item: item, convert_open: false)
+         |> apply_item_params(item)
+         |> begin_calibration(item)
+         |> patch_to(item: id)}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("reconvert_cancel", _params, socket) do
     {:noreply, socket |> assign(:reconvert_item, nil) |> clear_calibration()}
   end

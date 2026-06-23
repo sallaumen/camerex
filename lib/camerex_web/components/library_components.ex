@@ -7,6 +7,7 @@ defmodule CamerexWeb.LibraryComponents do
 
   use Phoenix.Component
 
+  import CamerexWeb.CoreComponents, only: [icon: 1]
   import CamerexWeb.NeonComponents
   import CamerexWeb.UI
 
@@ -123,7 +124,10 @@ defmodule CamerexWeb.LibraryComponents do
             >
               Baixar
             </.btn>
-            <.btn variant="secondary" phx-click="open_item" phx-value-id={@item["id"]}>
+            <.btn variant="secondary" phx-click="edit_item" phx-value-id={@item["id"]}>
+              Editar
+            </.btn>
+            <.btn variant="ghost" phx-click="open_item" phx-value-id={@item["id"]}>
               Abrir
             </.btn>
           </div>
@@ -153,6 +157,18 @@ defmodule CamerexWeb.LibraryComponents do
         aria-label={"selecionar #{@item["original_filename"]}"}
         class="absolute left-2 top-2 z-10 h-6 w-6 accent-cx-teal"
       />
+
+      <button
+        :if={@item["status"] not in ~w(queued processing)}
+        type="button"
+        phx-click="edit_item"
+        phx-value-id={@item["id"]}
+        aria-label={"editar #{@item["original_filename"]}"}
+        title="editar"
+        class="absolute right-2 top-2 z-10 grid size-7 place-items-center rounded bg-cx-bg/80 text-cx-text-dim transition hover:bg-cx-elevated hover:text-cx-teal"
+      >
+        <.icon name="hero-pencil-square" class="size-4" />
+      </button>
 
       <button
         type="button"
