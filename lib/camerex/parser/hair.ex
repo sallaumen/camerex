@@ -56,6 +56,11 @@ defmodule Camerex.Parser.Hair do
   # o ATR "achou cabelo" se a classe 2 cobre mais que isto do quadro
   @hair_present_min 0.003
 
+  # eyedropper: raio da janela de amostra (~w/25 ≈ 20px em 512) e nº mínimo de
+  # pixels texturizados nela pra valer (abaixo disso = clique no vazio liso)
+  @sample_radius_div 25
+  @sample_min_px 16
+
   @doc """
   Máscara u8 `{h, w}` (0|255) do cabelo.
 
@@ -108,6 +113,45 @@ defmodule Camerex.Parser.Hair do
   def into_labels(labels, hair_u8) do
     where = Nx.logical_and(Nx.greater(hair_u8, 0), overwritable(labels))
     Nx.select(where, Nx.broadcast(Nx.u8(@hair_class), Nx.shape(labels)), labels)
+  end
+
+  @doc """
+  Amostra a cor do cabelo numa janela ao redor de um ponto (frações `{xf, yf}` em
+  0..1 — o clique do usuário na prévia). Usa só os pixels TEXTURIZADOS da janela
+  (o cabelo, não o fundo liso), então o clique tolera imprecisão. Devolve
+  `{r, g, b}`, ou `nil` se a janela não tiver textura de cabelo (clique no vazio).
+  """
+  @spec sample_color(Nx.Tensor.t(), {number(), number()}, keyword()) ::
+          {0..255, 0..255, 0..255} | nil
+  def sample_color(rgb, {xf, yf}, opts \\ []) do
+    {h, w, _} = Nx.shape(rgb)
+    r = Keyword.get(opts, :radius, round(w / @sample_radius_div))
+    cx = (clamp01(xf) * (w - 1)) |> round()
+    cy = (clamp01(yf) * (h - 1)) |> round()
+    {x0, y0} = {max(cx - r, 0), max(cy - r, 0)}
+    {x1, y1} = {min(cx + r, w - 1), min(cy + r, h - 1)}
+
+    win = rgb[[y0..y1, x0..x1, 0..2]] |> Nx.as_type(:f32)
+    std = local_std(rgb)[[y0..y1, x0..x1]]
+    textured = Nx.greater(std, tex_thr(0.5))
+    cnt = textured |> Nx.sum() |> Nx.to_number()
+
+    if cnt >= @sample_min_px, do: window_color(win, textured, cnt), else: nil
+  end
+
+  defp window_color(win, textured, cnt) do
+    sel = textured |> Nx.new_axis(-1) |> Nx.broadcast(Nx.shape(win))
+
+    [r, g, b] =
+      sel
+      |> Nx.select(win, Nx.tensor(0.0))
+      |> Nx.sum(axes: [0, 1])
+      |> Nx.divide(cnt)
+      |> Nx.round()
+      |> Nx.as_type(:s32)
+      |> Nx.to_flat_list()
+
+    {r, g, b}
   end
 
   defp clamp01(s) when is_number(s), do: s |> max(0.0) |> min(1.0)

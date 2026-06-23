@@ -111,4 +111,17 @@ defmodule Camerex.Parser.HairTest do
 
     refute Hair.present?(tiny)
   end
+
+  test "sample_color/3 (eyedropper): clique no cacho texturizado dá a cor; no liso, nil" do
+    {_fg, _labels, rgb} = scene()
+
+    # cacho em rows 54..120, cols 88..152 → centro ~ frações {0.50, 0.36}
+    {r, g, b} = Hair.sample_color(rgb, {0.50, 0.36})
+    assert_in_delta r, 120, 30
+    assert_in_delta g, 80, 30
+    assert_in_delta b, 60, 30
+
+    # pele LISA em rows 130..190 → frações {0.50, 0.67}: sem textura → nil
+    assert Hair.sample_color(rgb, {0.50, 0.67}) == nil
+  end
 end
