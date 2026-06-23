@@ -63,4 +63,18 @@ defmodule Camerex.Parser.LayerSpec do
     :sampleable?,
     :order_band
   ]
+
+  @doc """
+  A CHAVE do param de um dado `kind` (`:bool`, `:color`, `:slider`, `:model`), ou
+  `nil` se a camada não tem param desse kind. Fonte única dos nomes de param —
+  evita o acoplamento `id`↔prefixo (ex.: `:apparatus` cujo toggle é
+  `detect_aerial`, nome histórico persistido nos manifests).
+  """
+  @spec param_key(t(), :bool | :color | :slider | :model) :: atom() | nil
+  def param_key(%__MODULE__{params: params}, kind) do
+    Enum.find_value(params, fn
+      %{key: k, kind: ^kind} -> k
+      _ -> nil
+    end)
+  end
 end

@@ -88,13 +88,19 @@ defmodule Camerex.Parser.LayerRegistry do
   def fetch(id) when is_atom(id), do: Enum.find(all(), &(&1.id == id))
   def fetch(id) when is_binary(id), do: Enum.find(all(), &(to_string(&1.id) == id))
 
-  @doc ~S"""
-  Camadas ativas segundo `params["detect_<id>"] == true`. Aceita mapa
-  string-keyed (caminho do manifest/form).
+  @doc """
+  Camadas ativas: o param `:bool` da camada (derivado do spec, não do `id`) é
+  `true` no mapa string-keyed (caminho do manifest/form). Ex.: `apparatus` ativa
+  via `detect_aerial`, não `detect_apparatus`.
   """
   @spec active(map()) :: [LayerSpec.t()]
   def active(params) when is_map(params) do
-    Enum.filter(all(), &(Map.get(params, "detect_#{&1.id}") == true))
+    Enum.filter(all(), fn spec ->
+      case LayerSpec.param_key(spec, :bool) do
+        nil -> false
+        key -> Map.get(params, to_string(key)) == true
+      end
+    end)
   end
 
   @doc ~S"""

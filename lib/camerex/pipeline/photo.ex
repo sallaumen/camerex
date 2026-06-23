@@ -8,7 +8,8 @@ defmodule Camerex.Pipeline.Photo do
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
   alias Camerex.Neon.{Background, Layered, Scene}
-  alias Camerex.Parser.{Apparatus, Hair, Layers, Object, Skin}
+  alias Camerex.Parser.{LayerRegistry, Layers}
+  alias Camerex.Pipeline.LayerRunner
 
   @doc """
   Render por camada semântica (ÚNICO modo): parseia as partes
@@ -21,84 +22,43 @@ defmodule Camerex.Pipeline.Photo do
     end
   end
 
-  # opt-in: injeta as classes virtuais — objeto na mão (18, maior componente do
-  # U²-Net) e/ou tecido aéreo (19, foreground COMPLETO − pessoa). Cada um roda seu
-  # modelo: objeto no `u2net`, tecido no `u2netp` (pega o drapeado/fitas que o
-  # u2net perde sob luz colorida). Ver Parser.Object / Parser.Apparatus.
+  # injeta as classes virtuais via LayerRunner: cada camada ATIVA do
+  # LayerRegistry é aplicada em ordem (baseline → overlay → destructive) sobre
+  # os labels acumulados. O cache de fg é construído UMA vez por par
+  # {model, kind} distinto exigido pelas ativas — quando object+hair ligados
+  # ambos pedem {"u2net", :largest}, segmenter roda 1 vez só.
   defp augment_labels(rgb, labels, opts) do
-    labels
-    |> with_object(rgb, Keyword.get(opts, :detect_object, false))
-    |> with_hair(
-      rgb,
-      Keyword.get(opts, :hair_model) || Keyword.get(opts, :hair_color),
-      Keyword.get(opts, :hair_sensitivity, 0.5),
-      Keyword.get(opts, :detect_hair, false)
-    )
-    |> with_aerial(
-      rgb,
-      Keyword.get(opts, :aerial_color),
-      Keyword.get(opts, :aerial_sensitivity, 0.5),
-      Keyword.get(opts, :detect_aerial, false)
-    )
-    |> with_skin(
-      rgb,
-      Keyword.get(opts, :detect_skin, false),
-      Keyword.get(opts, :skin_sensitivity, 0.5)
-    )
+    params = render_opts_to_params(opts)
+    active = LayerRegistry.active(params)
+    fg_provider = build_fg_provider(rgb, active)
+    LayerRunner.run(labels, rgb, params, fg_provider: fg_provider, video?: false)
   end
 
-  # pele do torço NU (sem top) que o ATR rotula como roupa → re-rotula como pele.
-  # Roda por ÚLTIMO (sobre os labels ATR) e NÃO dispara U²-Net (sinal = labels +
-  # rgb). Ver Parser.Skin.
-  defp with_skin(labels, _rgb, false, _sens), do: labels
-
-  defp with_skin(labels, rgb, true, sens),
-    do: Skin.into_labels(labels, Skin.detect(labels, rgb, sensitivity: sens))
-
-  defp with_object(labels, _rgb, false), do: labels
-
-  defp with_object(labels, rgb, true) do
-    case segment(rgb, "u2net") do
-      {:ok, raw} -> Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
-      :error -> labels
-    end
+  # keyword (manifest → render_opts) → mapa string-keyed que o LayerRunner espera
+  defp render_opts_to_params(opts) do
+    opts |> Enum.into(%{}) |> Map.new(fn {k, v} -> {to_string(k), v} end)
   end
 
-  # tecido usa o foreground COMPLETO (todos os componentes), não o maior — tecido
-  # e pessoa são componentes separados (ver Parser.Apparatus). A cor do tecido
-  # (aerial_color) enriquece a saliência.
-  defp with_aerial(labels, _rgb, _color, _sens, false), do: labels
+  # cache compartilhado: 1× segmenter por {model, kind} distinto das ativas.
+  defp build_fg_provider(rgb, active) do
+    cache =
+      active
+      |> LayerRegistry.required_segmentations()
+      |> Enum.into(%{}, fn {model, kind} -> {{model, kind}, fg_for_pair(rgb, model, kind)} end)
 
-  defp with_aerial(labels, rgb, color, sens, true) do
-    case segment(rgb, "u2netp") do
+    fn pair -> Map.get(cache, pair) end
+  end
+
+  defp fg_for_pair(rgb, model, kind) do
+    case segment(rgb, model) do
       {:ok, raw} ->
-        mask = Apparatus.detect(full_foreground(raw), labels, rgb, color, sensitivity: sens)
-        Apparatus.into_labels(labels, mask)
+        case kind do
+          :largest -> Mask.largest_component(raw)
+          :full -> full_foreground(raw)
+        end
 
       :error ->
-        labels
-    end
-  end
-
-  # cabelo: FALLBACK por cor só quando o ATR não enxerga cabeça (pose aérea/de
-  # costas) E o usuário indicou a cor. A silhueta vem do MAIOR componente do
-  # u2net (inclui o cabelo); a cor restringe ao cacho. Onde o ATR já acha cabelo
-  # (frontal), confia nele e nem roda o u2net. Ver Parser.Hair.
-  defp with_hair(labels, _rgb, nil, _sens, _on), do: labels
-  defp with_hair(labels, _rgb, _color, _sens, false), do: labels
-
-  defp with_hair(labels, rgb, color, sens, true) do
-    if Hair.present?(labels) do
-      labels
-    else
-      case segment(rgb, "u2net") do
-        {:ok, raw} ->
-          mask = Hair.detect(Mask.largest_component(raw), labels, rgb, color, sensitivity: sens)
-          Hair.into_labels(labels, mask)
-
-        :error ->
-          labels
-      end
+        nil
     end
   end
 
@@ -111,7 +71,13 @@ defmodule Camerex.Pipeline.Photo do
     end
   end
 
-  defp full_foreground(raw), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
+  @doc """
+  Foreground COMPLETO (não maior-componente) do raw do U²-Net, u8 `{h, w}`.
+  Reusado por `Video` e por `LayerRunner.fg_provider` quando `fg_spec.kind` é
+  `:full`. Público pra evitar duplicação no `Video`.
+  """
+  @spec full_foreground(Nx.Tensor.t()) :: Nx.Tensor.t()
+  def full_foreground(raw), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
 
   @doc """
   Parte pós-parse do render por camada (a calibragem parseia 1x e chama isto).

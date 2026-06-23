@@ -23,12 +23,19 @@ defmodule Camerex.Parser.LayerRegistryTest do
     assert LayerRegistry.fetch("naoexiste") == nil
   end
 
-  test "active/1 lê detect_<id> dos params" do
+  test "active/1 lê o param :bool do spec (não detect_<id>)" do
     on = %{"detect_hair" => true, "detect_object" => false}
     ids = LayerRegistry.active(on) |> Enum.map(& &1.id)
     assert :hair in ids
     refute :object in ids
     refute :skin in ids
+  end
+
+  test "active/1: apparatus ativa via detect_aerial (id≠prefixo do param)" do
+    ids = LayerRegistry.active(%{"detect_aerial" => true}) |> Enum.map(& &1.id)
+    assert :apparatus in ids
+    # detect_apparatus NÃO existe — não deve ativar nada
+    assert LayerRegistry.active(%{"detect_apparatus" => true}) == []
   end
 
   test "required_segmentations/1 devolve MapSet de {model, kind} das ativas" do
