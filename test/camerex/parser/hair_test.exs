@@ -3,11 +3,12 @@ defmodule Camerex.Parser.HairTest do
 
   alias Camerex.Parser.Hair
 
-  @hair_rgb {90, 60, 50}
+  @base {120, 80, 60}
 
-  # Cena 240×240: pessoa (retângulo) com um CACHO de @hair_rgb (marrom) no topo e
-  # pele clara no resto. `labels` = roupa (classe 4) na pessoa, SEM cabelo (classe
-  # 2 = 0) — simula o caso aéreo em que o ATR cega para a cabeça.
+  # Cena 240×240: um CACHO texturizado (listras de luminância) + uma região de
+  # pele LISA da MESMA cor + fundo preto. labels = roupa (classe 4) na pessoa,
+  # SEM cabelo (classe 2 = 0) — simula o caso aéreo em que o ATR cega. A textura
+  # é o que deve separar o cacho da pele da mesma cor.
   defp scene(opts \\ []) do
     w = 240
     rows = Nx.iota({w, w}, axis: 0)
@@ -20,54 +21,76 @@ defmodule Camerex.Parser.HairTest do
       )
     end
 
-    person = rect.({40, 200, 60, 180})
-    hair = rect.(Keyword.get(opts, :hair_rect, {52, 96, 92, 148}))
+    person = rect.({30, 210, 40, 200})
+    hair = rect.(Keyword.get(opts, :hair_rect, {54, 120, 88, 152}))
+    skin = rect.(Keyword.get(opts, :skin_rect, {130, 190, 88, 152}))
 
-    person3 = Nx.broadcast(Nx.new_axis(person, -1), {w, w, 3})
+    {br, bg, bb} = @base
+    base = Nx.tensor([br, bg, bb], type: :f32) |> Nx.broadcast({w, w, 3})
+    # listras de ±18 na luminância a cada linha → textura local alta, cor ~base
+    stripe = rows |> Nx.remainder(2) |> Nx.multiply(36) |> Nx.subtract(18) |> Nx.as_type(:f32)
+    textured = Nx.add(base, stripe |> Nx.new_axis(-1) |> Nx.broadcast({w, w, 3}))
+
     hair3 = Nx.broadcast(Nx.new_axis(hair, -1), {w, w, 3})
-    brown = Nx.tensor(Tuple.to_list(@hair_rgb), type: :u8) |> Nx.broadcast({w, w, 3})
-    skin = Nx.tensor([200, 150, 140], type: :u8) |> Nx.broadcast({w, w, 3})
-    black = Nx.broadcast(Nx.u8(0), {w, w, 3})
+    skin3 = Nx.broadcast(Nx.new_axis(skin, -1), {w, w, 3})
 
-    rgb = person3 |> Nx.select(skin, black) |> then(&Nx.select(hair3, brown, &1))
+    rgb =
+      Nx.broadcast(Nx.tensor(0.0), {w, w, 3})
+      |> then(&Nx.select(skin3, base, &1))
+      |> then(&Nx.select(hair3, textured, &1))
+      |> Nx.clip(0, 255)
+      |> Nx.as_type(:u8)
+
     fg = person |> Nx.multiply(255) |> Nx.as_type(:u8)
     labels = Nx.select(person, Nx.u8(4), Nx.u8(0))
 
     {fg, labels, rgb}
   end
 
-  test "acha o cacho pela cor dentro da silhueta (u8 {h,w})" do
+  test "acha o cacho texturizado pela cor (u8 {h,w})" do
     {fg, labels, rgb} = scene()
-    mask = Hair.detect(fg, labels, rgb, @hair_rgb)
+    mask = Hair.detect(fg, labels, rgb, @base, sensitivity: 0.6)
 
     assert Nx.shape(mask) == {240, 240}
     assert Nx.type(mask) == {:u, 8}
-    # centro do cacho aceso; um ponto de pele/fundo, não
-    assert Nx.to_number(mask[74][120]) == 255
-    assert Nx.to_number(mask[150][120]) == 0
+    # centro do cacho aceso
+    assert Nx.to_number(mask[85][120]) == 255
   end
 
-  test "sem cor indicada: o fallback não dispara (máscara vazia)" do
+  test "a TEXTURA separa: a pele LISA da mesma cor NÃO vira cabelo" do
+    {fg, labels, rgb} = scene()
+    mask = Hair.detect(fg, labels, rgb, @base, sensitivity: 0.6)
+
+    # cacho (texturizado) aceso; pele (lisa, MESMA cor) apagada
+    assert Nx.to_number(mask[85][120]) == 255
+    assert Nx.to_number(mask[160][120]) == 0
+  end
+
+  test "uma FITA vertical longa (tecido aéreo) é descartada — cabelo é cacho" do
+    # fita texturizada alta-e-fina da cor do cabelo (aspect ≫ 3.5), sem pele
+    {fg, labels, rgb} = scene(hair_rect: {30, 205, 110, 124}, skin_rect: {0, 0, 0, 0})
+    mask = Hair.detect(fg, labels, rgb, @base, sensitivity: 0.6)
+
+    assert Nx.to_number(Nx.sum(Nx.greater(mask, 0))) == 0
+  end
+
+  test "sem cor indicada ou sem rgb: o fallback não dispara (vazio)" do
     {fg, labels, rgb} = scene()
     assert Nx.to_number(Nx.sum(Hair.detect(fg, labels, rgb, nil))) == 0
-  end
-
-  test "sem rgb: não há como medir cor (máscara vazia)" do
-    {fg, labels, _rgb} = scene()
-    assert Nx.to_number(Nx.sum(Hair.detect(fg, labels, nil, @hair_rgb))) == 0
+    assert Nx.to_number(Nx.sum(Hair.detect(fg, labels, nil, @base))) == 0
   end
 
   test "cor ausente da cena (verde) não acende nada (precisão)" do
     {fg, labels, rgb} = scene()
-    assert Nx.to_number(Nx.sum(Hair.detect(fg, labels, rgb, {0, 255, 0}))) == 0
+    assert Nx.to_number(Nx.sum(Hair.detect(fg, labels, rgb, {0, 255, 0}, sensitivity: 0.6))) == 0
   end
 
-  test "sensibilidade alta pega pelo menos tanto quanto a baixa" do
+  test "sensibilidade alta pega ao menos tanto quanto a baixa" do
     {fg, labels, rgb} = scene()
-    baixa = Hair.detect(fg, labels, rgb, @hair_rgb, sensitivity: 0.1)
-    alta = Hair.detect(fg, labels, rgb, @hair_rgb, sensitivity: 0.9)
     n = fn m -> Nx.to_number(Nx.sum(Nx.greater(m, 0))) end
-    assert n.(alta) >= n.(baixa)
+
+    assert n.(Hair.detect(fg, labels, rgb, @base, sensitivity: 0.9)) >=
+             n.(Hair.detect(fg, labels, rgb, @base, sensitivity: 0.5))
   end
 
   test "into_labels/2 vira 2 sobre fundo/roupa, preserva membro e rosto" do
@@ -82,7 +105,7 @@ defmodule Camerex.Parser.HairTest do
   test "present?/1: true quando a classe 2 é abundante, false quando ~0" do
     refute Hair.present?(Nx.broadcast(Nx.u8(0), {240, 240}))
     assert Hair.present?(Nx.broadcast(Nx.u8(2), {240, 240}))
-    # bloco minúsculo de cabelo (100px < 0.3% de 57600) ainda conta como ausente
+    # bloco minúsculo (100px < 0.3% de 57600) ainda conta como ausente
     tiny =
       Nx.put_slice(Nx.broadcast(Nx.u8(0), {240, 240}), [0, 0], Nx.broadcast(Nx.u8(2), {10, 10}))
 
