@@ -120,6 +120,15 @@ defmodule CamerexWeb.LibraryLiveTest do
 
       refute has_element?(lv, ~s(#item-#{id} [phx-click="edit_item"]))
     end
+
+    test "card processando mostra o anel de progresso (spinner sem progresso ainda)",
+         %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "processing"})
+      {:ok, lv, _} = live(conn, "/")
+
+      assert has_element?(lv, ~s(#item-#{id} [data-role="ring"]))
+      assert has_element?(lv, ~s(#item-#{id} .cx-spinner))
+    end
   end
 
   describe "detalhe in-place" do

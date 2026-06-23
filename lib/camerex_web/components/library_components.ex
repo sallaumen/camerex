@@ -175,7 +175,7 @@ defmodule CamerexWeb.LibraryComponents do
         phx-click="open_item"
         phx-value-id={@item["id"]}
         aria-label={"abrir #{@item["original_filename"]}"}
-        class="block w-full text-left"
+        class="relative block w-full text-left"
       >
         <div :if={@item["status"] == "done"} class="flex gap-1">
           <img
@@ -204,6 +204,19 @@ defmodule CamerexWeb.LibraryComponents do
           class="flex h-24 items-center justify-center rounded bg-cx-bg px-2 text-center text-xs text-cx-text-dim"
         >
           {@item["original_filename"]}
+        </div>
+
+        <div
+          :if={@item["status"] == "processing"}
+          data-role="ring"
+          class="absolute inset-0 grid place-items-center rounded bg-cx-bg/65"
+        >
+          <div :if={@progress} class="cx-ring" style={"--cx-ring-pct: #{ring_pct(@progress)}"}>
+            <span class="font-mono text-[0.65rem] tabular-nums text-cx-text">
+              {ring_pct(@progress)}%
+            </span>
+          </div>
+          <div :if={!@progress} class="cx-spinner" aria-hidden="true"></div>
         </div>
       </button>
 
@@ -351,6 +364,11 @@ defmodule CamerexWeb.LibraryComponents do
 
   defp type_label("video"), do: "vídeo"
   defp type_label(_), do: "foto"
+
+  defp ring_pct(%{done: d, total: t}) when is_integer(d) and is_integer(t) and t > 0,
+    do: round(d / t * 100)
+
+  defp ring_pct(_), do: 0
 
   @doc """
   Status bar persistente na base (estilo VS Code/Resolve): cpu/ram/beam como
