@@ -14,7 +14,30 @@ defmodule Camerex.Pipeline.LayerRunner do
       vídeo (cabelo se move).
   """
 
+  alias Camerex.Mask
   alias Camerex.Parser.{Hair, LayerContext, LayerRegistry, LayerSpec}
+
+  @doc """
+  Constrói o `fg_provider` rodando `segment_fn.(model)` 1× por `{model, kind}`
+  distinto exigido pelas camadas ativas — DRY entre photo (segmenter via
+  `Application.fetch_env!`) e video (segmenter capturado pra paralelização). O
+  `segment_fn` devolve `{:ok, raw}` | `:error`; camadas com `fg_spec: :none`
+  (Skin) não entram (sem par a segmentar).
+  """
+  @spec build_fg_provider([LayerSpec.t()], (String.t() -> {:ok, Nx.Tensor.t()} | :error)) ::
+          ({String.t(), :largest | :full} -> Nx.Tensor.t() | nil)
+  def build_fg_provider(active, segment_fn) do
+    cache =
+      active
+      |> LayerRegistry.required_segmentations()
+      |> Enum.into(%{}, fn {model, kind} -> {{model, kind}, fg_from(segment_fn.(model), kind)} end)
+
+    fn pair -> Map.get(cache, pair) end
+  end
+
+  defp fg_from({:ok, raw}, :largest), do: Mask.largest_component(raw)
+  defp fg_from({:ok, raw}, :full), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
+  defp fg_from(_other, _kind), do: nil
 
   @spec run(Nx.Tensor.t(), Nx.Tensor.t(), map(), keyword()) :: Nx.Tensor.t()
   def run(labels, rgb, params, opts) do

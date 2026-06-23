@@ -6,7 +6,7 @@ defmodule Camerex.Pipeline.Photo do
   thumbs, manifest) chega na Fase 3.
   """
 
-  alias Camerex.{Mask, Neon, Parser, Workspace}
+  alias Camerex.{Neon, Parser, Workspace}
   alias Camerex.Neon.{Background, Layered, Scene}
   alias Camerex.Parser.{LayerRegistry, Layers}
   alias Camerex.Pipeline.LayerRunner
@@ -30,36 +30,13 @@ defmodule Camerex.Pipeline.Photo do
   defp augment_labels(rgb, labels, opts) do
     params = render_opts_to_params(opts)
     active = LayerRegistry.active(params)
-    fg_provider = build_fg_provider(rgb, active)
+    fg_provider = LayerRunner.build_fg_provider(active, &segment(rgb, &1))
     LayerRunner.run(labels, rgb, params, fg_provider: fg_provider, video?: false)
   end
 
   # keyword (manifest → render_opts) → mapa string-keyed que o LayerRunner espera
   defp render_opts_to_params(opts) do
     opts |> Enum.into(%{}) |> Map.new(fn {k, v} -> {to_string(k), v} end)
-  end
-
-  # cache compartilhado: 1× segmenter por {model, kind} distinto das ativas.
-  defp build_fg_provider(rgb, active) do
-    cache =
-      active
-      |> LayerRegistry.required_segmentations()
-      |> Enum.into(%{}, fn {model, kind} -> {{model, kind}, fg_for_pair(rgb, model, kind)} end)
-
-    fn pair -> Map.get(cache, pair) end
-  end
-
-  defp fg_for_pair(rgb, model, kind) do
-    case segment(rgb, model) do
-      {:ok, raw} ->
-        case kind do
-          :largest -> Mask.largest_component(raw)
-          :full -> full_foreground(raw)
-        end
-
-      :error ->
-        nil
-    end
   end
 
   defp segment(rgb, model) do
@@ -70,14 +47,6 @@ defmodule Camerex.Pipeline.Photo do
       _ -> :error
     end
   end
-
-  @doc """
-  Foreground COMPLETO (não maior-componente) do raw do U²-Net, u8 `{h, w}`.
-  Reusado por `Video` e por `LayerRunner.fg_provider` quando `fg_spec.kind` é
-  `:full`. Público pra evitar duplicação no `Video`.
-  """
-  @spec full_foreground(Nx.Tensor.t()) :: Nx.Tensor.t()
-  def full_foreground(raw), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
 
   @doc """
   Parte pós-parse do render por camada (a calibragem parseia 1x e chama isto).

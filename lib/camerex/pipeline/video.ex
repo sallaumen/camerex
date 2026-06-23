@@ -21,7 +21,8 @@ defmodule Camerex.Pipeline.Video do
 
   alias Camerex.{Mask, Neon, Parser, Settings, Workspace}
   alias Camerex.Neon.{Background, Layered}
-  alias Camerex.Parser.{Apparatus, Hair, Layers, Object, Skin}
+  alias Camerex.Parser.{LayerRegistry, Layers}
+  alias Camerex.Pipeline.LayerRunner
   alias Camerex.Video.{Audio, Decoder, Encoder, Probe}
 
   @work_width 640
@@ -274,27 +275,18 @@ defmodule Camerex.Pipeline.Video do
     frame_opts(Map.merge(Map.put(@frame_defaults, "model", "u2netp"), params))
   end
 
-  # monta o mapa de opções por frame a partir de params já com defaults.
-  # `model` é só pro detect_object (U²-Net); a cor-por-parte usa o parser (ATR).
+  # monta o mapa de opções por frame. As camadas (detect_*) NÃO são destrinchadas
+  # aqui — `params` (string-keyed) vai inteiro pro LayerRunner, que deriva ativas/
+  # cor/sensibilidade do LayerRegistry. Só os ajustes de RENDER viram campos.
   defp frame_opts(p) do
     %{
       segmenter: Application.fetch_env!(:camerex, :segmenter),
-      model: p["model"],
+      params: p,
       detail: p["detail"],
       halo: p["halo"],
       bloom: p["bloom"],
       trail_decay: p["trail"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
-      detect_object: p["detect_object"] == true,
-      detect_hair: p["detect_hair"] == true,
-      hair_color: p["hair_color"],
-      hair_model: p["hair_model"],
-      hair_sensitivity: p["hair_sensitivity"] || 0.5,
-      detect_aerial: p["detect_aerial"] == true,
-      aerial_color: p["aerial_color"],
-      aerial_sensitivity: p["aerial_sensitivity"] || 0.5,
-      detect_skin: p["detect_skin"] == true,
-      skin_sensitivity: p["skin_sensitivity"] || 0.5,
       bg_opacity: p["bg_opacity"] || 0.0,
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
@@ -331,83 +323,20 @@ defmodule Camerex.Pipeline.Video do
     end
   end
 
-  # opt-in por frame: injeta as classes virtuais — objeto na mão (18, no model do
-  # item) e/ou tecido aéreo (19, no `u2netp`, que pega o drapeado que o u2net
-  # perde). Cada feature ligada custa uma passada do segmenter (paralelizado).
+  # opt-in por frame via LayerRunner: as camadas ATIVAS do LayerRegistry são
+  # aplicadas em ordem (baseline → overlay → destructive). `video?: true` desliga
+  # o prior espacial do cabelo (cabelo se move entre frames). O segmenter é o
+  # capturado em frame_opts (paralelização por frame); roda 1× por {model, kind}.
   defp augment_frame_labels(frame, labels, opts) do
-    labels
-    |> frame_object(frame, opts.segmenter, opts.model, opts.detect_object)
-    |> frame_hair(
-      frame,
-      opts.segmenter,
-      opts.hair_model || opts.hair_color,
-      opts.hair_sensitivity,
-      opts.detect_hair
-    )
-    |> frame_aerial(
-      frame,
-      opts.segmenter,
-      opts.aerial_color,
-      opts.aerial_sensitivity,
-      opts.detect_aerial
-    )
-    |> frame_skin(frame, opts.detect_skin, opts.skin_sensitivity)
+    active = LayerRegistry.active(opts.params)
+    fg_provider = LayerRunner.build_fg_provider(active, &frame_segment(opts.segmenter, frame, &1))
+    LayerRunner.run(labels, frame, opts.params, fg_provider: fg_provider, video?: true)
   end
 
-  # pele do torço nu → pele (por último, sem U²-Net; modelo aprendido dos labels
-  # ATR daquele frame, que são estáveis frame a frame). Ver Parser.Skin.
-  defp frame_skin(labels, _frame, false, _sens), do: labels
-
-  defp frame_skin(labels, frame, true, sens),
-    do: Skin.into_labels(labels, Skin.detect(labels, frame, sensitivity: sens))
-
-  defp frame_object(labels, _frame, _seg, _model, false), do: labels
-
-  defp frame_object(labels, frame, segmenter, model, true) do
+  defp frame_segment(segmenter, frame, model) do
     case segmenter.segment(frame, model: model) do
-      {:ok, raw} -> Object.into_labels(labels, Object.detect(Mask.largest_component(raw), labels))
-      _ -> labels
-    end
-  end
-
-  # cabelo: FALLBACK por cor só quando o ATR não enxerga cabeça no frame E há cor
-  # indicada (silhueta = maior componente do u2net; ver Parser.Hair)
-  defp frame_hair(labels, _frame, _seg, nil, _sens, _on), do: labels
-  defp frame_hair(labels, _frame, _seg, _color, _sens, false), do: labels
-
-  defp frame_hair(labels, frame, segmenter, color, sens, true) do
-    if Hair.present?(labels) do
-      labels
-    else
-      case segmenter.segment(frame, model: "u2net") do
-        {:ok, raw} ->
-          mask =
-            Hair.detect(Mask.largest_component(raw), labels, frame, color,
-              sensitivity: sens,
-              spatial: false
-            )
-
-          Hair.into_labels(labels, mask)
-
-        _ ->
-          labels
-      end
-    end
-  end
-
-  # tecido usa o foreground COMPLETO do u2netp (todos os componentes); a cor do
-  # tecido (aerial_color) enriquece a saliência
-  defp frame_aerial(labels, _frame, _seg, _color, _sens, false), do: labels
-
-  defp frame_aerial(labels, frame, segmenter, color, sens, true) do
-    case segmenter.segment(frame, model: "u2netp") do
-      {:ok, raw} ->
-        full = raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
-        mask = Apparatus.detect(full, labels, frame, color, sensitivity: sens)
-        Apparatus.into_labels(labels, mask)
-
-      _ ->
-        labels
+      {:ok, raw} -> {:ok, raw}
+      _ -> :error
     end
   end
 
