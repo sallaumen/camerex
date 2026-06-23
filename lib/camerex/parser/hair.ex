@@ -30,6 +30,8 @@ defmodule Camerex.Parser.Hair do
   Vira a classe 2 (hair) nos labels. Puro (quem roda o U²-Net é o chamador).
   """
 
+  alias Camerex.Parser.{ColorModel, MaskOps, Texture}
+
   @hair_class 2
 
   # SENSIBILIDADE (0..1, default 0.5) afrouxa/aperta JUNTOS a distância de cor e
@@ -49,11 +51,6 @@ defmodule Camerex.Parser.Hair do
   # 0.8 = apertado (assume que o usuário marca o cabelo todo, generoso)
   @spatial_slack 0.8
 
-  # janela do desvio-padrão local (textura) da luminância
-  @tex_window 7
-  # regularização da covariância do modelo de região (só anti-singular; valor
-  # alto alargaria o elipsoide e faria o modelo aceitar cor demais)
-  @cov_reg 1.0
   # crescimento geodésico da histerese: kernel de dilatação (~w/55) e nº de iters
   @grow_div 55
   @grow_iters 30
@@ -117,10 +114,10 @@ defmodule Camerex.Parser.Hair do
         person_area = person |> Nx.sum() |> Nx.to_number()
 
         seed
-        |> reconstruct(weak, w)
-        |> close_b(ellipse(round(w / @consolidate_div)))
+        |> MaskOps.reconstruct(weak, w, div: @grow_div, iters: @grow_iters)
+        |> MaskOps.close_b(MaskOps.ellipse(round(w / @consolidate_div)))
         |> hair_blob(h, w, person_area)
-        |> fill_holes(h, w)
+        |> MaskOps.fill_holes(h, w)
         |> Nx.multiply(255)
         |> Nx.as_type(:u8)
     end
@@ -164,7 +161,7 @@ defmodule Camerex.Parser.Hair do
     {x1, y1} = {min(cx + r, w - 1), min(cy + r, h - 1)}
 
     win = rgb[[y0..y1, x0..x1, 0..2]] |> Nx.as_type(:f32)
-    std = local_std(rgb)[[y0..y1, x0..x1]]
+    std = Texture.local_std(rgb)[[y0..y1, x0..x1]]
     textured = Nx.greater(std, tex_thr(0.5))
     cnt = textured |> Nx.sum() |> Nx.to_number()
 
@@ -202,13 +199,13 @@ defmodule Camerex.Parser.Hair do
     {x0, x1} = {px(min(x0f, x1f), w), px(max(x0f, x1f), w)}
     {y0, y1} = {px(min(y0f, y1f), h), px(max(y0f, y1f), h)}
 
-    weight = local_std(rgb) |> Nx.greater(tex_thr(0.5)) |> Nx.as_type(:f32)
-    crop_lab = to_lab(rgb)[[y0..y1, x0..x1, 0..2]]
+    weight = Texture.local_std(rgb) |> Nx.greater(tex_thr(0.5)) |> Nx.as_type(:f32)
+    crop_lab = ColorModel.to_lab(rgb)[[y0..y1, x0..x1, 0..2]]
     crop_w = weight[[y0..y1, x0..x1]]
     wsum = crop_w |> Nx.sum() |> Nx.to_number()
 
     if wsum >= @sample_min_px do
-      Map.merge(build_model(crop_lab, crop_w, wsum), spatial_prior(x0f, y0f, x1f, y1f))
+      Map.merge(ColorModel.build_model(crop_lab, crop_w, wsum), spatial_prior(x0f, y0f, x1f, y1f))
     else
       nil
     end
@@ -223,19 +220,6 @@ defmodule Camerex.Parser.Hair do
 
   defp px(f, dim), do: (clamp01(f) * (dim - 1)) |> round()
 
-  # média e inversa da covariância (Lab) ponderadas pela máscara de textura
-  defp build_model(crop_lab, crop_w, wsum) do
-    {bh, bw, _} = Nx.shape(crop_lab)
-    w3 = Nx.new_axis(crop_w, -1)
-    mu = crop_lab |> Nx.multiply(w3) |> Nx.sum(axes: [0, 1]) |> Nx.divide(wsum)
-    ctr = Nx.subtract(crop_lab, Nx.reshape(mu, {1, 1, 3}))
-    fc = Nx.reshape(ctr, {bh * bw, 3})
-    fw = ctr |> Nx.multiply(w3) |> Nx.reshape({bh * bw, 3})
-    cov = fw |> Nx.transpose() |> Nx.dot(fc) |> Nx.divide(wsum)
-    cov_inv = Nx.LinAlg.invert(Nx.add(cov, Nx.multiply(Nx.eye(3), @cov_reg)))
-    %{mu: Nx.to_flat_list(mu), cov_inv: Nx.to_flat_list(cov_inv)}
-  end
-
   defp clamp01(s) when is_number(s), do: s |> max(0.0) |> min(1.0)
   defp clamp01(_), do: 0.5
 
@@ -245,8 +229,8 @@ defmodule Camerex.Parser.Hair do
   defp hair_signal(_person, _rgb, nil, _s, _sp), do: nil
 
   defp hair_signal(person, rgb, color, s, spatial?) do
-    gate = Nx.logical_and(person, Nx.greater(local_std(rgb), tex_thr(s)))
-    {dist, low, high} = color_signal(to_lab(rgb), color, s, spatial?)
+    gate = Nx.logical_and(person, Nx.greater(Texture.local_std(rgb), tex_thr(s)))
+    {dist, low, high} = color_signal(ColorModel.to_lab(rgb), color, s, spatial?)
     {Nx.logical_and(gate, Nx.less(dist, low)), Nx.logical_and(gate, Nx.less(dist, high))}
   end
 
@@ -257,20 +241,12 @@ defmodule Camerex.Parser.Hair do
     # 1 cor (eyedropper, modo básico): limiar ÚNICO (low == high) — sem histerese,
     # que precisa de uma distribuição de tonalidades (é o caso do MODELO de região)
     tol = lab_tol(s)
-    {color_dist(lab, lab_of(color)), tol, tol}
+    {ColorModel.color_dist(lab, ColorModel.lab_of(color)), tol, tol}
   end
 
   defp color_signal(lab, %{mu: mu, cov_inv: ci} = m, s, spatial?) do
-    d2 = mahalanobis(lab, mu, ci)
+    d2 = ColorModel.mahalanobis(lab, mu, ci)
     {maybe_spatial(d2, m, spatial?), chi2_low(s), chi2_high(s)}
-  end
-
-  # distância de Mahalanobis² no Lab (a covariância capta a distribuição de
-  # tonalidades do cabelo — várias cores, não uma)
-  defp mahalanobis(lab, mu, ci) do
-    diff = Nx.subtract(lab, mu |> Nx.tensor(type: :f32) |> Nx.reshape({1, 1, 3}))
-    ci_t = ci |> Nx.tensor(type: :f32) |> Nx.reshape({3, 3})
-    Nx.sum(Nx.multiply(Nx.dot(diff, ci_t), diff), axes: [-1])
   end
 
   # penalidade espacial gaussiana: soma (dist_ao_centro_da_marca / σ)² ao
@@ -291,32 +267,12 @@ defmodule Camerex.Parser.Hair do
 
   defp maybe_spatial(d2, _model, _spatial?), do: d2
 
-  # distância euclidiana no Lab (escala u8) a cada pixel até a cor alvo
-  defp color_dist(lab, target) do
-    lab
-    |> Nx.subtract(Nx.reshape(target, {1, 1, 3}))
-    |> Nx.pow(2)
-    |> Nx.sum(axes: [-1])
-    |> Nx.sqrt()
-  end
-
-  # textura = desvio-padrão local da luminância numa janela: sqrt(E[x²] − E[x]²)
-  defp local_std(rgb) do
-    gray = to_gray(rgb)
-    mean = box_blur(gray)
-
-    box_blur(Nx.multiply(gray, gray))
-    |> Nx.subtract(Nx.multiply(mean, mean))
-    |> Nx.max(0.0)
-    |> Nx.sqrt()
-  end
-
   # o blob do cabelo: maior componente que NÃO é fita vertical longa (o tecido
   # aéreo, da mesma cor sob luz monocromática, entra na silhueta como fita).
   # Piso de área descarta lixo e o caso "não há cabelo da cor". stats: [x, y,
   # larg, alt, área].
   defp hair_blob(mask, h, w, person_area) do
-    {n, lbls, stats, _c} = mask |> to_mat() |> Evision.connectedComponentsWithStats()
+    {n, lbls, stats, _c} = mask |> MaskOps.to_mat() |> Evision.connectedComponentsWithStats()
 
     if n <= 1 do
       false_like(mask)
@@ -343,39 +299,6 @@ defmodule Camerex.Parser.Hair do
       else
         false_like(mask)
       end
-    end
-  end
-
-  # preenche os buracos INTERNOS do cacho: rotula o complemento (fundo + buracos)
-  # e adiciona de volta tudo que NÃO toca a borda do quadro (= buraco cercado).
-  # Vetorizado pelos bounding-boxes — um componente toca a borda se x=0, y=0,
-  # x+larg=w ou y+alt=h. stats: colunas [x, y, larg, alt, área].
-  defp fill_holes(mask, h, w) do
-    {n, lbls, stats, _c} =
-      mask |> Nx.logical_not() |> to_mat() |> Evision.connectedComponentsWithStats()
-
-    if n <= 1 do
-      mask
-    else
-      st = Evision.Mat.to_nx(stats, Nx.BinaryBackend)
-      {x, y, bw, bh} = {st[[.., 0]], st[[.., 1]], st[[.., 2]], st[[.., 3]]}
-
-      touches =
-        Nx.equal(x, 0)
-        |> Nx.logical_or(Nx.equal(y, 0))
-        |> Nx.logical_or(Nx.equal(Nx.add(x, bw), w))
-        |> Nx.logical_or(Nx.equal(Nx.add(y, bh), h))
-
-      # buraco = componente do complemento que NÃO toca a borda; o label 0 (a
-      # própria máscara) é zerado — já está coberto pelo OR final
-      hole =
-        touches
-        |> Nx.logical_not()
-        |> Nx.as_type(:u8)
-        |> Nx.put_slice([0], Nx.tensor([0], type: :u8))
-
-      lbls_nx = lbls |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.as_type(:s64)
-      Nx.logical_or(mask, hole |> Nx.take(lbls_nx) |> Nx.greater(0))
     end
   end
 
@@ -407,60 +330,5 @@ defmodule Camerex.Parser.Hair do
   defp normalize_color({_, _, _} = c), do: c
   defp normalize_color(_), do: nil
 
-  defp to_gray(rgb) do
-    rgb
-    |> Evision.Mat.from_nx_2d()
-    |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2GRAY())
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
-    |> Nx.as_type(:f32)
-  end
-
-  defp box_blur(nxf) do
-    nxf
-    |> Evision.Mat.from_nx_2d()
-    |> Evision.blur({@tex_window, @tex_window})
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
-  end
-
-  # Lab da imagem (escala u8 [0..255], como a cor alvo)
-  defp to_lab(rgb) do
-    rgb
-    |> Evision.Mat.from_nx_2d()
-    |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2Lab())
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
-    |> Nx.as_type(:f32)
-  end
-
-  # cor alvo em Lab: u8 (NÃO float) pra casar a escala da imagem
-  defp lab_of({r, g, b}) do
-    Nx.tensor([r, g, b], type: :u8)
-    |> Nx.reshape({1, 1, 3})
-    |> Evision.Mat.from_nx_2d()
-    |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2Lab())
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
-    |> Nx.as_type(:f32)
-    |> Nx.reshape({3})
-  end
-
-  # ── morfologia (máscara booleana ↔ Evision) ──────────────────────
   defp false_like(t), do: Nx.broadcast(Nx.tensor(false), Nx.shape(t))
-  defp to_mat(m), do: m |> Nx.multiply(255) |> Nx.as_type(:u8) |> Evision.Mat.from_nx()
-  defp of_mat(mat), do: mat |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.greater(0)
-
-  defp dilate_b(m, k), do: of_mat(Evision.dilate(to_mat(m), k))
-
-  defp close_b(m, k),
-    do: of_mat(Evision.morphologyEx(to_mat(m), Evision.Constant.cv_MORPH_CLOSE(), k))
-
-  # reconstrução geodésica (histerese): cresce as SEMENTES só dentro dos
-  # CANDIDATOS frouxos, iterando dilatação ∩ confinamento até estabilizar
-  defp reconstruct(seed, confine, w) do
-    k = ellipse(round(w / @grow_div))
-    Enum.reduce(1..@grow_iters, seed, fn _, acc -> Nx.logical_and(dilate_b(acc, k), confine) end)
-  end
-
-  defp ellipse(s) do
-    k = max(s, 1)
-    Evision.getStructuringElement(Evision.Constant.cv_MORPH_ELLIPSE(), {k, k})
-  end
 end

@@ -25,6 +25,8 @@ defmodule Camerex.Parser.Skin do
   ATR originais.
   """
 
+  alias Camerex.Parser.{ColorModel, MaskOps, Texture}
+
   @skin_ids [11, 12, 13, 14, 15]
   @clothing_ids [4, 5, 6, 7, 8, 17]
   @skin_class 11
@@ -38,7 +40,8 @@ defmodule Camerex.Parser.Skin do
   @min_skin_frac 0.005
   # teto: re-rotular mais que isto da ROUPA = colapso de cor → aborta (no-op)
   @max_reframe_frac 0.6
-  @tex_window 7
+  # regularização da covariância do modelo de pele (skin_model é local; o
+  # ColorModel global usa o seu próprio @cov_reg)
   @cov_reg 1.0
   @grow_div 50
   @grow_iters 40
@@ -79,20 +82,23 @@ defmodule Camerex.Parser.Skin do
   # E está conectada à pele-ATR (crescimento geodésico)
   defp torso_skin(labels, rgb, skin_ref, skin_px, s, h, w) do
     clothing = in_set(labels, @clothing_ids)
-    lab = to_lab(rgb)
+    lab = ColorModel.to_lab(rgb)
     {mu, cov_inv, mu_l, sd_l} = skin_model(lab, skin_ref, skin_px, h, w)
 
     candidate =
       clothing
-      |> Nx.logical_and(Nx.less(mahalanobis(lab, mu, cov_inv), maha_thr(s)))
+      |> Nx.logical_and(Nx.less(ColorModel.mahalanobis(lab, mu, cov_inv), maha_thr(s)))
       |> Nx.logical_and(Nx.greater_equal(l_channel(lab), mu_l - l_floor_k(s) * sd_l))
-      |> Nx.logical_and(Nx.less(local_std(rgb), tex_max(s)))
+      |> Nx.logical_and(Nx.less(Texture.local_std(rgb), tex_max(s)))
 
     skin_ref
-    |> reconstruct(Nx.logical_or(candidate, skin_ref), w)
+    |> MaskOps.reconstruct(Nx.logical_or(candidate, skin_ref), w,
+      div: @grow_div,
+      iters: @grow_iters
+    )
     |> Nx.logical_and(clothing)
-    |> close_b(ellipse(round(w / @consolidate_div)))
-    |> fill_holes(h, w)
+    |> MaskOps.close_b(MaskOps.ellipse(round(w / @consolidate_div)))
+    |> MaskOps.fill_holes(h, w)
     |> Nx.logical_and(clothing)
   end
 
@@ -118,11 +124,6 @@ defmodule Camerex.Parser.Skin do
     {mu, cov_inv, mu_l, sd_l}
   end
 
-  defp mahalanobis(lab, mu, ci) do
-    diff = Nx.subtract(lab, mu |> Nx.reshape({1, 1, 3}))
-    Nx.sum(Nx.multiply(Nx.dot(diff, ci), diff), axes: [-1])
-  end
-
   defp l_channel(lab), do: lab |> Nx.slice_along_axis(0, 1, axis: -1) |> Nx.squeeze(axes: [-1])
 
   defp in_set(labels, ids) do
@@ -134,88 +135,7 @@ defmodule Camerex.Parser.Skin do
   defp clamp01(s) when is_number(s), do: s |> max(0.0) |> min(1.0)
   defp clamp01(_), do: 0.5
 
-  # textura = desvio-padrão local da luminância: sqrt(E[x²] − E[x]²)
-  defp local_std(rgb) do
-    gray = to_gray(rgb)
-    mean = box_blur(gray)
-
-    box_blur(Nx.multiply(gray, gray))
-    |> Nx.subtract(Nx.multiply(mean, mean))
-    |> Nx.max(0.0)
-    |> Nx.sqrt()
-  end
-
-  # reconstrução geodésica: cresce a SEMENTE só dentro do CONFINAMENTO
-  defp reconstruct(seed, confine, w) do
-    k = ellipse(round(w / @grow_div))
-    Enum.reduce(1..@grow_iters, seed, fn _, acc -> Nx.logical_and(dilate_b(acc, k), confine) end)
-  end
-
-  # preenche buracos internos (auto-sombra entre escápulas/abdômen): tudo que não
-  # é fundo-conectado-à-borda do quadro. stats: [x, y, larg, alt, área].
-  defp fill_holes(mask, h, w) do
-    {n, lbls, stats, _c} =
-      mask |> Nx.logical_not() |> to_mat() |> Evision.connectedComponentsWithStats()
-
-    if n <= 1 do
-      mask
-    else
-      st = Evision.Mat.to_nx(stats, Nx.BinaryBackend)
-      {x, y, bw, bh} = {st[[.., 0]], st[[.., 1]], st[[.., 2]], st[[.., 3]]}
-
-      touches =
-        Nx.equal(x, 0)
-        |> Nx.logical_or(Nx.equal(y, 0))
-        |> Nx.logical_or(Nx.equal(Nx.add(x, bw), w))
-        |> Nx.logical_or(Nx.equal(Nx.add(y, bh), h))
-
-      hole =
-        touches
-        |> Nx.logical_not()
-        |> Nx.as_type(:u8)
-        |> Nx.put_slice([0], Nx.tensor([0], type: {:u, 8}))
-
-      lbls_nx = lbls |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.as_type(:s64)
-      Nx.logical_or(mask, hole |> Nx.take(lbls_nx) |> Nx.greater(0))
-    end
-  end
-
-  # ── conversões Lab/gray + morfologia (máscara booleana ↔ Evision) ──
-  defp to_lab(rgb) do
-    rgb
-    |> Evision.Mat.from_nx_2d()
-    |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2Lab())
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
-    |> Nx.as_type(:f32)
-  end
-
-  defp to_gray(rgb) do
-    rgb
-    |> Evision.Mat.from_nx_2d()
-    |> Evision.cvtColor(Evision.Constant.cv_COLOR_RGB2GRAY())
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
-    |> Nx.as_type(:f32)
-  end
-
-  defp box_blur(nxf) do
-    nxf
-    |> Evision.Mat.from_nx_2d()
-    |> Evision.blur({@tex_window, @tex_window})
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
-  end
-
   defp false_like(t), do: Nx.broadcast(Nx.tensor(false), Nx.shape(t))
   defp empty_u8(h, w), do: Nx.broadcast(Nx.u8(0), {h, w})
   defp to_u8(m), do: m |> Nx.multiply(255) |> Nx.as_type(:u8)
-  defp to_mat(m), do: m |> Nx.multiply(255) |> Nx.as_type(:u8) |> Evision.Mat.from_nx()
-  defp of_mat(mat), do: mat |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.greater(0)
-  defp dilate_b(m, k), do: of_mat(Evision.dilate(to_mat(m), k))
-
-  defp close_b(m, k),
-    do: of_mat(Evision.morphologyEx(to_mat(m), Evision.Constant.cv_MORPH_CLOSE(), k))
-
-  defp ellipse(s) do
-    k = max(s, 1)
-    Evision.getStructuringElement(Evision.Constant.cv_MORPH_ELLIPSE(), {k, k})
-  end
 end
