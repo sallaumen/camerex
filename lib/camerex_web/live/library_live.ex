@@ -668,6 +668,10 @@ defmodule CamerexWeb.LibraryLive do
             <% end %>
           </section>
 
+          <%= if hero = featured(assigns) do %>
+            <.hero_card item={hero} />
+          <% end %>
+
           <.filter_bar
             :if={@items != []}
             query={@query}
@@ -824,6 +828,22 @@ defmodule CamerexWeb.LibraryLive do
     %{items: items, query: query, status_filter: status} = socket.assigns
     assign(socket, :visible_items, filter_items(items, query, status))
   end
+
+  # destaque da última conversão: 1º item :done (items vêm recente-primeiro), só na
+  # biblioteca "pura" — sem painel aberto nem filtro ativo. nil = não renderiza o herói.
+  defp featured(
+         %{
+           current_item: nil,
+           reconvert_item: nil,
+           convert_open: false,
+           query: "",
+           status_filter: ""
+         } = assigns
+       ) do
+    Enum.find(assigns.items, &(&1["status"] == "done"))
+  end
+
+  defp featured(_assigns), do: nil
 
   defp filter_items(items, query, status) do
     needle = fold(query)

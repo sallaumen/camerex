@@ -74,6 +74,65 @@ defmodule CamerexWeb.LibraryComponents do
     """
   end
 
+  attr :item, :map, required: true, doc: "último item :done — destaque da última conversão"
+
+  @doc """
+  Card-herói: vitrine da última conversão pronta, no topo da biblioteca. Resultado neon
+  em destaque com inset do \"antes\" + pílula; à direita badge, título serif, barras de
+  parâmetro (read-only) e ações Baixar/Abrir. Reusa status_badge/param_bar/btn do kit.
+  """
+  def hero_card(assigns) do
+    ~H"""
+    <section id="hero" class="neon-card overflow-hidden p-0">
+      <div class="grid gap-0 lg:grid-cols-[1.55fr_1fr]">
+        <div class="relative bg-cx-well">
+          <img
+            src={Workspace.versioned_media_url(@item, "thumb_neon.jpg")}
+            alt={"última conversão — #{@item["original_filename"]} (neon)"}
+            class="aspect-[16/10] w-full object-cover"
+          />
+          <span class="neon-badge badge-done absolute right-3 top-3">depois · neon</span>
+          <img
+            src={Workspace.versioned_media_url(@item, "thumb.jpg")}
+            alt=""
+            class="absolute bottom-3 left-3 h-20 w-28 rounded border border-cx-text/20 object-cover shadow-lg"
+          />
+        </div>
+
+        <div class="flex flex-col gap-3 p-5">
+          <div class="flex items-center gap-2 text-xs">
+            <.status_badge status={@item["status"]} />
+            <span class="font-mono text-cx-text-faint">última conversão</span>
+          </div>
+
+          <h2 class="truncate font-serif text-2xl font-medium" title={@item["original_filename"]}>
+            {@item["original_filename"]}
+          </h2>
+
+          <div :if={@item["params"]} class="space-y-2">
+            <.param_bar label="halo" value={@item["params"]["halo"]} max={1.0} />
+            <.param_bar label="rastro" value={@item["params"]["trail"]} max={0.95} />
+            <.param_bar label="detalhe" value={@item["params"]["detail"]} max={1.0} />
+          </div>
+
+          <div class="mt-auto flex flex-wrap items-center gap-2">
+            <.btn
+              variant="primary"
+              href={Workspace.versioned_media_url(@item, @item["output_file"])}
+              download={@item["output_file"]}
+            >
+              Baixar
+            </.btn>
+            <.btn variant="secondary" phx-click="open_item" phx-value-id={@item["id"]}>
+              Abrir
+            </.btn>
+          </div>
+        </div>
+      </div>
+    </section>
+    """
+  end
+
   attr :item, :map, required: true, doc: "manifest do item"
   attr :selected, :boolean, default: false
   attr :progress, :map, default: nil, doc: "%{done, total, eta_s} quando processing"
