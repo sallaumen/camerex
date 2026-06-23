@@ -384,20 +384,31 @@ defmodule CamerexWeb.LibraryComponents do
       id="perf-dashboard"
       class="fixed inset-x-0 bottom-0 z-30 flex items-center gap-x-4 gap-y-1 overflow-x-auto border-t border-cx-border bg-cx-surface px-4 py-1.5 text-xs text-cx-text-dim"
     >
-      <span class="font-semibold">desempenho</span>
+      <span class="font-semibold" title="uso de recursos da máquina, em tempo real">desempenho</span>
       <.perf_meter label="cpu" pct={@perf.cpu_pct} />
       <.perf_meter label="ram" pct={ram_pct(@perf.mem)} note={ram_note(@perf.mem)} />
-      <span class="hidden whitespace-nowrap sm:inline">
+      <span
+        class="hidden whitespace-nowrap sm:inline"
+        title="memória usada agora pela máquina virtual do Elixir (BEAM)"
+      >
         beam <span class="text-cx-text tabular-nums">{@perf.beam_mb} MB</span>
       </span>
-      <span class="hidden whitespace-nowrap md:inline">{@perf.schedulers} cores</span>
+      <span class="hidden whitespace-nowrap md:inline" title="núcleos de CPU desta máquina">
+        {@perf.schedulers} cores
+      </span>
 
       <form
         id="frame-concurrency-form"
         phx-change="set_frame_concurrency"
         class="ml-auto flex items-center gap-2"
       >
-        <label for="frame-concurrency" class="whitespace-nowrap">threads/frame</label>
+        <label
+          for="frame-concurrency"
+          class="whitespace-nowrap"
+          title="threads que cada vídeo usa para processar um frame (paralelismo interno de uma conversão, diferente de quantas conversões rodam juntas)"
+        >
+          threads/frame
+        </label>
         <input
           type="number"
           id="frame-concurrency"
@@ -463,9 +474,12 @@ defmodule CamerexWeb.LibraryComponents do
     <div
       :if={@summary.processing > 0 or @summary.queued > 0}
       id="jobs-indicator"
-      class="flex items-center gap-2 rounded-full border border-cx-teal bg-cx-surface px-3 py-1 text-sm"
+      class="flex items-center gap-2 rounded-full border border-cx-teal bg-cx-surface py-1 pl-3 pr-1 text-sm"
     >
-      <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-cx-teal"></span>
+      <span class={[
+        "inline-block h-2 w-2 rounded-full bg-cx-teal",
+        not @summary.paused && "animate-pulse"
+      ]}></span>
       <span class="text-cx-text">
         {@summary.processing} processando<span
           :if={@summary.queued > 0}
@@ -477,6 +491,20 @@ defmodule CamerexWeb.LibraryComponents do
           @summary.eta_s
         )}</span>
       </span>
+      <span :if={@summary.paused} class="font-medium text-cx-warning">· pausada</span>
+      <button
+        type="button"
+        phx-click="toggle_queue_pause"
+        title={
+          if @summary.paused,
+            do: "retomar: volta a despachar a fila",
+            else: "pausar: não inicia novas conversões; as que já rodam terminam"
+        }
+        aria-label={if @summary.paused, do: "retomar a fila", else: "pausar a fila"}
+        class="ml-0.5 rounded-full px-2 py-0.5 text-xs text-cx-text-dim transition hover:bg-cx-elevated hover:text-cx-teal"
+      >
+        {if @summary.paused, do: "retomar", else: "pausar"}
+      </button>
     </div>
     """
   end

@@ -69,9 +69,34 @@ defmodule Camerex.JobsTest do
     assert %{concurrency: 2} = Jobs.state(jobs)
     assert Camerex.Settings.get("concurrency", 3) == 2
 
-    # clamp 1..6
+    # clamp 1..16
     assert :ok = Jobs.set_concurrency(99, jobs)
-    assert %{concurrency: 6} = Jobs.state(jobs)
+    assert %{concurrency: 16} = Jobs.state(jobs)
+  end
+
+  test "pausar segura a fila: o que roda termina, o próximo só inicia ao retomar",
+       %{jobs: jobs, tmp: tmp} do
+    :ok = Jobs.set_concurrency(1, jobs)
+    a = create_photo_item!(tmp)
+    b = create_photo_item!(tmp)
+
+    :ok = Jobs.enqueue(a, jobs)
+    assert_receive {:pipeline_started, ^a, pid_a}
+
+    :ok = Jobs.enqueue(b, jobs)
+    assert %{queue: [^b]} = Jobs.state(jobs)
+
+    # pausada: ao terminar A, B NÃO deve iniciar
+    :ok = Jobs.set_paused(true, jobs)
+    assert %{paused: true} = Jobs.state(jobs)
+    send(pid_a, {:finish, :ok})
+
+    wait_until(fn -> match?(%{running: [], queue: [^b]}, Jobs.state(jobs)) end)
+    refute_receive {:pipeline_started, ^b, _}, 200
+
+    # retomar despacha B
+    :ok = Jobs.set_paused(false, jobs)
+    assert_receive {:pipeline_started, ^b, _}
   end
 
   test "pool: com concorrência 2, dois jobs rodam juntos e o terceiro espera",

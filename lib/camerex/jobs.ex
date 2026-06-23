@@ -1,7 +1,9 @@
 defmodule Camerex.Jobs do
   @moduledoc """
   Pool de conversões com fila FIFO: até `concurrency` jobs simultâneos
-  (default 3, ajustável 1..6 e persistido nas Settings).
+  (default 3, ajustável 1..16 e persistido nas Settings). A fila pode ser
+  pausada (`set_paused/1`): os jobs rodando seguem até o fim, mas nenhum novo
+  é despachado enquanto pausada — estado transitório (não persiste no boot).
 
   Cada job roda via Task.Supervisor.async_nolink — um crash do pipeline não
   derruba este GenServer nem o app; o DOWN anormal é tratado por ref e vira
@@ -16,7 +18,7 @@ defmodule Camerex.Jobs do
 
   @progress_throttle_ms 250
   @default_concurrency 3
-  @concurrency_range 1..6
+  @concurrency_range 1..16
 
   ## API
 
@@ -34,7 +36,8 @@ defmodule Camerex.Jobs do
   @spec state() :: %{
           running: [%{item_id: String.t(), progress: map()}],
           queue: [String.t()],
-          concurrency: pos_integer()
+          concurrency: pos_integer(),
+          paused: boolean()
         }
   def state, do: state(__MODULE__)
 
@@ -50,10 +53,11 @@ defmodule Camerex.Jobs do
           queued: non_neg_integer(),
           done: non_neg_integer(),
           total: non_neg_integer(),
-          eta_s: number() | nil
+          eta_s: number() | nil,
+          paused: boolean()
         }
   def summary do
-    %{running: running, queue: queue} = state()
+    %{running: running, queue: queue, paused: paused} = state()
     progs = running |> Enum.map(& &1.progress) |> Enum.filter(&(&1.total > 0))
 
     %{
@@ -61,16 +65,27 @@ defmodule Camerex.Jobs do
       queued: length(queue),
       done: progs |> Enum.map(& &1.done) |> Enum.sum(),
       total: progs |> Enum.map(& &1.total) |> Enum.sum(),
-      eta_s: progs |> Enum.map(& &1.eta_s) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
+      eta_s: progs |> Enum.map(& &1.eta_s) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end),
+      paused: paused
     }
   end
 
-  @doc "Ajusta o tamanho do pool (1..6, com clamp) e persiste nas Settings."
+  @doc "Ajusta o tamanho do pool (1..16, com clamp) e persiste nas Settings."
   @spec set_concurrency(integer()) :: :ok
   def set_concurrency(n), do: set_concurrency(n, __MODULE__)
 
   @doc false
   def set_concurrency(n, server), do: GenServer.call(server, {:set_concurrency, n})
+
+  @doc """
+  Pausa (true) ou retoma (false) o despacho da fila. Jobs em andamento seguem;
+  pausada, nenhum novo é iniciado. Transitório (não persiste entre reinícios).
+  """
+  @spec set_paused(boolean()) :: :ok
+  def set_paused(paused), do: set_paused(paused, __MODULE__)
+
+  @doc false
+  def set_paused(paused, server), do: GenServer.call(server, {:set_paused, paused})
 
   @spec subscribe() :: :ok
   def subscribe, do: Phoenix.PubSub.subscribe(Camerex.PubSub, "jobs")
@@ -89,7 +104,8 @@ defmodule Camerex.Jobs do
        queue: :queue.new(),
        # ref da Task => %{item_id, progress, started_at_ms, last_broadcast_ms}
        running: %{},
-       concurrency: Settings.get("concurrency", @default_concurrency)
+       concurrency: Settings.get("concurrency", @default_concurrency),
+       paused: false
      }}
   end
 
@@ -114,8 +130,12 @@ defmodule Camerex.Jobs do
       |> Enum.map(&Map.take(&1, [:item_id, :progress]))
 
     {:reply,
-     %{running: running, queue: :queue.to_list(state.queue), concurrency: state.concurrency},
-     state}
+     %{
+       running: running,
+       queue: :queue.to_list(state.queue),
+       concurrency: state.concurrency,
+       paused: state.paused
+     }, state}
   end
 
   def handle_call({:set_concurrency, n}, _from, state) do
@@ -123,6 +143,13 @@ defmodule Camerex.Jobs do
     :ok = Settings.put("concurrency", concurrency)
 
     state = %{state | concurrency: concurrency} |> fill_pool()
+    broadcast_jobs_changed()
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:set_paused, paused}, _from, state) do
+    # retomar (paused=false) re-despacha a fila; pausar só impede novos starts
+    state = %{state | paused: paused} |> fill_pool()
     broadcast_jobs_changed()
     {:reply, :ok, state}
   end
@@ -164,7 +191,9 @@ defmodule Camerex.Jobs do
     end)
   end
 
-  # preenche o pool até a concorrência configurada
+  # preenche o pool até a concorrência configurada (a não ser que esteja pausada)
+  defp fill_pool(%{paused: true} = state), do: state
+
   defp fill_pool(%{running: running, concurrency: c} = state) when map_size(running) >= c do
     state
   end

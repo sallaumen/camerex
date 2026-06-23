@@ -515,6 +515,11 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply, assign(socket, :concurrency, concurrency)}
   end
 
+  def handle_event("toggle_queue_pause", _params, socket) do
+    :ok = Jobs.set_paused(not socket.assigns.jobs_summary.paused)
+    {:noreply, assign(socket, :jobs_summary, Jobs.summary())}
+  end
+
   # threads/frame do vídeo: persiste (clamp em Video) e ecoa o valor aplicado;
   # entrada inválida mantém o atual
   def handle_event("set_frame_concurrency", %{"frame_concurrency" => n}, socket) do
@@ -613,14 +618,24 @@ defmodule CamerexWeb.LibraryLive do
           </div>
 
           <form id="concurrency-form" phx-change="set_concurrency" class="text-sm">
-            <label class="text-xs font-semibold text-cx-text-dim">
-              jobs em paralelo
+            <label
+              class="text-xs font-semibold text-cx-text-dim"
+              title="quantas fotos/vídeos são convertidos ao mesmo tempo. Mais = termina antes, porém usa mais CPU e memória."
+            >
+              conversões simultâneas
             </label>
             <select
               name="concurrency"
+              aria-label="conversões simultâneas (quantas rodam ao mesmo tempo)"
               class="mt-1 w-full rounded border border-cx-border bg-cx-bg px-2 py-1.5"
             >
-              <option :for={n <- 1..6} value={n} selected={n == @concurrency}>{n}</option>
+              <option
+                :for={n <- concurrency_options(@concurrency)}
+                value={n}
+                selected={n == @concurrency}
+              >
+                {n}
+              </option>
             </select>
           </form>
         </aside>
@@ -861,6 +876,12 @@ defmodule CamerexWeb.LibraryLive do
   end
 
   defp featured(_assigns), do: nil
+
+  # opções do select de concorrência: degraus úteis + o valor atual (caso seja um
+  # ímpar antigo fora dos degraus), sempre ordenado e sem repetir
+  defp concurrency_options(current) do
+    [1, 2, 3, 4, 5, 6, 8, 12, 16, current] |> Enum.uniq() |> Enum.sort()
+  end
 
   defp filter_items(items, query, status) do
     needle = fold(query)

@@ -29,7 +29,7 @@ defmodule CamerexWeb.JobsIndicatorTest do
     test "mostra contagens + frames + ETA quando há jobs" do
       html =
         render_component(&LibraryComponents.jobs_indicator/1,
-          summary: %{processing: 1, queued: 2, done: 340, total: 622, eta_s: 180.0}
+          summary: %{processing: 1, queued: 2, done: 340, total: 622, eta_s: 180.0, paused: false}
         )
 
       assert html =~ "jobs-indicator"
@@ -42,7 +42,7 @@ defmodule CamerexWeb.JobsIndicatorTest do
     test "ETA em segundos quando < 1min" do
       html =
         render_component(&LibraryComponents.jobs_indicator/1,
-          summary: %{processing: 1, queued: 0, done: 10, total: 20, eta_s: 45.0}
+          summary: %{processing: 1, queued: 0, done: 10, total: 20, eta_s: 45.0, paused: false}
         )
 
       assert html =~ "~45s"
@@ -52,10 +52,29 @@ defmodule CamerexWeb.JobsIndicatorTest do
     test "some quando ocioso (0 processando, 0 na fila)" do
       html =
         render_component(&LibraryComponents.jobs_indicator/1,
-          summary: %{processing: 0, queued: 0, done: 0, total: 0, eta_s: nil}
+          summary: %{processing: 0, queued: 0, done: 0, total: 0, eta_s: nil, paused: false}
         )
 
       refute html =~ "jobs-indicator"
+    end
+
+    test "oferece pausar quando rodando; retomar + 'pausada' quando pausado" do
+      rodando =
+        render_component(&LibraryComponents.jobs_indicator/1,
+          summary: %{processing: 1, queued: 2, done: 0, total: 0, eta_s: nil, paused: false}
+        )
+
+      assert rodando =~ "toggle_queue_pause"
+      assert rodando =~ "pausar"
+      refute rodando =~ "pausada"
+
+      pausado =
+        render_component(&LibraryComponents.jobs_indicator/1,
+          summary: %{processing: 0, queued: 2, done: 0, total: 0, eta_s: nil, paused: true}
+        )
+
+      assert pausado =~ "retomar"
+      assert pausado =~ "pausada"
     end
   end
 

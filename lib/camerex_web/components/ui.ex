@@ -308,13 +308,14 @@ defmodule CamerexWeb.UI do
   attr :min, :any, required: true
   attr :max, :any, required: true
   attr :step, :any, default: "0.05"
+  attr :title, :string, default: nil, doc: "tooltip explicando o que o controle faz"
 
   def slider(assigns) do
     pct = round((assigns.value - assigns.min) / (assigns.max - assigns.min) * 100)
     assigns = assign(assigns, :pct, pct)
 
     ~H"""
-    <label class="block space-y-1.5">
+    <label class="block space-y-1.5" title={@title}>
       <span class="flex items-baseline justify-between gap-2">
         <span class="text-sm text-cx-text">{@label}</span>
         <span class="font-mono text-xs tabular-nums text-cx-teal">{@value}</span>

@@ -136,10 +136,18 @@ defmodule CamerexWeb.ConvertPanel do
             </div>
 
             <.section title="Luz e contorno">
-              <.slider name="halo" label="halo" value={@render_params.halo} min={0.0} max={1.0} />
+              <.slider
+                name="halo"
+                label="halo"
+                title="brilho suave em volta do contorno neon"
+                value={@render_params.halo}
+                min={0.0}
+                max={1.0}
+              />
               <.slider
                 name="bloom"
                 label="brilho atmosférico"
+                title="brilho difuso que vaza pela cena, como uma névoa de luz"
                 value={@render_params.bloom}
                 min={0.0}
                 max={1.0}
@@ -148,6 +156,7 @@ defmodule CamerexWeb.ConvertPanel do
                 :if={not photo_reconvert?(@reconvert_item)}
                 name="trail"
                 label="rastro"
+                title="rastro do movimento entre quadros (aparece só no vídeo final)"
                 value={@render_params.trail}
                 min={0.0}
                 max={0.95}
@@ -155,6 +164,7 @@ defmodule CamerexWeb.ConvertPanel do
               <.slider
                 name="detail"
                 label="detalhe"
+                title="quão fino é o traço do contorno — mais detalhe = mais linhas"
                 value={@render_params.detail}
                 min={0.0}
                 max={1.0}
