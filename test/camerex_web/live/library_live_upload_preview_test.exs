@@ -93,7 +93,7 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
     assert [%{"original_filename" => "foto.jpg"}] = Camerex.Workspace.list_items()
   end
 
-  test "toggle de pele do torço nu: liga o sub-bloco de sensibilidade (sem conta-gotas)",
+  test "toggle de pele do torso nu: liga o sub-bloco de sensibilidade (sem conta-gotas)",
        %{conn: conn, jpg: jpg} do
     {:ok, lv, _html} = live(conn, "/")
     lv |> element("#new-conversion") |> render_click()
@@ -107,11 +107,11 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
     assert poll_calib_img(lv)
 
     # o toggle existe desde o início; o sub-bloco (slider) só com a camada ligada
-    assert render(lv) =~ "pele do torço nu"
-    refute render(lv) =~ "sensibilidade da pele"
+    assert render(lv) =~ "Pele do torso nu"
+    refute render(lv) =~ "Sensibilidade da pele"
 
     html = lv |> form("#convert-form", %{"detect_skin" => "true"}) |> render_change()
-    assert html =~ "sensibilidade da pele"
+    assert html =~ "Sensibilidade da pele"
     # pele aprende a cor sozinha → NÃO tem picker de cor nem conta-gotas
     refute html =~ ~s(name="skin_color")
   end
@@ -132,12 +132,12 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
     lv |> form("#convert-form", %{"detect_hair" => "true"}) |> render_change()
 
     html = render(lv)
-    assert html =~ "pegar cor do cabelo na foto"
+    assert html =~ "Pegar cor do cabelo"
     assert html =~ ~s(phx-hook="EyedropHair")
     refute html =~ "cursor-crosshair"
 
     # arma: a img da prévia vira alvo (cursor-crosshair + data-armed)
-    armed = lv |> element("button", "pegar cor do cabelo na foto") |> render_click()
+    armed = lv |> element("button", "Pegar cor do cabelo") |> render_click()
     assert armed =~ ~s(data-armed="true")
     assert armed =~ "cursor-crosshair"
 

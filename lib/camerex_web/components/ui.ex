@@ -335,17 +335,21 @@ defmodule CamerexWeb.UI do
     """
   end
 
-  @doc "Switch on/off (`.cx-switch`) com o par hidden+checkbox que o form precisa + hint opcional."
+  @doc """
+  Switch on/off (`.cx-switch`) com o par hidden+checkbox que o form precisa.
+  `title` vira tooltip (detalhe no hover); `hint` (curto) ainda aparece abaixo.
+  """
   attr :name, :string, required: true
   attr :label, :string, required: true
   attr :checked, :boolean, required: true
   attr :id, :string, default: nil
   attr :hint, :string, default: nil
+  attr :title, :string, default: nil, doc: "tooltip explicando o que a camada faz"
 
   def toggle(assigns) do
     ~H"""
     <div>
-      <label id={@id} class="flex cursor-pointer items-center gap-3">
+      <label id={@id} title={@title} class="flex cursor-pointer items-center gap-3">
         <input type="hidden" name={@name} value="false" />
         <input type="checkbox" name={@name} value="true" checked={@checked} class="cx-switch" />
         <span class="text-sm text-cx-text">{@label}</span>

@@ -6,13 +6,16 @@ defmodule CamerexWeb.ConvertPanel do
   (`reconvert_item`) o submit reaplica os ajustes ao item existente em vez de
   criar um novo.
 
-  Os controles vêm de um kit próprio (`slider/1`, `toggle/1`, `swatch/1`,
+  Os controles vêm do kit `CamerexWeb.UI` (`slider/1`, `toggle/1`, `swatch/1`,
   `section/1`) estilizado em `app.css` (`.cx-range`, `.cx-switch`, `.cx-swatch`)
   — nada de range/checkbox/color nativos do browser, que destoavam do tema.
+  Textos seguem a convenção do tema: rótulo curto em maiúscula inicial + o
+  detalhe num `title` (tooltip), em vez de parágrafos longos inline.
   """
 
   use Phoenix.Component
 
+  import CamerexWeb.CoreComponents, only: [icon: 1]
   import CamerexWeb.UI
 
   alias Camerex.Parser.Layers
@@ -138,16 +141,16 @@ defmodule CamerexWeb.ConvertPanel do
             <.section title="Luz e contorno">
               <.slider
                 name="halo"
-                label="halo"
-                title="brilho suave em volta do contorno neon"
+                label="Halo"
+                title="Brilho suave em volta do contorno neon."
                 value={@render_params.halo}
                 min={0.0}
                 max={1.0}
               />
               <.slider
                 name="bloom"
-                label="brilho atmosférico"
-                title="brilho difuso que vaza pela cena, como uma névoa de luz"
+                label="Brilho atmosférico"
+                title="Brilho difuso que vaza pela cena, como uma névoa de luz."
                 value={@render_params.bloom}
                 min={0.0}
                 max={1.0}
@@ -155,16 +158,16 @@ defmodule CamerexWeb.ConvertPanel do
               <.slider
                 :if={not photo_reconvert?(@reconvert_item)}
                 name="trail"
-                label="rastro"
-                title="rastro do movimento entre quadros (aparece só no vídeo final)"
+                label="Rastro"
+                title="Rastro do movimento entre quadros (aparece só no vídeo final)."
                 value={@render_params.trail}
                 min={0.0}
                 max={0.95}
               />
               <.slider
                 name="detail"
-                label="detalhe"
-                title="quão fino é o traço do contorno — mais detalhe = mais linhas"
+                label="Detalhe"
+                title="Quão fino é o traço do contorno — mais detalhe, mais linhas."
                 value={@render_params.detail}
                 min={0.0}
                 max={1.0}
@@ -179,7 +182,7 @@ defmodule CamerexWeb.ConvertPanel do
                     :for={group <- base_groups()}
                     name={"layer_#{group.key}"}
                     value={Layers.hex(Map.get(@render_params.layer_colors, group.key, group.default))}
-                    label={group.label}
+                    label={cap(group.label)}
                     aria={"cor da camada #{group.label}"}
                   />
                 </div>
@@ -190,7 +193,7 @@ defmodule CamerexWeb.ConvertPanel do
                   phx-value-modal="colors_json"
                   class="text-sm text-cx-teal underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-cx-teal"
                 >
-                  editar todas as cores como JSON
+                  Editar todas as cores como JSON
                 </button>
               </div>
             </.section>
@@ -200,9 +203,9 @@ defmodule CamerexWeb.ConvertPanel do
                 <.toggle
                   id="object-toggle"
                   name="detect_object"
-                  label="objeto/instrumento na mão"
+                  label="Objeto na mão"
+                  title="Destaca o que a pessoa segura — instrumento, microfone — com um segundo modelo (U²-Net)."
                   checked={@render_params.detect_object}
-                  hint="usa um 2º modelo (U²-Net) p/ o que a pessoa segura — instrumento, microfone…"
                 />
                 <div :if={@render_params.detect_object} class="pl-12">
                   <.swatch
@@ -213,7 +216,7 @@ defmodule CamerexWeb.ConvertPanel do
                         Map.get(@render_params.layer_colors, :object, object_group().default)
                       )
                     }
-                    label={object_group().label}
+                    label={cap(object_group().label)}
                     aria={"cor da camada #{object_group().label}"}
                   />
                 </div>
@@ -223,13 +226,14 @@ defmodule CamerexWeb.ConvertPanel do
                 <.toggle
                   id="aerial-toggle"
                   name="detect_aerial"
-                  label="acrobacia aérea (tecido)"
+                  label="Acrobacia aérea (tecido)"
+                  title="Destaca o tecido vertical (silk) que a pessoa escala, como uma camada própria."
                   checked={@render_params.detect_aerial}
-                  hint="destaca o tecido vertical (silk) que a pessoa escala, como camada própria"
                 />
                 <div :if={@render_params.detect_aerial} class="space-y-2 pl-12">
                   <label
                     id="aerial-photo-color"
+                    title="A cor real do tecido na foto original, para o detector localizá-lo."
                     class="flex items-center gap-2.5 text-sm text-cx-text"
                   >
                     <input
@@ -240,23 +244,16 @@ defmodule CamerexWeb.ConvertPanel do
                       aria-label="cor real do tecido na foto"
                       class="cx-swatch"
                     />
-                    <span>
-                      cor do tecido na foto
-                      <span class="text-xs text-cx-text-dim">(pra achá-lo)</span>
-                    </span>
+                    <span>Cor do tecido na foto</span>
                   </label>
                   <.slider
                     name="aerial_sensitivity"
-                    label="sensibilidade do tecido"
+                    label="Sensibilidade do tecido"
+                    title="Mais alto pega mais tecido (e mais risco de mancha); mais baixo fica limpo. Tecido vívido sobre fundo da mesma cor pede valor baixo; tecido sutil sobre fundo limpo pede alto."
                     value={@render_params.aerial_sensitivity}
                     min={0.0}
                     max={1.0}
                   />
-                  <p class="text-xs text-cx-text-dim">
-                    mais alto pega mais tecido (e mais risco de mancha); mais baixo fica
-                    limpo. tecido vívido colado em fundo da mesma cor pede valor baixo;
-                    tecido sutil em fundo limpo pede alto.
-                  </p>
                   <.swatch
                     id="aerial-color"
                     name={"layer_#{apparatus_group().key}"}
@@ -265,7 +262,7 @@ defmodule CamerexWeb.ConvertPanel do
                         Map.get(@render_params.layer_colors, :apparatus, apparatus_group().default)
                       )
                     }
-                    label={apparatus_group().label}
+                    label={cap(apparatus_group().label)}
                     aria={"cor da camada #{apparatus_group().label}"}
                   />
                 </div>
@@ -275,13 +272,14 @@ defmodule CamerexWeb.ConvertPanel do
                 <.toggle
                   id="hair-toggle"
                   name="detect_hair"
-                  label="resgatar cabelo (poses difíceis)"
+                  label="Resgatar cabelo"
+                  title="Quando o detector não acha a cabeça (pose aérea ou de costas), localiza o cabelo pela cor que você indicar."
                   checked={@render_params.detect_hair}
-                  hint="quando o detector de partes não acha a cabeça (pose aérea, de costas), acha o cabelo pela cor que você indicar"
                 />
                 <div :if={@render_params.detect_hair} class="space-y-2 pl-12">
                   <label
                     id="hair-photo-color"
+                    title="A cor real do cabelo na foto original, para o detector localizá-lo."
                     class="flex items-center gap-2.5 text-sm text-cx-text"
                   >
                     <input
@@ -292,32 +290,26 @@ defmodule CamerexWeb.ConvertPanel do
                       aria-label="cor real do cabelo na foto"
                       class="cx-swatch"
                     />
-                    <span>
-                      cor do cabelo na foto
-                      <span class="text-xs text-cx-text-dim">(pra achá-lo)</span>
-                    </span>
+                    <span>Cor do cabelo na foto</span>
                   </label>
                   <.btn
                     :if={@calib_url}
                     variant={if @eyedrop_armed, do: "primary", else: "secondary"}
                     size="sm"
                     phx-click="toggle_eyedrop"
+                    title="Clique num ponto do cabelo na prévia para capturar a cor exata."
                   >
-                    {if @eyedrop_armed,
-                      do: "🎯 clique no cabelo na prévia…",
-                      else: "🎯 pegar cor do cabelo na foto"}
+                    <.icon name="hero-eye-dropper" class="size-4" />
+                    {if @eyedrop_armed, do: "Clique no cabelo na prévia…", else: "Pegar cor do cabelo"}
                   </.btn>
                   <.slider
                     name="hair_sensitivity"
-                    label="sensibilidade do cabelo"
+                    label="Sensibilidade do cabelo"
+                    title="Mais alto resgata mais cabelo (e mais risco de pegar fundo parecido); mais baixo fica conservador. Use quando a cabeça some em pose aérea ou de costas."
                     value={@render_params.hair_sensitivity}
                     min={0.0}
                     max={1.0}
                   />
-                  <p class="text-xs text-cx-text-dim">
-                    mais alto resgata mais cabelo (e mais risco de pegar fundo parecido); mais
-                    baixo fica conservador. use quando a cabeça some em pose aérea ou de costas.
-                  </p>
                 </div>
               </div>
 
@@ -325,22 +317,19 @@ defmodule CamerexWeb.ConvertPanel do
                 <.toggle
                   id="skin-toggle"
                   name="detect_skin"
-                  label="pele do torço nu"
+                  label="Pele do torso nu"
+                  title="Quando a pessoa está sem a parte de cima, re-rotula costas e tronco (que o detector pinta como roupa) de volta como pele, aprendendo a cor dos braços e pernas."
                   checked={@render_params.detect_skin}
-                  hint="quando a pessoa está sem a parte de cima, re-rotula as costas/tronco (que o detector pinta como roupa) de volta como pele — aprende a cor sozinho dos braços e pernas"
                 />
                 <div :if={@render_params.detect_skin} class="space-y-2 pl-12">
                   <.slider
                     name="skin_sensitivity"
-                    label="sensibilidade da pele"
+                    label="Sensibilidade da pele"
+                    title="Mais alto re-rotula mais roupa como pele (risco de pegar a calça); mais baixo fica conservador. Só afeta poses sem top (costas/tronco à mostra)."
                     value={@render_params.skin_sensitivity}
                     min={0.0}
                     max={1.0}
                   />
-                  <p class="text-xs text-cx-text-dim">
-                    mais alto re-rotula mais roupa como pele (risco de pegar a calça); mais
-                    baixo fica conservador. só faz diferença em pose sem top (costas/tronco à mostra).
-                  </p>
                 </div>
               </div>
 
@@ -348,20 +337,23 @@ defmodule CamerexWeb.ConvertPanel do
                 <.toggle
                   id="fill-toggle"
                   name="fill"
-                  label="preencher as partes"
+                  label="Preencher as partes"
+                  title="Pinta o interior das partes detectadas, não apenas o contorno."
                   checked={@render_params.fill}
                 />
                 <div :if={@render_params.fill} class="space-y-3 pl-12">
                   <.slider
                     name="fill_color"
-                    label="opacidade da cor"
+                    label="Opacidade da cor"
+                    title="Quão sólida é a cor preenchida sobre cada parte."
                     value={@render_params.fill_color}
                     min={0.0}
                     max={1.0}
                   />
                   <.slider
                     name="fill_texture"
-                    label="textura da foto"
+                    label="Textura da foto"
+                    title="Quanto da textura da foto original aparece no preenchimento."
                     value={@render_params.fill_texture}
                     min={0.0}
                     max={1.0}
@@ -374,18 +366,18 @@ defmodule CamerexWeb.ConvertPanel do
               <div id="background-controls" class="space-y-2">
                 <.slider
                   name="bg_opacity"
-                  label="opacidade do fundo"
+                  label="Opacidade do fundo"
+                  title="A foto original aparece atenuada atrás do neon."
                   value={@render_params.bg_opacity}
                   min={0.0}
                   max={1.0}
                 />
-                <p class="text-xs text-cx-text-dim">a foto original aparece atenuada atrás do neon</p>
                 <.toggle
                   id="transparent-toggle"
                   name="transparent_bg"
-                  label="fundo transparente"
+                  label="Fundo transparente"
+                  title="Remove o fundo por completo. Disponível só para foto/PNG."
                   checked={@render_params.transparent_bg}
-                  hint="só foto/PNG"
                 />
               </div>
 
@@ -393,14 +385,15 @@ defmodule CamerexWeb.ConvertPanel do
                 <.toggle
                   id="floor-toggle"
                   name="floor"
-                  label="luz no chão sob os pés"
+                  label="Luz no chão"
+                  title="Brilho refletido no chão, sob os pés."
                   checked={@render_params.floor}
                 />
                 <div :if={@render_params.floor} id="floor-controls" class="space-y-3 pl-12">
-                  <.slider name="glow" label="brilho" value={@render_params.glow} min={0.0} max={1.0} />
+                  <.slider name="glow" label="Brilho" value={@render_params.glow} min={0.0} max={1.0} />
                   <.slider
                     name="spread"
-                    label="espalhamento"
+                    label="Espalhamento"
                     value={@render_params.spread}
                     min={0.0}
                     max={1.0}
@@ -418,9 +411,9 @@ defmodule CamerexWeb.ConvertPanel do
                 variant="secondary"
                 id="import-only"
                 phx-click="import_only"
-                title="só importa pra biblioteca; processa quando você quiser"
+                title="Só importa para a biblioteca; processa quando você quiser."
               >
-                só importar
+                Só importar
               </.btn>
             </div>
           </form>
@@ -492,6 +485,10 @@ defmodule CamerexWeb.ConvertPanel do
   # no-op, então some — não confunde com um controle que não faz nada.
   defp photo_reconvert?(%{"type" => "photo"}), do: true
   defp photo_reconvert?(_), do: false
+
+  # maiúscula só na 1ª letra (preserva o resto — não baixa caixa como String.capitalize/1)
+  defp cap(<<first::utf8, rest::binary>>), do: String.upcase(<<first::utf8>>) <> rest
+  defp cap(other), do: other
 
   defp submit_label(nil), do: "Converter"
   defp submit_label(%{"status" => "new"}), do: "Processar agora"

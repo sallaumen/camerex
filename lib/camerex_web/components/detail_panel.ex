@@ -129,9 +129,9 @@ defmodule CamerexWeb.DetailPanel do
       </div>
 
       <div :if={@item["params"]} id="params" class="space-y-2">
-        <.param_bar label="halo" value={@item["params"]["halo"]} max={1.0} />
-        <.param_bar label="rastro" value={@item["params"]["trail"]} max={0.95} />
-        <.param_bar label="detalhe" value={@item["params"]["detail"]} max={1.0} />
+        <.param_bar label="Halo" value={@item["params"]["halo"]} max={1.0} />
+        <.param_bar label="Rastro" value={@item["params"]["trail"]} max={0.95} />
+        <.param_bar label="Detalhe" value={@item["params"]["detail"]} max={1.0} />
       </div>
 
       <p :if={@item["error"]} id="error" class="text-sm text-cx-danger">{@item["error"]}</p>

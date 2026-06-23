@@ -111,9 +111,9 @@ defmodule CamerexWeb.LibraryComponents do
           </h2>
 
           <div :if={@item["params"]} class="space-y-2">
-            <.param_bar label="halo" value={@item["params"]["halo"]} max={1.0} />
-            <.param_bar label="rastro" value={@item["params"]["trail"]} max={0.95} />
-            <.param_bar label="detalhe" value={@item["params"]["detail"]} max={1.0} />
+            <.param_bar label="Halo" value={@item["params"]["halo"]} max={1.0} />
+            <.param_bar label="Rastro" value={@item["params"]["trail"]} max={0.95} />
+            <.param_bar label="Detalhe" value={@item["params"]["detail"]} max={1.0} />
           </div>
 
           <div class="mt-auto flex flex-wrap items-center gap-2">
