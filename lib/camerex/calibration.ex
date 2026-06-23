@@ -8,20 +8,19 @@ defmodule Camerex.Calibration do
   """
 
   alias Camerex.{Mask, Parser}
-  alias Camerex.Parser.{Apparatus, Hair, Layers, Object, Skin}
-  alias Camerex.Pipeline.{FramePreview, Photo}
+  alias Camerex.Parser.{Hair, LayerRegistry, Layers}
+  alias Camerex.Pipeline.{FramePreview, LayerRunner, Photo}
 
   @preview_width 480
 
-  # `mask` = maior componente (pessoa/objeto, do model da sessão); `fg_full` =
-  # foreground COMPLETO do `u2netp` que o tecido aéreo precisa (pega o drapeado
-  # que o u2net perde). Ambos guardados na prepare pra reusar sem rodar o U²-Net
-  # a cada ajuste de controle (a prévia ao vivo bate com o render final).
+  # `fg_cache` guarda as segmentações U²-Net que QUALQUER camada pode pedir
+  # (`{model, kind} => tensor`), pré-computadas UMA vez na prepare. Como a UI
+  # liga/desliga camadas ao vivo, o cache fica pronto pra qualquer combinação —
+  # `render_neon` recompõe a cada ajuste SEM rodar o U²-Net de novo.
   @type session :: %{
           rgb: Nx.Tensor.t(),
-          mask: Nx.Tensor.t(),
-          fg_full: Nx.Tensor.t(),
-          labels: Nx.Tensor.t() | nil
+          labels: Nx.Tensor.t() | nil,
+          fg_cache: %{{String.t(), :largest | :full} => Nx.Tensor.t()}
         }
 
   @doc """
@@ -37,14 +36,14 @@ defmodule Camerex.Calibration do
     with {:ok, rgb} <- read_rgb(path), do: prepare(rgb)
   end
 
-  @doc "Reduz a imagem e roda a segmentação única da sessão."
-  @spec prepare(Nx.Tensor.t(), String.t()) :: {:ok, session()} | {:error, term()}
-  def prepare(rgb, model \\ "u2net") do
+  @doc "Reduz a imagem e roda as segmentações da sessão (1× por {model, kind})."
+  @spec prepare(Nx.Tensor.t()) :: {:ok, session()} | {:error, term()}
+  def prepare(rgb) do
     rgb = shrink(rgb)
     segmenter = Application.fetch_env!(:camerex, :segmenter)
+    pairs = LayerRegistry.required_segmentations(LayerRegistry.all())
 
-    with {:ok, raw} <- segmenter.segment(rgb, model: model),
-         {:ok, aerial_raw} <- aerial_segment(segmenter, rgb, model, raw) do
+    with {:ok, fg_cache} <- segment_pairs(segmenter, rgb, pairs) do
       # parseia as partes (cor-por-parte é o ÚNICO modo); parser ausente → labels
       # nil e a prévia avisa que o parser está indisponível
       labels =
@@ -53,14 +52,22 @@ defmodule Camerex.Calibration do
           {:error, _} -> nil
         end
 
-      fg_full = aerial_raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
-      {:ok, %{rgb: rgb, mask: Mask.largest_component(raw), fg_full: fg_full, labels: labels}}
+      {:ok, %{rgb: rgb, labels: labels, fg_cache: fg_cache}}
     end
   end
 
-  # fg do tecido aéreo via u2netp (reusa o raw da sessão se já for u2netp)
-  defp aerial_segment(_segmenter, _rgb, "u2netp", raw), do: {:ok, raw}
-  defp aerial_segment(segmenter, rgb, _model, _raw), do: segmenter.segment(rgb, model: "u2netp")
+  # roda o segmenter 1× por {model, kind} e extrai o tensor (largest/full)
+  defp segment_pairs(segmenter, rgb, pairs) do
+    Enum.reduce_while(pairs, {:ok, %{}}, fn {model, kind}, {:ok, acc} ->
+      case segmenter.segment(rgb, model: model) do
+        {:ok, raw} -> {:cont, {:ok, Map.put(acc, {model, kind}, extract_fg(raw, kind))}}
+        {:error, _} = err -> {:halt, err}
+      end
+    end)
+  end
+
+  defp extract_fg(raw, :largest), do: Mask.largest_component(raw)
+  defp extract_fg(raw, :full), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
 
   @doc """
   Recompõe a prévia cor-por-parte com os params do painel (`%{"halo" => _,
@@ -93,29 +100,13 @@ defmodule Camerex.Calibration do
           %{mu: [float()], cov_inv: [float()]} | nil
   def learn_hair_model(%{rgb: rgb}, bbox), do: Hair.learn_model(rgb, bbox)
 
-  # cor-por-parte (único modo): precisa dos rótulos do parser
-  defp render_neon(%{rgb: rgb, mask: mask, fg_full: fg_full, labels: labels}, params)
+  # cor-por-parte (único modo): precisa dos rótulos do parser. As camadas ATIVAS
+  # reusam o `fg_cache` da sessão via o `fg_provider` — render recompõe sem rodar
+  # U²-Net por slider (mantém a prévia ao vivo em ms).
+  defp render_neon(%{rgb: rgb, labels: labels, fg_cache: fg_cache}, params)
        when labels != nil do
-    # objeto e tecido reusam o U²-Net que a sessão já tem (sem rodar de novo):
-    # objeto via maior componente, tecido via foreground completo
-    labels =
-      labels
-      |> maybe_object(params["detect_object"], mask)
-      |> maybe_hair(
-        params["detect_hair"],
-        mask,
-        rgb,
-        params["hair_model"] || params["hair_color"],
-        params["hair_sensitivity"]
-      )
-      |> maybe_aerial(
-        params["detect_aerial"],
-        fg_full,
-        rgb,
-        params["aerial_color"],
-        params["aerial_sensitivity"]
-      )
-      |> maybe_skin(params["detect_skin"], rgb, params["skin_sensitivity"])
+    fg_provider = fn pair -> Map.get(fg_cache, pair) end
+    labels = LayerRunner.run(labels, rgb, params, fg_provider: fg_provider, video?: false)
 
     opts =
       [
@@ -132,38 +123,6 @@ defmodule Camerex.Calibration do
   end
 
   defp render_neon(_session, _params), do: {:error, "parser de partes indisponível"}
-
-  defp maybe_object(labels, true, mask),
-    do: Object.into_labels(labels, Object.detect(mask, labels))
-
-  defp maybe_object(labels, _off, _mask), do: labels
-
-  # cabelo: FALLBACK por cor só quando o ATR não enxerga cabeça E há cor indicada.
-  # Reusa o `mask` da sessão (maior componente do u2net = silhueta com o cabelo).
-  defp maybe_hair(labels, true, mask, rgb, color, sens) when not is_nil(color) do
-    if Hair.present?(labels) do
-      labels
-    else
-      Hair.into_labels(labels, Hair.detect(mask, labels, rgb, color, sensitivity: sens || 0.5))
-    end
-  end
-
-  defp maybe_hair(labels, _on, _mask, _rgb, _color, _sens), do: labels
-
-  defp maybe_aerial(labels, true, fg_full, rgb, color, sens),
-    do:
-      Apparatus.into_labels(
-        labels,
-        Apparatus.detect(fg_full, labels, rgb, color, sensitivity: sens || 0.5)
-      )
-
-  defp maybe_aerial(labels, _off, _fg_full, _rgb, _color, _sens), do: labels
-
-  # pele do torço nu → pele (re-rotula roupa; por último, sem U²-Net)
-  defp maybe_skin(labels, true, rgb, sens),
-    do: Skin.into_labels(labels, Skin.detect(labels, rgb, sensitivity: sens || 0.5))
-
-  defp maybe_skin(labels, _off, _rgb, _sens), do: labels
 
   defp bg_opts(params) do
     [
