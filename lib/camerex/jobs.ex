@@ -41,6 +41,30 @@ defmodule Camerex.Jobs do
   @doc false
   def state(server), do: GenServer.call(server, :state)
 
+  @doc """
+  Agregado do pool pro indicador global: contagens + soma de frames + maior ETA
+  entre os jobs rodando (de qualquer pasta). Derivado de `state/0`.
+  """
+  @spec summary() :: %{
+          processing: non_neg_integer(),
+          queued: non_neg_integer(),
+          done: non_neg_integer(),
+          total: non_neg_integer(),
+          eta_s: number() | nil
+        }
+  def summary do
+    %{running: running, queue: queue} = state()
+    progs = running |> Enum.map(& &1.progress) |> Enum.filter(&(&1.total > 0))
+
+    %{
+      processing: length(running),
+      queued: length(queue),
+      done: progs |> Enum.map(& &1.done) |> Enum.sum(),
+      total: progs |> Enum.map(& &1.total) |> Enum.sum(),
+      eta_s: progs |> Enum.map(& &1.eta_s) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
+    }
+  end
+
   @doc "Ajusta o tamanho do pool (1..6, com clamp) e persiste nas Settings."
   @spec set_concurrency(integer()) :: :ok
   def set_concurrency(n), do: set_concurrency(n, __MODULE__)

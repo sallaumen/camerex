@@ -69,6 +69,18 @@ defmodule Camerex.DoctorTest do
     end
   end
 
+  test "problems/1: lista vazia quando ffmpeg e modelos estão ok" do
+    assert Doctor.problems(%{ffmpeg: :ok, models: :ok}) == []
+  end
+
+  test "problems/1: traduz cada erro em mensagem + comando de correção" do
+    problems =
+      Doctor.problems(%{ffmpeg: {:error, "sem ffmpeg"}, models: {:error, "modelos faltando"}})
+
+    assert %{msg: "sem ffmpeg", cmd: "brew install ffmpeg"} in problems
+    assert %{msg: "modelos faltando", cmd: "mix camerex.setup"} in problems
+  end
+
   test "models/0 declara os de segmentação (rembg) e o parser (HuggingFace)" do
     by_file = Map.new(Doctor.models(), &{&1.file, &1})
 

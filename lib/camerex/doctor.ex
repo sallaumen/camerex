@@ -44,6 +44,18 @@ defmodule Camerex.Doctor do
     %{ffmpeg: check_ffmpeg(), models: check_models(models)}
   end
 
+  @doc """
+  Problemas acionáveis (mensagem + comando de correção) derivados de um `check/0`.
+  Lista vazia quando está tudo ok. Consumido pelo banner do Doctor na UI.
+  """
+  @spec problems(result()) :: [%{msg: String.t(), cmd: String.t()}]
+  def problems(%{ffmpeg: ffmpeg, models: models}) do
+    for {result, cmd} <- [{ffmpeg, "brew install ffmpeg"}, {models, "mix camerex.setup"}],
+        {:error, msg} <- [result] do
+      %{msg: msg, cmd: cmd}
+    end
+  end
+
   @spec model_status(map(), Path.t()) :: :ok | :missing | :bad_md5
   def model_status(%{file: file, md5: md5}, dir) do
     path = Path.join(dir, file)

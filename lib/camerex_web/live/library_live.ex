@@ -14,6 +14,7 @@ defmodule CamerexWeb.LibraryLive do
   alias Camerex.{
     Calibration,
     ColorJSON,
+    Doctor,
     Jobs,
     Library,
     RenderParams,
@@ -60,7 +61,7 @@ defmodule CamerexWeb.LibraryLive do
         import_scan: nil,
         new_folder_name: "",
         perf: SystemStats.snapshot(),
-        jobs_summary: jobs_summary(),
+        jobs_summary: Jobs.summary(),
         frame_concurrency: Video.frame_concurrency(),
         colors_json: "",
         colors_json_error: nil,
@@ -74,7 +75,7 @@ defmodule CamerexWeb.LibraryLive do
         calib_ref: nil,
         progress: %{},
         subscribed_jobs: MapSet.new(),
-        doctor_problems: doctor_problems(doctor_module().check())
+        doctor_problems: Doctor.problems(doctor_module().check())
       )
       |> allow_upload(:media,
         accept: ~w(.jpg .jpeg .png .webp .mp4 .mov .m4v .webm),
@@ -109,7 +110,7 @@ defmodule CamerexWeb.LibraryLive do
   @impl true
   def handle_info({:jobs_changed}, socket) do
     {:noreply,
-     socket |> reload() |> refresh_current_item() |> assign(:jobs_summary, jobs_summary())}
+     socket |> reload() |> refresh_current_item() |> assign(:jobs_summary, Jobs.summary())}
   end
 
   def handle_info({:job_progress, id, prog}, socket) do
@@ -141,7 +142,7 @@ defmodule CamerexWeb.LibraryLive do
   # progresso de jobs em QUALQUER pasta, não só os do filtro atual) e reagenda
   def handle_info(:perf_tick, socket) do
     Process.send_after(self(), :perf_tick, @perf_interval)
-    {:noreply, assign(socket, perf: SystemStats.snapshot(), jobs_summary: jobs_summary())}
+    {:noreply, assign(socket, perf: SystemStats.snapshot(), jobs_summary: Jobs.summary())}
   end
 
   ## Navegação e seleção
@@ -850,21 +851,6 @@ defmodule CamerexWeb.LibraryLive do
     assign(socket, subscribed_jobs: MapSet.union(subscribed, new_ids))
   end
 
-  # agregado do pool pro indicador global: contagens + soma de frames + maior
-  # ETA entre os jobs rodando (de QUALQUER pasta — vem do Jobs, não do disco)
-  defp jobs_summary do
-    %{running: running, queue: queue} = Jobs.state()
-    progs = running |> Enum.map(& &1.progress) |> Enum.filter(&(&1.total > 0))
-
-    %{
-      processing: length(running),
-      queued: length(queue),
-      done: progs |> Enum.map(& &1.done) |> Enum.sum(),
-      total: progs |> Enum.map(& &1.total) |> Enum.sum(),
-      eta_s: progs |> Enum.map(& &1.eta_s) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
-    }
-  end
-
   ## Internas — conversão
 
   defp convert_upload(socket) do
@@ -1046,11 +1032,4 @@ defmodule CamerexWeb.LibraryLive do
   ## Doctor
 
   defp doctor_module, do: Application.get_env(:camerex, :doctor, Camerex.Doctor)
-
-  defp doctor_problems(%{ffmpeg: ffmpeg, models: models}) do
-    for {result, cmd} <- [{ffmpeg, "brew install ffmpeg"}, {models, "mix camerex.setup"}],
-        {:error, msg} <- [result] do
-      %{msg: msg, cmd: cmd}
-    end
-  end
 end
