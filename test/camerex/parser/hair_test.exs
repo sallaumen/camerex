@@ -143,4 +143,15 @@ defmodule Camerex.Parser.HairTest do
     # canto superior-esquerdo = fundo preto liso (sem bordas/transições)
     assert Hair.learn_model(rgb, {0.0, 0.0, 0.15, 0.15}) == nil
   end
+
+  test "learn_model/2 guarda o prior espacial (centro/σ da região marcada)" do
+    {_fg, _labels, rgb} = scene()
+    model = Hair.learn_model(rgb, {0.37, 0.22, 0.63, 0.50})
+
+    assert is_number(model.cx) and is_number(model.cy) and is_number(model.sigma)
+    # centro ≈ média das frações da bbox; σ > 0
+    assert_in_delta model.cx, 0.5, 0.02
+    assert_in_delta model.cy, 0.36, 0.02
+    assert model.sigma > 0.0
+  end
 end

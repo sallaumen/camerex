@@ -371,7 +371,12 @@ defmodule Camerex.Pipeline.Video do
     else
       case segmenter.segment(frame, model: "u2net") do
         {:ok, raw} ->
-          mask = Hair.detect(Mask.largest_component(raw), labels, frame, color, sensitivity: sens)
+          mask =
+            Hair.detect(Mask.largest_component(raw), labels, frame, color,
+              sensitivity: sens,
+              spatial: false
+            )
+
           Hair.into_labels(labels, mask)
 
         _ ->

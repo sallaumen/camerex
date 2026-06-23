@@ -37,23 +37,37 @@ defmodule Camerex.Parser.Hair do
   # risco de pele); descer fica mais limpo. Em 0.5: tol Lab 20, textura 9.
   defp lab_tol(s), do: round(14 + s * 12)
   defp tex_thr(s), do: round(13 - s * 8)
-  # limiar do Mahalanobis² do modelo de região (em desvios²): apertado de
-  # propósito — pega só as tonalidades centrais do cabelo (as sombras escuras, ~
-  # cor da roupa, ficariam de fora e seriam re-preenchidas pelo fill_holes)
-  defp maha_thr(s), do: 2.0 + s * 3.0
+  # HISTERESE: dois cortes do MESMO mapa de distância de cor. A SEMENTE (alta
+  # confiança = cabelo quase certo) cresce geodesicamente só dentro do CANDIDATO
+  # frouxo (onde o cabelo PODE estar) — falso-positivo de confiança média que não
+  # toca uma semente morre por não ter de onde crescer. d² ~ qui²(df=3): low ≈
+  # quantil 0.5..0.8, high ≈ 0.9..0.99.
+  defp chi2_low(s), do: 1.5 + s * 1.5
+  defp chi2_high(s), do: 5.0 + s * 5.0
+  # prior espacial: σ da gaussiana = raio da região marcada × isto. Menor =
+  # penaliza mais forte longe da marca (contém o vazamento colado de mesma cor).
+  # 0.8 = apertado (assume que o usuário marca o cabelo todo, generoso)
+  @spatial_slack 0.8
 
   # janela do desvio-padrão local (textura) da luminância
   @tex_window 7
   # regularização da covariância do modelo de região (só anti-singular; valor
   # alto alargaria o elipsoide e faria o modelo aceitar cor demais)
   @cov_reg 1.0
-  # close de consolidação (~w/40 ≈ 13px em 512) junta a evidência esparsa de cor
-  @consolidate_div 40
+  # crescimento geodésico da histerese: kernel de dilatação (~w/55) e nº de iters
+  @grow_div 55
+  @grow_iters 30
+  # close pós-reconstrução (~w/55 ≈ 9px): consolida fragmentos (sobretudo no modo
+  # 1 cor, onde a reconstrução é no-op); pequeno pra não fazer ponte com o braço
+  @consolidate_div 55
   # maior componente menor que isto (do quadro) = não há cabelo da cor → vazio
   @min_area_frac 0.0015
   # componente mais alto que largo na razão (alt/larg) acima disto é FITA (tecido
   # aéreo), não cacho — descartado da escolha do cabelo
   @max_aspect 3.5
+  # teto físico: cabelo não passa desta fração da área da pessoa (trava de
+  # sanidade contra fusão cabelo+corpo); fixo, não escala por sensibilidade
+  @max_hair_frac 0.45
 
   # classes ATR sobrescritíveis pelo cabelo: fundo + roupas/acessórios (a cabeça
   # em pose aérea é mis-rotulada como vestido/calça). NÃO inclui membros, rosto e
@@ -91,15 +105,25 @@ defmodule Camerex.Parser.Hair do
   def detect(person_fg_u8, labels, rgb \\ nil, color \\ nil, opts \\ []) do
     {h, w} = Nx.shape(labels)
     s = opts |> Keyword.get(:sensitivity, 0.5) |> clamp01()
+    spatial? = Keyword.get(opts, :spatial, true)
 
-    person_fg_u8
-    |> Nx.greater(0)
-    |> hair_evidence(rgb, normalize_color(color), s)
-    |> morph(:close, ellipse(round(w / @consolidate_div)))
-    |> hair_blob(h, w)
-    |> fill_holes(h, w)
-    |> Nx.multiply(255)
-    |> Nx.as_type(:u8)
+    person = Nx.greater(person_fg_u8, 0)
+
+    case hair_signal(person, rgb, normalize_color(color), s, spatial?) do
+      nil ->
+        Nx.broadcast(Nx.u8(0), Nx.shape(person))
+
+      {seed, weak} ->
+        person_area = person |> Nx.sum() |> Nx.to_number()
+
+        seed
+        |> reconstruct(weak, w)
+        |> close_b(ellipse(round(w / @consolidate_div)))
+        |> hair_blob(h, w, person_area)
+        |> fill_holes(h, w)
+        |> Nx.multiply(255)
+        |> Nx.as_type(:u8)
+    end
   end
 
   @doc """
@@ -172,7 +196,7 @@ defmodule Camerex.Parser.Hair do
   ou `nil` se a região não tiver textura de cabelo.
   """
   @spec learn_model(Nx.Tensor.t(), {number(), number(), number(), number()}) ::
-          %{mu: [float()], cov_inv: [float()]} | nil
+          map() | nil
   def learn_model(rgb, {x0f, y0f, x1f, y1f}) do
     {h, w, _} = Nx.shape(rgb)
     {x0, x1} = {px(min(x0f, x1f), w), px(max(x0f, x1f), w)}
@@ -183,7 +207,18 @@ defmodule Camerex.Parser.Hair do
     crop_w = weight[[y0..y1, x0..x1]]
     wsum = crop_w |> Nx.sum() |> Nx.to_number()
 
-    if wsum >= @sample_min_px, do: build_model(crop_lab, crop_w, wsum), else: nil
+    if wsum >= @sample_min_px do
+      Map.merge(build_model(crop_lab, crop_w, wsum), spatial_prior(x0f, y0f, x1f, y1f))
+    else
+      nil
+    end
+  end
+
+  # prior espacial: centro e σ (frações 0..1) da região marcada, pra penalizar a
+  # confiança longe da marca (ver maybe_spatial/3)
+  defp spatial_prior(x0f, y0f, x1f, y1f) do
+    radius = :math.sqrt(:math.pow((x1f - x0f) / 2, 2) + :math.pow((y1f - y0f) / 2, 2))
+    %{cx: (x0f + x1f) / 2, cy: (y0f + y1f) / 2, sigma: max(radius * @spatial_slack, 0.06)}
   end
 
   defp px(f, dim), do: (clamp01(f) * (dim - 1)) |> round()
@@ -204,28 +239,57 @@ defmodule Camerex.Parser.Hair do
   defp clamp01(s) when is_number(s), do: s |> max(0.0) |> min(1.0)
   defp clamp01(_), do: 0.5
 
-  # evidência = silhueta ∩ cor ∩ textura (sem imagem ou sem cor/modelo → vazia)
-  defp hair_evidence(person, nil, _color, _s), do: false_like(person)
-  defp hair_evidence(person, _rgb, nil, _s), do: false_like(person)
+  # SINAL do cabelo: {sementes de alta confiança, candidatos frouxos}, ambos
+  # dentro de silhueta ∩ textura. Sem imagem ou sem cor/modelo → nil (não dispara).
+  defp hair_signal(_person, nil, _color, _s, _sp), do: nil
+  defp hair_signal(_person, _rgb, nil, _s, _sp), do: nil
 
-  defp hair_evidence(person, rgb, color, s) do
-    near = near_color(to_lab(rgb), color, s)
-    textured = Nx.greater(local_std(rgb), tex_thr(s))
-    person |> Nx.logical_and(near) |> Nx.logical_and(textured)
+  defp hair_signal(person, rgb, color, s, spatial?) do
+    gate = Nx.logical_and(person, Nx.greater(local_std(rgb), tex_thr(s)))
+    {dist, low, high} = color_signal(to_lab(rgb), color, s, spatial?)
+    {Nx.logical_and(gate, Nx.less(dist, low)), Nx.logical_and(gate, Nx.less(dist, high))}
   end
 
-  # 1 cor: distância euclidiana esférica no Lab (caso simples / eyedropper de clique)
-  defp near_color(lab, {_, _, _} = color, s),
-    do: Nx.less(color_dist(lab, lab_of(color)), lab_tol(s))
+  # mapa de distância de cor CONTÍNUO + limiares (semente apertada / candidato
+  # frouxo). 1 cor: distância euclidiana no Lab. Modelo: Mahalanobis² (qui², df=3)
+  # + penalidade espacial (foto).
+  defp color_signal(lab, {_, _, _} = color, s, _spatial?) do
+    # 1 cor (eyedropper, modo básico): limiar ÚNICO (low == high) — sem histerese,
+    # que precisa de uma distribuição de tonalidades (é o caso do MODELO de região)
+    tol = lab_tol(s)
+    {color_dist(lab, lab_of(color)), tol, tol}
+  end
 
-  # MODELO da região: distância de Mahalanobis (a covariância capta a distribuição
-  # de tonalidades do cabelo — várias cores, não uma)
-  defp near_color(lab, %{mu: mu, cov_inv: ci}, s) do
+  defp color_signal(lab, %{mu: mu, cov_inv: ci} = m, s, spatial?) do
+    d2 = mahalanobis(lab, mu, ci)
+    {maybe_spatial(d2, m, spatial?), chi2_low(s), chi2_high(s)}
+  end
+
+  # distância de Mahalanobis² no Lab (a covariância capta a distribuição de
+  # tonalidades do cabelo — várias cores, não uma)
+  defp mahalanobis(lab, mu, ci) do
     diff = Nx.subtract(lab, mu |> Nx.tensor(type: :f32) |> Nx.reshape({1, 1, 3}))
     ci_t = ci |> Nx.tensor(type: :f32) |> Nx.reshape({3, 3})
-    d2 = Nx.sum(Nx.multiply(Nx.dot(diff, ci_t), diff), axes: [-1])
-    Nx.less(d2, maha_thr(s))
+    Nx.sum(Nx.multiply(Nx.dot(diff, ci_t), diff), axes: [-1])
   end
+
+  # penalidade espacial gaussiana: soma (dist_ao_centro_da_marca / σ)² ao
+  # Mahalanobis². Cor parecida LONGE da marca vira "longe" na confiança combinada
+  # — separa por POSIÇÃO o que a cor não separa (luz monocromática). Só com prior
+  # (modelo da região) e quando ligado (foto; no vídeo o cabelo se move).
+  defp maybe_spatial(d2, %{cx: cx, cy: cy, sigma: sigma}, true) when is_number(cx) do
+    {h, w} = Nx.shape(d2)
+    xf = Nx.iota({h, w}, axis: 1) |> Nx.divide(w - 1)
+    yf = Nx.iota({h, w}, axis: 0) |> Nx.divide(h - 1)
+
+    Nx.subtract(xf, cx)
+    |> Nx.pow(2)
+    |> Nx.add(Nx.pow(Nx.subtract(yf, cy), 2))
+    |> Nx.divide(sigma * sigma)
+    |> Nx.add(d2)
+  end
+
+  defp maybe_spatial(d2, _model, _spatial?), do: d2
 
   # distância euclidiana no Lab (escala u8) a cada pixel até a cor alvo
   defp color_dist(lab, target) do
@@ -251,7 +315,7 @@ defmodule Camerex.Parser.Hair do
   # aéreo, da mesma cor sob luz monocromática, entra na silhueta como fita).
   # Piso de área descarta lixo e o caso "não há cabelo da cor". stats: [x, y,
   # larg, alt, área].
-  defp hair_blob(mask, h, w) do
+  defp hair_blob(mask, h, w, person_area) do
     {n, lbls, stats, _c} = mask |> to_mat() |> Evision.connectedComponentsWithStats()
 
     if n <= 1 do
@@ -261,9 +325,12 @@ defmodule Camerex.Parser.Hair do
       {bw, bh, area} = {st[[.., 2]], st[[.., 3]], st[[.., 4]]}
       aspect = Nx.divide(bh, Nx.max(bw, 1))
 
+      # TETO de tamanho: cabelo não é meio corpo. Componente > 45% da pessoa é
+      # fusão cabelo+tronco/pele — descartado na própria escolha (trava física).
       eligible =
         Nx.less(aspect, @max_aspect)
         |> Nx.logical_and(Nx.greater_equal(area, round(h * w * @min_area_frac)))
+        |> Nx.logical_and(Nx.less_equal(area, round(@max_hair_frac * person_area)))
         |> Nx.put_slice([0], Nx.tensor([0], type: {:u, 8}))
 
       scored =
@@ -320,8 +387,22 @@ defmodule Camerex.Parser.Hair do
 
   # cor vem como {r,g,b} (struct) ou [r,g,b] (manifest/JSON); nil = sem pista
   # modelo da região (átomos do struct ou string-keyed do manifest) ou 1 cor
-  defp normalize_color(%{mu: mu, cov_inv: ci}), do: %{mu: mu, cov_inv: ci}
-  defp normalize_color(%{"mu" => mu, "cov_inv" => ci}), do: %{mu: mu, cov_inv: ci}
+  defp normalize_color(%{} = m) do
+    case m[:mu] || m["mu"] do
+      nil ->
+        nil
+
+      mu ->
+        %{
+          mu: mu,
+          cov_inv: m[:cov_inv] || m["cov_inv"],
+          cx: m[:cx] || m["cx"],
+          cy: m[:cy] || m["cy"],
+          sigma: m[:sigma] || m["sigma"]
+        }
+    end
+  end
+
   defp normalize_color([r, g, b]), do: {r, g, b}
   defp normalize_color({_, _, _} = c), do: c
   defp normalize_color(_), do: nil
@@ -366,8 +447,17 @@ defmodule Camerex.Parser.Hair do
   defp to_mat(m), do: m |> Nx.multiply(255) |> Nx.as_type(:u8) |> Evision.Mat.from_nx()
   defp of_mat(mat), do: mat |> Evision.Mat.to_nx(Nx.BinaryBackend) |> Nx.greater(0)
 
-  defp morph(m, :close, k),
+  defp dilate_b(m, k), do: of_mat(Evision.dilate(to_mat(m), k))
+
+  defp close_b(m, k),
     do: of_mat(Evision.morphologyEx(to_mat(m), Evision.Constant.cv_MORPH_CLOSE(), k))
+
+  # reconstrução geodésica (histerese): cresce as SEMENTES só dentro dos
+  # CANDIDATOS frouxos, iterando dilatação ∩ confinamento até estabilizar
+  defp reconstruct(seed, confine, w) do
+    k = ellipse(round(w / @grow_div))
+    Enum.reduce(1..@grow_iters, seed, fn _, acc -> Nx.logical_and(dilate_b(acc, k), confine) end)
+  end
 
   defp ellipse(s) do
     k = max(s, 1)
