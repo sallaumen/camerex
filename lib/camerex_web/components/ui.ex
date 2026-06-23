@@ -297,4 +297,97 @@ defmodule CamerexWeb.UI do
     </select>
     """
   end
+
+  @doc """
+  Slider de faixa (`.cx-range`) com preenchimento teal: a faixa preenchida vai do mínimo
+  ao valor (`--cx-fill`, % calculado aqui) e o valor aparece à direita em mono.
+  """
+  attr :name, :string, required: true
+  attr :label, :string, required: true
+  attr :value, :any, required: true
+  attr :min, :any, required: true
+  attr :max, :any, required: true
+  attr :step, :any, default: "0.05"
+
+  def slider(assigns) do
+    pct = round((assigns.value - assigns.min) / (assigns.max - assigns.min) * 100)
+    assigns = assign(assigns, :pct, pct)
+
+    ~H"""
+    <label class="block space-y-1.5">
+      <span class="flex items-baseline justify-between gap-2">
+        <span class="text-sm text-cx-text">{@label}</span>
+        <span class="font-mono text-xs tabular-nums text-cx-teal">{@value}</span>
+      </span>
+      <input
+        type="range"
+        name={@name}
+        min={@min}
+        max={@max}
+        step={@step}
+        value={@value}
+        phx-debounce="150"
+        class="cx-range"
+        style={"--cx-fill: #{@pct}%"}
+      />
+    </label>
+    """
+  end
+
+  @doc "Switch on/off (`.cx-switch`) com o par hidden+checkbox que o form precisa + hint opcional."
+  attr :name, :string, required: true
+  attr :label, :string, required: true
+  attr :checked, :boolean, required: true
+  attr :id, :string, default: nil
+  attr :hint, :string, default: nil
+
+  def toggle(assigns) do
+    ~H"""
+    <div>
+      <label id={@id} class="flex cursor-pointer items-center gap-3">
+        <input type="hidden" name={@name} value="false" />
+        <input type="checkbox" name={@name} value="true" checked={@checked} class="cx-switch" />
+        <span class="text-sm text-cx-text">{@label}</span>
+      </label>
+      <p :if={@hint} class="mt-1 pl-12 text-xs text-cx-text-dim">{@hint}</p>
+    </div>
+    """
+  end
+
+  @doc "Picker de cor arredondado (`.cx-swatch`, sem a moldura nativa do `<input type=color>`)."
+  attr :name, :string, required: true
+  attr :value, :string, required: true
+  attr :label, :string, required: true
+  attr :aria, :string, required: true
+  attr :id, :string, default: nil
+
+  def swatch(assigns) do
+    ~H"""
+    <label id={@id} class="flex items-center gap-2.5 text-sm text-cx-text">
+      <input
+        type="color"
+        name={@name}
+        value={@value}
+        phx-debounce="200"
+        aria-label={@aria}
+        class="cx-swatch"
+      />
+      <span class="truncate">{@label}</span>
+    </label>
+    """
+  end
+
+  @doc "Card que agrupa controles afins (`.cx-section`), com título discreto (sem caixa-alta)."
+  attr :title, :string, default: nil
+  attr :class, :any, default: "space-y-3"
+  slot :inner_block, required: true
+
+  def section(assigns) do
+    ~H"""
+    <div class={["cx-section", @class]}>
+      <p :if={@title} class="cx-section-title">{@title}</p>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
 end
