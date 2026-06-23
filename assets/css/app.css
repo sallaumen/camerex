@@ -9,23 +9,25 @@
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
 @source "../../_build/dev/phoenix-colocated/camerex/*/";
 
-/* Tokens do tema camerex "neon refinado" (ver docs/design/2026-06-22-redesign-neon-refinado.md):
-   geram bg-cx-*, text-cx-*, border-cx-*. Escada de superfície por luz; bordas em 2
+/* Tokens do tema camerex — "editorial híbrido" (ver docs/design/2026-06-23-redesign-editorial-hibrido.md;
+   base em 2026-06-22-redesign-neon-refinado.md): geram bg-cx-*, text-cx-*, border-cx-*.
+   Canvas QUENTE (marrom/creme), mas o TEAL sobrevive como única faísca de marca (foco/CTA/
+   interativo) — a UI quente recua, o neon avança. Escada de superfície por luz; bordas em 2
    papéis (hairline decorativa + -strong funcional ≥3:1); texto em 3 níveis; acentos
-   racionados; raio/tipo/motion sistematizados. Contraste WCAG calculado nos comentários. */
+   racionados; raio/tipo/motion sistematizados. Contraste WCAG recalculado nos comentários. */
 @theme {
-  /* superfícies — escada de elevação por luminância (não por sombra) */
-  --color-cx-well: #0c1612; /* poço do preview/thumb */
-  --color-cx-bg: #101a15; /* canvas/galeria */
-  --color-cx-surface: #1a2a22; /* cards/painéis — 1.19:1 vs bg */
-  --color-cx-elevated: #25392f; /* modal/popover/dropdown */
+  /* superfícies — escada de elevação por luminância (profundidade vem da hairline, não da luz) */
+  --color-cx-well: #0a0907; /* poço do preview/thumb */
+  --color-cx-bg: #100e0b; /* canvas/galeria */
+  --color-cx-surface: #17150f; /* cards/painéis */
+  --color-cx-elevated: #1f1c15; /* modal/popover/dropdown */
   /* bordas — hairline decorativa + funcional de UI (≥3:1, WCAG 1.4.11) */
-  --color-cx-border: #2e493c; /* hairline: separa cards/seções */
-  --color-cx-border-strong: #547f6b; /* input/switch/slider/foco — 3.3:1 vs surface */
-  /* texto — 3 níveis */
-  --color-cx-text: #d3e5db; /* corpo — 11.6:1 */
-  --color-cx-text-dim: #a1b7ac; /* secundário — 7.2:1 */
-  --color-cx-text-faint: #7c9287; /* caption/disabled — 4.6:1 (nunca corpo) */
+  --color-cx-border: #2a2620; /* hairline: separa cards/seções */
+  --color-cx-border-strong: #7a7060; /* input/switch/slider/foco — 3.75:1 vs surface */
+  /* texto — 3 níveis (creme/areia quentes) */
+  --color-cx-text: #f2ece0; /* corpo — 16.4:1 vs bg */
+  --color-cx-text-dim: #c9c0ae; /* secundário — 10.1:1 vs surface */
+  --color-cx-text-faint: #a39a89; /* caption/disabled — 6.5:1 (nunca corpo) */
   /* acentos + estados (racionados: só CTA/foco/ativo/arte) */
   --color-cx-teal: #2bc4b2; /* identidade — 7.75:1 */
   --color-cx-teal-strong: #1fae9e; /* hover/preenchido */
