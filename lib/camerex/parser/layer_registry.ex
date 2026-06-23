@@ -19,7 +19,7 @@ defmodule Camerex.Parser.LayerRegistry do
       label: "Preencher buracos (pose aérea)",
       class: 11,
       group: nil,
-      fg_spec: %{model: "isnet-general-use", kind: :full},
+      fg_spec: %{model: "birefnet-lite", kind: :full},
       color_mode: :none,
       gate: :always,
       params: [%{key: :detect_person_fill, kind: :bool, default: false}],

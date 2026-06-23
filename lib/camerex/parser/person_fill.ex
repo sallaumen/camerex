@@ -3,8 +3,10 @@ defmodule Camerex.Parser.PersonFill do
   Preenche os BURACOS que o ATR (SegFormer) deixa em pose aérea/invertida: o
   parser foi treinado em fotos EM PÉ, então em pose suspensa joga pixels-de-pessoa
   no FUNDO (classe 0) e a pessoa "some" no neon. Esta camada usa uma silhueta
-  robusta-a-pose (`isnet-general-use`, SOD class-agnostic via Ortex) pra re-rotular
-  esses pixels como CORPO.
+  robusta-a-pose (`birefnet-lite`, SOD class-agnostic via Ortex) pra re-rotular
+  esses pixels como CORPO. O BiRefNet foi escolhido sobre o isnet por NÃO agarrar
+  o cenário (escada/fundo saliente) — provado no pixel: o isnet pintava a escada
+  do fundo como corpo na aereo-1; o BiRefNet fecha o buraco genuíno sem alucinar.
 
   Pipeline:
     1. **buraco** = silhueta_SOD ∩ (labels == 0) — pixels que o SOD vê como pessoa
@@ -22,7 +24,7 @@ defmodule Camerex.Parser.PersonFill do
 
   Puro (recebe a silhueta no ctx; quem roda o ONNX é o chamador). Roda PRIMEIRO
   (baseline), antes de object/tecido/cabelo/pele, pra eles operarem sobre os
-  labels já preenchidos. Opt-in (dispara o isnet além do ATR).
+  labels já preenchidos. Opt-in (dispara o BiRefNet além do ATR).
 
   LIMITE: cena escura/baixo-contraste — o SOD também não acha a pessoa (depende de
   saliência visual), então o buraco persiste. Provado no corpus aéreo.

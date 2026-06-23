@@ -29,12 +29,12 @@ defmodule Camerex.Doctor do
       url: "https://huggingface.co/Xenova/segformer_b2_clothes/resolve/main/onnx/model.onnx"
     },
     %{
-      id: "isnet-general-use",
-      file: "isnet-general-use.onnx",
-      # SOD class-agnostic (robusto a pose) p/ preencher os buracos do ATR em
-      # pose aérea — ver Camerex.Parser.PersonFill
-      md5: "fc16ebd8b0c10d971d3513d564d01e29",
-      url: "#{@release_base}/isnet-general-use.onnx"
+      id: "birefnet-lite",
+      file: "birefnet-lite.onnx",
+      # SOD class-agnostic de alta-res (DIS5K, MIT) p/ preencher os buracos do ATR
+      # em pose aérea com borda precisa — ver Camerex.Parser.PersonFill
+      md5: "4fab47adc4ff364be1713e97b7e66334",
+      url: "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/main/onnx/model.onnx"
     }
   ]
 

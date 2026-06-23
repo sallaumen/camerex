@@ -23,6 +23,9 @@ defmodule Camerex.Segmenter.U2Net do
     size = Keyword.get(opts, :size, 320)
     mean = Keyword.get(opts, :mean, @mean)
     std = Keyword.get(opts, :std, @std)
+    # normalização da escala: `:max` (divide pelo máximo, quirk da rembg/u2net) ou
+    # um divisor fixo (ex.: 255.0 para o BiRefNet/transformers)
+    norm = Keyword.get(opts, :norm, :max)
 
     t =
       rgb
@@ -31,7 +34,11 @@ defmodule Camerex.Segmenter.U2Net do
       |> Evision.Mat.to_nx(Nx.BinaryBackend)
       |> Nx.as_type(:f32)
 
-    t = Nx.divide(t, Nx.max(Nx.reduce_max(t), 1.0e-6))
+    t =
+      case norm do
+        :max -> Nx.divide(t, Nx.max(Nx.reduce_max(t), 1.0e-6))
+        div when is_number(div) -> Nx.divide(t, div)
+      end
 
     t
     |> Nx.subtract(Nx.tensor(mean))
@@ -44,21 +51,27 @@ defmodule Camerex.Segmenter.U2Net do
   Output d0 `{1, 1, 320, 320}` f32 → min-max → ×255 u8 → resize LANCZOS4
   para `{h, w}`. Devolve alpha contínuo 0..255; o limiar fica em `binarize/1`.
   """
-  @spec postprocess(Nx.Tensor.t(), {pos_integer(), pos_integer()}) :: Nx.Tensor.t()
-  def postprocess(d0, {h, w}) do
-    pred = d0[[0, 0]]
-    mn = Nx.reduce_min(pred)
-    mx = Nx.reduce_max(pred)
+  @spec postprocess(Nx.Tensor.t(), {pos_integer(), pos_integer()}, keyword()) :: Nx.Tensor.t()
+  def postprocess(d0, {h, w}, opts \\ []) do
+    pred = d0[[0, 0]] |> activate(Keyword.get(opts, :activation, :minmax))
 
     pred
-    |> Nx.subtract(mn)
-    |> Nx.divide(Nx.subtract(mx, mn))
     |> Nx.multiply(255.0)
     |> Nx.as_type(:u8)
     |> Evision.Mat.from_nx()
     |> Evision.resize({w, h}, interpolation: Evision.Constant.cv_INTER_LANCZOS4())
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
   end
+
+  # u2net/isnet: o output é um mapa cru → normaliza min-max pra 0..1. BiRefNet: o
+  # output é um LOGIT → sigmoid pra 0..1.
+  defp activate(pred, :minmax) do
+    mn = Nx.reduce_min(pred)
+    mx = Nx.reduce_max(pred)
+    pred |> Nx.subtract(mn) |> Nx.divide(Nx.max(Nx.subtract(mx, mn), 1.0e-6))
+  end
+
+  defp activate(pred, :sigmoid), do: Nx.divide(1.0, Nx.add(1.0, Nx.exp(Nx.negate(pred))))
 
   @doc "Alpha u8 0..255 → máscara binária u8 0|255 (limiar `alpha > 30`, contrato §4)."
   @spec binarize(Nx.Tensor.t()) :: Nx.Tensor.t()

@@ -12,9 +12,10 @@ defmodule Camerex.Segmenter.Ortex do
 
   alias Camerex.Segmenter.U2Net
 
-  # isnet-general-use: SOD class-agnostic (rembg, Apache) robusto a pose — usado
-  # pra preencher os buracos que o ATR deixa em pose aérea (ver Parser.PersonFill)
-  @valid_models ~w(u2net u2netp isnet-general-use)
+  # birefnet-lite: SOD class-agnostic de alta-res (DIS5K, MIT) robusto a pose —
+  # silhueta precisa pra preencher os buracos do ATR em pose aérea (ver
+  # Parser.PersonFill). Borda muito mais limpa que o u2net/isnet (provado no pixel).
+  @valid_models ~w(u2net u2netp birefnet-lite)
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
@@ -80,7 +81,7 @@ defmodule Camerex.Segmenter.Ortex do
       |> elem(0)
       |> Nx.backend_transfer()
 
-    {:ok, d0 |> U2Net.postprocess({h, w}) |> U2Net.binarize()}
+    {:ok, d0 |> postprocess_for(model_id, {h, w}) |> U2Net.binarize()}
     # fronteira de inferência: catch-all INTENCIONAL — falha nativa (Ortex/Nx) vira
     # o contrato {:error, _} pras with-chains tratarem com graça. Não é silêncio: o
     # item fica "failed" com a mensagem da exceção (bug inclusive).
@@ -88,17 +89,19 @@ defmodule Camerex.Segmenter.Ortex do
     e -> {:error, e}
   end
 
-  # isnet-general-use roda em 1024² com mean 0.5 / std 1.0 (rembg ISNetSession) +
-  # CLAHE no canal L antes: realça o contraste LOCAL e ajuda o SOD a achar a pessoa
-  # em cena escura/luz colorida (provado: silhueta mais completa na aérea escura,
-  # neutro nas bem-iluminadas). u2net/u2netp ficam no default 320² ImageNet.
-  defp preprocess_for("isnet-general-use", rgb) do
-    rgb
-    |> clahe()
-    |> U2Net.preprocess(size: 1024, mean: [0.5, 0.5, 0.5], std: [1.0, 1.0, 1.0])
-  end
+  # BiRefNet roda em 1024² com normalização ImageNet (divisor 255) + CLAHE no canal
+  # L antes: realça o contraste LOCAL e ajuda o SOD a achar a pessoa em cena escura/
+  # luz colorida. u2net/u2netp ficam no default 320² ImageNet (norm :max da rembg).
+  defp preprocess_for("birefnet-lite", rgb),
+    do: rgb |> clahe() |> U2Net.preprocess(size: 1024, norm: 255.0)
 
   defp preprocess_for(_u2net, rgb), do: U2Net.preprocess(rgb)
+
+  # BiRefNet devolve um LOGIT (→ sigmoid); u2net/u2netp um mapa cru (→ min-max)
+  defp postprocess_for("birefnet-lite", d0, hw),
+    do: U2Net.postprocess(d0, hw, activation: :sigmoid)
+
+  defp postprocess_for(_u2net, d0, hw), do: U2Net.postprocess(d0, hw)
 
   # equalização adaptativa de histograma no canal L do Lab (preserva a cor)
   defp clahe(rgb) do
