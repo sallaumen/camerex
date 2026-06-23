@@ -212,6 +212,54 @@ defmodule CamerexWeb.UI do
   defp clamp_pct(p), do: p
 
   @doc """
+  Barra de parâmetro read-only: rótulo + valor (mono) + mini-trilho preenchido.
+  Mostra a magnitude de um ajuste em `0..max` no detalhe e no card-herói (não editável —
+  para editar, use o `slider` do painel de conversão). O preenchimento é warm/neutro de
+  propósito (teal fica racionado p/ CTA/foco). Função de view.
+  """
+  attr :label, :string, required: true
+  attr :value, :any, required: true, doc: "valor numérico (float/int/string) em 0..max"
+  attr :max, :float, default: 1.0
+  attr :class, :any, default: nil
+
+  def param_bar(assigns) do
+    assigns = assign(assigns, :pct, param_pct(assigns.value, assigns.max))
+
+    ~H"""
+    <div class={["space-y-1", @class]}>
+      <div class="flex items-baseline justify-between gap-2 text-sm">
+        <span class="text-cx-text-dim">{@label}</span>
+        <span class="font-mono text-xs tabular-nums text-cx-text">{@value}</span>
+      </div>
+      <div class="h-0.5 overflow-hidden rounded-full bg-cx-bg">
+        <div
+          class="h-full origin-left rounded-full bg-cx-border-strong"
+          style={"transform: scaleX(#{@pct / 100})"}
+        >
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp param_pct(value, top) when is_number(top) and top > 0 do
+    clamp_pct(round(to_num(value) / top * 100))
+  end
+
+  defp param_pct(_value, _top), do: 0
+
+  defp to_num(v) when is_number(v), do: v * 1.0
+
+  defp to_num(v) when is_binary(v) do
+    case Float.parse(v) do
+      {f, _} -> f
+      :error -> 0.0
+    end
+  end
+
+  defp to_num(_), do: 0.0
+
+  @doc """
   Input de texto coeso (classe `.cx-input`). Para selects, use `select/1`.
   """
   attr :type, :string, default: "text"
