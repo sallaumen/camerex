@@ -221,7 +221,9 @@ html {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 1.25rem;
+  /* alvo de toque ≥24px (WCAG 2.5.8): o input é o alvo; trilho/thumb seguem
+     centrados pelo browser, então é só área de toque, sem mudança visual */
+  height: 1.5rem;
   background: transparent;
   cursor: pointer;
 }
