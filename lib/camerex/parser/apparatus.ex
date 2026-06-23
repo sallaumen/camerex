@@ -82,6 +82,14 @@ defmodule Camerex.Parser.Apparatus do
     * `color` — `{r,g,b}` da cor real do tecido na foto; `nil` desliga a cor.
     * `opts` — `:sensitivity` (0..1, default 0.5): recall ↔ precisão da cor/área.
   """
+  @behaviour Camerex.Parser.Layer
+  alias Camerex.Parser.LayerContext
+
+  @impl Camerex.Parser.Layer
+  @spec run(LayerContext.t()) :: Nx.Tensor.t()
+  def run(%LayerContext{fg: fg, labels: labels, rgb: rgb, color: color, sensitivity: s}),
+    do: detect(fg, labels, rgb, color, sensitivity: s)
+
   @spec detect(Nx.Tensor.t(), Nx.Tensor.t(), Nx.Tensor.t() | nil, Layers.rgb() | nil, keyword()) ::
           Nx.Tensor.t()
   def detect(full_fg_u8, labels, rgb \\ nil, color \\ nil, opts \\ []) do
@@ -109,6 +117,7 @@ defmodule Camerex.Parser.Apparatus do
   Injeta a classe `19` nos rótulos onde HÁ tecido E o ATR não rotulou nada (não
   sobrescreve pessoa). Devolve os labels aumentados.
   """
+  @impl Camerex.Parser.Layer
   @spec into_labels(Nx.Tensor.t(), Nx.Tensor.t()) :: Nx.Tensor.t()
   def into_labels(labels, apparatus_u8) do
     where = Nx.logical_and(Nx.greater(apparatus_u8, 0), Nx.equal(labels, 0))

@@ -25,7 +25,9 @@ defmodule Camerex.Parser.Skin do
   ATR originais.
   """
 
-  alias Camerex.Parser.{ColorModel, MaskOps, Texture}
+  @behaviour Camerex.Parser.Layer
+
+  alias Camerex.Parser.{ColorModel, LayerContext, MaskOps, Texture}
 
   @skin_ids [11, 12, 13, 14, 15]
   @clothing_ids [4, 5, 6, 7, 8, 17]
@@ -52,6 +54,11 @@ defmodule Camerex.Parser.Skin do
   Vazia se não há pele-ATR suficiente (membros cobertos) ou se re-rotularia roupa
   demais (trava anti-vazamento). `opts[:sensitivity]` 0..1 (default 0.5).
   """
+  @impl Camerex.Parser.Layer
+  @spec run(LayerContext.t()) :: Nx.Tensor.t()
+  def run(%LayerContext{labels: labels, rgb: rgb, sensitivity: s}),
+    do: detect(labels, rgb, sensitivity: s)
+
   @spec detect(Nx.Tensor.t(), Nx.Tensor.t(), keyword()) :: Nx.Tensor.t()
   def detect(labels, rgb, opts \\ []) do
     {h, w} = Nx.shape(labels)
@@ -72,6 +79,7 @@ defmodule Camerex.Parser.Skin do
   nunca toca membro/rosto/cabelo/fundo. O grupo `:skin` (11-15) já compõe na mesma
   cor neon de pele, então não precisa de classe virtual nem mexer no `Layers`.
   """
+  @impl Camerex.Parser.Layer
   @spec into_labels(Nx.Tensor.t(), Nx.Tensor.t()) :: Nx.Tensor.t()
   def into_labels(labels, skin_u8) do
     where = Nx.logical_and(Nx.greater(skin_u8, 0), in_set(labels, @clothing_ids))

@@ -30,7 +30,10 @@ defmodule Camerex.Parser.Hair do
   Vira a classe 2 (hair) nos labels. Puro (quem roda o U²-Net é o chamador).
   """
 
-  alias Camerex.Parser.{ColorModel, MaskOps, Texture}
+  @behaviour Camerex.Parser.Layer
+  @behaviour Camerex.Parser.Layer.Sampleable
+
+  alias Camerex.Parser.{ColorModel, LayerContext, MaskOps, Texture}
 
   @hair_class 2
 
@@ -91,6 +94,19 @@ defmodule Camerex.Parser.Hair do
       máscara vazia (sem pista, este fallback não dispara).
     * `opts` — `:sensitivity` (0..1, default 0.5): recall ↔ precisão.
   """
+  @impl Camerex.Parser.Layer
+  @spec run(LayerContext.t()) :: Nx.Tensor.t()
+  def run(%LayerContext{
+        fg: fg,
+        labels: labels,
+        rgb: rgb,
+        color: color,
+        sensitivity: s,
+        spatial?: spatial
+      }) do
+    detect(fg, labels, rgb, color, sensitivity: s, spatial: spatial)
+  end
+
   @spec detect(
           Nx.Tensor.t(),
           Nx.Tensor.t(),
@@ -138,6 +154,7 @@ defmodule Camerex.Parser.Hair do
   Injeta a classe `2` (hair) onde HÁ cabelo E o ATR rotulou fundo ou roupa (a
   cabeça em pose aérea cai em vestido/calça). Não invade membros/rosto/sapatos.
   """
+  @impl Camerex.Parser.Layer
   @spec into_labels(Nx.Tensor.t(), Nx.Tensor.t()) :: Nx.Tensor.t()
   def into_labels(labels, hair_u8) do
     where = Nx.logical_and(Nx.greater(hair_u8, 0), overwritable(labels))
@@ -192,6 +209,10 @@ defmodule Camerex.Parser.Hair do
   mesmo modelo segue o cabelo frame a frame). Devolve `%{mu: [3], cov_inv: [9]}`,
   ou `nil` se a região não tiver textura de cabelo.
   """
+  @impl Camerex.Parser.Layer.Sampleable
+  @spec sample_region(Nx.Tensor.t(), {number(), number(), number(), number()}) :: map() | nil
+  def sample_region(rgb, bbox), do: learn_model(rgb, bbox)
+
   @spec learn_model(Nx.Tensor.t(), {number(), number(), number(), number()}) ::
           map() | nil
   def learn_model(rgb, {x0f, y0f, x1f, y1f}) do

@@ -12,6 +12,9 @@ defmodule Camerex.Parser.Object do
   Puro (recebe foreground e labels; quem roda o U²-Net é o chamador).
   """
 
+  @behaviour Camerex.Parser.Layer
+  alias Camerex.Parser.LayerContext
+
   # dilata a pessoa antes de subtrair: come a borda de descasamento entre os dois
   # modelos (senão sobra um anel de "objeto" em volta da pessoa inteira).
   @person_dilate_div 40
@@ -30,6 +33,10 @@ defmodule Camerex.Parser.Object do
   Máscara u8 `{h, w}` (0|255) do objeto, dados o foreground do U²-Net (u8) e os
   rótulos ATR (`{h, w}` u8). Vazio quando o foreground ≈ a pessoa (sem objeto).
   """
+  @impl Camerex.Parser.Layer
+  @spec run(LayerContext.t()) :: Nx.Tensor.t()
+  def run(%LayerContext{fg: fg, labels: labels}), do: detect(fg, labels)
+
   @spec detect(Nx.Tensor.t(), Nx.Tensor.t()) :: Nx.Tensor.t()
   def detect(fg_u8, labels) do
     {h, w} = Nx.shape(labels)
@@ -59,6 +66,7 @@ defmodule Camerex.Parser.Object do
   Injeta a classe `18` nos rótulos onde HÁ objeto E o ATR não rotulou nada (não
   sobrescreve pessoa). Devolve os labels aumentados.
   """
+  @impl Camerex.Parser.Layer
   @spec into_labels(Nx.Tensor.t(), Nx.Tensor.t()) :: Nx.Tensor.t()
   def into_labels(labels, object_u8) do
     where = Nx.logical_and(Nx.greater(object_u8, 0), Nx.equal(labels, 0))
