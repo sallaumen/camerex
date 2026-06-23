@@ -8,7 +8,7 @@ defmodule Camerex.Pipeline.Photo do
 
   alias Camerex.{Mask, Neon, Parser, Workspace}
   alias Camerex.Neon.{Background, Layered, Scene}
-  alias Camerex.Parser.{Apparatus, Hair, Layers, Object}
+  alias Camerex.Parser.{Apparatus, Hair, Layers, Object, Skin}
 
   @doc """
   Render por camada semântica (ÚNICO modo): parseia as partes
@@ -40,7 +40,20 @@ defmodule Camerex.Pipeline.Photo do
       Keyword.get(opts, :aerial_sensitivity, 0.5),
       Keyword.get(opts, :detect_aerial, false)
     )
+    |> with_skin(
+      rgb,
+      Keyword.get(opts, :detect_skin, false),
+      Keyword.get(opts, :skin_sensitivity, 0.5)
+    )
   end
+
+  # pele do torço NU (sem top) que o ATR rotula como roupa → re-rotula como pele.
+  # Roda por ÚLTIMO (sobre os labels ATR) e NÃO dispara U²-Net (sinal = labels +
+  # rgb). Ver Parser.Skin.
+  defp with_skin(labels, _rgb, false, _sens), do: labels
+
+  defp with_skin(labels, rgb, true, sens),
+    do: Skin.into_labels(labels, Skin.detect(labels, rgb, sensitivity: sens))
 
   defp with_object(labels, _rgb, false), do: labels
 
@@ -218,6 +231,8 @@ defmodule Camerex.Pipeline.Photo do
       detect_aerial: p["detect_aerial"],
       aerial_color: p["aerial_color"],
       aerial_sensitivity: p["aerial_sensitivity"],
+      detect_skin: p["detect_skin"],
+      skin_sensitivity: p["skin_sensitivity"],
       bg_opacity: p["bg_opacity"],
       transparent_bg: p["transparent_bg"],
       fill: p["fill"],

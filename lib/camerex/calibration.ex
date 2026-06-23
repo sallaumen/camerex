@@ -8,7 +8,7 @@ defmodule Camerex.Calibration do
   """
 
   alias Camerex.{Mask, Parser}
-  alias Camerex.Parser.{Apparatus, Hair, Layers, Object}
+  alias Camerex.Parser.{Apparatus, Hair, Layers, Object, Skin}
   alias Camerex.Pipeline.{FramePreview, Photo}
 
   @preview_width 480
@@ -115,6 +115,7 @@ defmodule Camerex.Calibration do
         params["aerial_color"],
         params["aerial_sensitivity"]
       )
+      |> maybe_skin(params["detect_skin"], rgb, params["skin_sensitivity"])
 
     opts =
       [
@@ -157,6 +158,12 @@ defmodule Camerex.Calibration do
       )
 
   defp maybe_aerial(labels, _off, _fg_full, _rgb, _color, _sens), do: labels
+
+  # pele do torço nu → pele (re-rotula roupa; por último, sem U²-Net)
+  defp maybe_skin(labels, true, rgb, sens),
+    do: Skin.into_labels(labels, Skin.detect(labels, rgb, sensitivity: sens || 0.5))
+
+  defp maybe_skin(labels, _off, _rgb, _sens), do: labels
 
   defp bg_opts(params) do
     [

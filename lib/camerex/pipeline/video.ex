@@ -21,7 +21,7 @@ defmodule Camerex.Pipeline.Video do
 
   alias Camerex.{Mask, Neon, Parser, Settings, Workspace}
   alias Camerex.Neon.{Background, Layered}
-  alias Camerex.Parser.{Apparatus, Hair, Layers, Object}
+  alias Camerex.Parser.{Apparatus, Hair, Layers, Object, Skin}
   alias Camerex.Video.{Audio, Decoder, Encoder, Probe}
 
   @work_width 640
@@ -293,6 +293,8 @@ defmodule Camerex.Pipeline.Video do
       detect_aerial: p["detect_aerial"] == true,
       aerial_color: p["aerial_color"],
       aerial_sensitivity: p["aerial_sensitivity"] || 0.5,
+      detect_skin: p["detect_skin"] == true,
+      skin_sensitivity: p["skin_sensitivity"] || 0.5,
       bg_opacity: p["bg_opacity"] || 0.0,
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
@@ -349,7 +351,15 @@ defmodule Camerex.Pipeline.Video do
       opts.aerial_sensitivity,
       opts.detect_aerial
     )
+    |> frame_skin(frame, opts.detect_skin, opts.skin_sensitivity)
   end
+
+  # pele do torço nu → pele (por último, sem U²-Net; modelo aprendido dos labels
+  # ATR daquele frame, que são estáveis frame a frame). Ver Parser.Skin.
+  defp frame_skin(labels, _frame, false, _sens), do: labels
+
+  defp frame_skin(labels, frame, true, sens),
+    do: Skin.into_labels(labels, Skin.detect(labels, frame, sensitivity: sens))
 
   defp frame_object(labels, _frame, _seg, _model, false), do: labels
 

@@ -14,6 +14,7 @@ defmodule Camerex.Library do
   @param_keys ~w(halo bloom trail detail model
                  layer_colors detect_object detect_hair hair_color hair_model hair_sensitivity
                  detect_aerial aerial_color aerial_sensitivity
+                 detect_skin skin_sensitivity
                  bg_opacity transparent_bg fill fill_color fill_texture floor glow spread)
 
   defdelegate normalize_folder(path), to: Workspace
