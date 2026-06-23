@@ -544,7 +544,7 @@ defmodule CamerexWeb.LibraryLive do
         phx-key="escape"
       >
         <aside class="w-full space-y-5 lg:w-64 lg:shrink-0 lg:overflow-y-auto lg:pb-10">
-          <h1 class="text-xl font-semibold tracking-wide">
+          <h1 class="font-serif text-2xl font-medium">
             camerex<span class="text-cx-orange">_</span>
           </h1>
 

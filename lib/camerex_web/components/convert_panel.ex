@@ -39,7 +39,7 @@ defmodule CamerexWeb.ConvertPanel do
     ~H"""
     <section id="convert-panel" class="space-y-5">
       <header class="flex items-center justify-between gap-2">
-        <h2 class="text-lg font-semibold">
+        <h2 class="font-serif text-lg font-medium">
           {if @reconvert_item, do: "Reprocessar", else: "Nova conversão"}
         </h2>
         <.close_button

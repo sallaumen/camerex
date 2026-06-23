@@ -52,7 +52,10 @@ defmodule CamerexWeb.LibraryComponents do
     assigns = assign(assigns, :crumbs, crumbs(assigns.folder))
 
     ~H"""
-    <nav id="breadcrumb" class="flex flex-wrap items-center gap-1 text-sm text-cx-text-dim">
+    <nav
+      id="breadcrumb"
+      class="flex flex-wrap items-center gap-1 font-serif text-base text-cx-text-dim"
+    >
       <button type="button" phx-click="select_folder" phx-value-folder="" class="hover:text-cx-text">
         biblioteca
       </button>

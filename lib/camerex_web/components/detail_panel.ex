@@ -19,7 +19,7 @@ defmodule CamerexWeb.DetailPanel do
     <section id="detail-panel" class="space-y-4">
       <header class="flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <h2 class="truncate text-lg font-semibold">{@item["original_filename"]}</h2>
+          <h2 class="truncate font-serif text-xl font-medium">{@item["original_filename"]}</h2>
           <div class="mt-1 flex items-center gap-2 text-xs">
             <.status_badge status={@item["status"]} />
             <span :if={@item["folder"] != ""} class="text-cx-text-dim">

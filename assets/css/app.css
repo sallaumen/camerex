@@ -9,6 +9,24 @@
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
 @source "../../_build/dev/phoenix-colocated/camerex/*/";
 
+/* Newsreader — serif de display self-hosted (variável, subset latin; SÓ títulos).
+   Arquivos em priv/static/fonts servidos em /fonts; o corpo segue system-ui de propósito
+   (sem webfont de corpo = zero FOUT no texto geral). Ver redesign editorial híbrido. */
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/newsreader-latin-wght-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/newsreader-latin-wght-italic.woff2") format("woff2");
+}
+
 /* Tokens do tema camerex — "editorial híbrido" (ver docs/design/2026-06-23-redesign-editorial-hibrido.md;
    base em 2026-06-22-redesign-neon-refinado.md): geram bg-cx-*, text-cx-*, border-cx-*.
    Canvas QUENTE (marrom/creme), mas o TEAL sobrevive como única faísca de marca (foco/CTA/
@@ -63,6 +81,8 @@
   --text-caption: 0.75rem;
   --text-caption--line-height: 1.35;
   --text-caption--letter-spacing: 0.02em;
+  /* famílias — serif de display (Newsreader, title-only); corpo segue system-ui */
+  --font-serif: "Newsreader", ui-serif, Georgia, Cambria, "Times New Roman", serif;
 }
 
 /* glow assinatura + canal teal p/ alpha (sombras compostas — fora do @theme).

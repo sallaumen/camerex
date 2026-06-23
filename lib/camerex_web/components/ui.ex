@@ -111,7 +111,7 @@ defmodule CamerexWeb.UI do
         class="w-full max-w-lg space-y-3 rounded-lg border border-cx-border bg-cx-elevated p-5 shadow-xl"
       >
         <div class="flex items-center justify-between gap-2">
-          <h2 id={"#{@id}-title"} class="text-lg font-semibold">{@title}</h2>
+          <h2 id={"#{@id}-title"} class="font-serif text-lg font-medium">{@title}</h2>
           <.close_button label="fechar" phx-click={@on_close} />
         </div>
         {render_slot(@inner_block)}
