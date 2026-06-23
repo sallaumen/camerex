@@ -27,6 +27,14 @@ defmodule Camerex.Doctor do
       # human parsing (ATR, 18 classes) para o modo "cor por camada"
       md5: "4550f71564310ceca502afc204bbc89c",
       url: "https://huggingface.co/Xenova/segformer_b2_clothes/resolve/main/onnx/model.onnx"
+    },
+    %{
+      id: "isnet-general-use",
+      file: "isnet-general-use.onnx",
+      # SOD class-agnostic (robusto a pose) p/ preencher os buracos do ATR em
+      # pose aérea — ver Camerex.Parser.PersonFill
+      md5: "fc16ebd8b0c10d971d3513d564d01e29",
+      url: "#{@release_base}/isnet-general-use.onnx"
     }
   ]
 

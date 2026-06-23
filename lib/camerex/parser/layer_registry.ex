@@ -10,9 +10,22 @@ defmodule Camerex.Parser.LayerRegistry do
   daqui — sem listas paralelas mantidas à mão.
   """
 
-  alias Camerex.Parser.{Apparatus, Hair, LayerSpec, Object, Skin}
+  alias Camerex.Parser.{Apparatus, Hair, LayerSpec, Object, PersonFill, Skin}
 
   @layers [
+    %LayerSpec{
+      id: :person_fill,
+      module: PersonFill,
+      label: "Preencher buracos (pose aérea)",
+      class: 11,
+      group: nil,
+      fg_spec: %{model: "isnet-general-use", kind: :full},
+      color_mode: :none,
+      gate: :always,
+      params: [%{key: :detect_person_fill, kind: :bool, default: false}],
+      sampleable?: false,
+      order_band: :baseline
+    },
     %LayerSpec{
       id: :object,
       module: Object,

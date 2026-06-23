@@ -18,20 +18,24 @@ defmodule Camerex.Segmenter.U2Net do
   LINEAR) não faz anti-aliasing e o aliasing desloca a predição do U²-Net
   (spike 0.7, scripts/spikes/RESULTS.md).
   """
-  @spec preprocess(Nx.Tensor.t()) :: Nx.Tensor.t()
-  def preprocess(rgb) do
+  @spec preprocess(Nx.Tensor.t(), keyword()) :: Nx.Tensor.t()
+  def preprocess(rgb, opts \\ []) do
+    size = Keyword.get(opts, :size, 320)
+    mean = Keyword.get(opts, :mean, @mean)
+    std = Keyword.get(opts, :std, @std)
+
     t =
       rgb
       |> Evision.Mat.from_nx_2d()
-      |> Evision.resize({320, 320}, interpolation: Evision.Constant.cv_INTER_AREA())
+      |> Evision.resize({size, size}, interpolation: Evision.Constant.cv_INTER_AREA())
       |> Evision.Mat.to_nx(Nx.BinaryBackend)
       |> Nx.as_type(:f32)
 
     t = Nx.divide(t, Nx.max(Nx.reduce_max(t), 1.0e-6))
 
     t
-    |> Nx.subtract(Nx.tensor(@mean))
-    |> Nx.divide(Nx.tensor(@std))
+    |> Nx.subtract(Nx.tensor(mean))
+    |> Nx.divide(Nx.tensor(std))
     |> Nx.transpose(axes: [2, 0, 1])
     |> Nx.new_axis(0)
   end

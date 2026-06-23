@@ -12,7 +12,9 @@ defmodule Camerex.Segmenter.Ortex do
 
   alias Camerex.Segmenter.U2Net
 
-  @valid_models ~w(u2net u2netp)
+  # isnet-general-use: SOD class-agnostic (rembg, Apache) robusto a pose — usado
+  # pra preencher os buracos que o ATR deixa em pose aérea (ver Parser.PersonFill)
+  @valid_models ~w(u2net u2netp isnet-general-use)
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
@@ -26,7 +28,7 @@ defmodule Camerex.Segmenter.Ortex do
 
     if model_id in @valid_models do
       with {:ok, model} <- GenServer.call(__MODULE__, {:fetch_model, model_id}, :infinity) do
-        run_inference(model, rgb)
+        run_inference(model, model_id, rgb)
       end
     else
       {:error, {:unknown_model, model_id}}
@@ -69,12 +71,12 @@ defmodule Camerex.Segmenter.Ortex do
   end
 
   # roda fora do GenServer: inferências concorrentes entre jobs do pool
-  defp run_inference(model, rgb) do
+  defp run_inference(model, model_id, rgb) do
     {h, w, 3} = Nx.shape(rgb)
 
     d0 =
       model
-      |> Ortex.run(U2Net.preprocess(rgb))
+      |> Ortex.run(preprocess_for(model_id, rgb))
       |> elem(0)
       |> Nx.backend_transfer()
 
@@ -85,4 +87,11 @@ defmodule Camerex.Segmenter.Ortex do
   rescue
     e -> {:error, e}
   end
+
+  # isnet-general-use roda em 1024² com mean 0.5 / std 1.0 (rembg ISNetSession);
+  # u2net/u2netp no default 320² ImageNet
+  defp preprocess_for("isnet-general-use", rgb),
+    do: U2Net.preprocess(rgb, size: 1024, mean: [0.5, 0.5, 0.5], std: [1.0, 1.0, 1.0])
+
+  defp preprocess_for(_u2net, rgb), do: U2Net.preprocess(rgb)
 end

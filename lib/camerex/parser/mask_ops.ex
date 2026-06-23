@@ -17,6 +17,11 @@ defmodule Camerex.Parser.MaskOps do
   def close_b(m, k),
     do: of_mat(Evision.morphologyEx(to_mat(m), Evision.Constant.cv_MORPH_CLOSE(), k))
 
+  @doc "Abertura (erosão→dilatação): remove estruturas FINAS e ruído, mantém massas."
+  @spec open_b(Nx.Tensor.t(), Evision.Mat.t()) :: Nx.Tensor.t()
+  def open_b(m, k),
+    do: of_mat(Evision.morphologyEx(to_mat(m), Evision.Constant.cv_MORPH_OPEN(), k))
+
   @spec ellipse(non_neg_integer()) :: Evision.Mat.t()
   def ellipse(s) do
     k = max(s, 1)
