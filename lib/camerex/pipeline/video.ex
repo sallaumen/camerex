@@ -288,6 +288,7 @@ defmodule Camerex.Pipeline.Video do
       detect_object: p["detect_object"] == true,
       detect_hair: p["detect_hair"] == true,
       hair_color: p["hair_color"],
+      hair_model: p["hair_model"],
       hair_sensitivity: p["hair_sensitivity"] || 0.5,
       detect_aerial: p["detect_aerial"] == true,
       aerial_color: p["aerial_color"],
@@ -337,7 +338,7 @@ defmodule Camerex.Pipeline.Video do
     |> frame_hair(
       frame,
       opts.segmenter,
-      opts.hair_color,
+      opts.hair_model || opts.hair_color,
       opts.hair_sensitivity,
       opts.detect_hair
     )

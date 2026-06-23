@@ -30,7 +30,7 @@ defmodule Camerex.Pipeline.Photo do
     |> with_object(rgb, Keyword.get(opts, :detect_object, false))
     |> with_hair(
       rgb,
-      Keyword.get(opts, :hair_color),
+      Keyword.get(opts, :hair_model) || Keyword.get(opts, :hair_color),
       Keyword.get(opts, :hair_sensitivity, 0.5),
       Keyword.get(opts, :detect_hair, false)
     )
@@ -213,6 +213,7 @@ defmodule Camerex.Pipeline.Photo do
       detect_object: p["detect_object"],
       detect_hair: p["detect_hair"],
       hair_color: p["hair_color"],
+      hair_model: p["hair_model"],
       hair_sensitivity: p["hair_sensitivity"],
       detect_aerial: p["detect_aerial"],
       aerial_color: p["aerial_color"],

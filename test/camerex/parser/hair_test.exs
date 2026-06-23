@@ -124,4 +124,23 @@ defmodule Camerex.Parser.HairTest do
     # pele LISA em rows 130..190 → frações {0.50, 0.67}: sem textura → nil
     assert Hair.sample_color(rgb, {0.50, 0.67}) == nil
   end
+
+  test "learn_model/2 + detect por modelo: estuda a região e acha o cacho" do
+    {fg, labels, rgb} = scene()
+    # cacho em rows 54..120, cols 88..152 → bbox em frações
+    model = Hair.learn_model(rgb, {0.37, 0.22, 0.63, 0.50})
+
+    assert is_map(model)
+    assert length(model.mu) == 3
+    assert length(model.cov_inv) == 9
+
+    mask = Hair.detect(fg, labels, rgb, model, sensitivity: 0.5)
+    assert Nx.to_number(mask[85][120]) == 255
+  end
+
+  test "learn_model/2: região lisa (sem textura de cabelo) → nil" do
+    {_fg, _labels, rgb} = scene()
+    # canto superior-esquerdo = fundo preto liso (sem bordas/transições)
+    assert Hair.learn_model(rgb, {0.0, 0.0, 0.15, 0.15}) == nil
+  end
 end

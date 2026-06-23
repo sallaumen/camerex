@@ -12,7 +12,7 @@ defmodule Camerex.Library do
   # mantém em sincronia com panel_params_for/2 da LibraryLive (tudo que o
   # render lê do manifest); sem isso, reprocessar perde os ajustes novos
   @param_keys ~w(halo bloom trail detail model
-                 layer_colors detect_object detect_hair hair_color hair_sensitivity
+                 layer_colors detect_object detect_hair hair_color hair_model hair_sensitivity
                  detect_aerial aerial_color aerial_sensitivity
                  bg_opacity transparent_bg fill fill_color fill_texture floor glow spread)
 

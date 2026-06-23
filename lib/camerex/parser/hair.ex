@@ -37,9 +37,16 @@ defmodule Camerex.Parser.Hair do
   # risco de pele); descer fica mais limpo. Em 0.5: tol Lab 20, textura 9.
   defp lab_tol(s), do: round(14 + s * 12)
   defp tex_thr(s), do: round(13 - s * 8)
+  # limiar do Mahalanobis² do modelo de região (em desvios²): apertado de
+  # propósito — pega só as tonalidades centrais do cabelo (as sombras escuras, ~
+  # cor da roupa, ficariam de fora e seriam re-preenchidas pelo fill_holes)
+  defp maha_thr(s), do: 2.0 + s * 3.0
 
   # janela do desvio-padrão local (textura) da luminância
   @tex_window 7
+  # regularização da covariância do modelo de região (só anti-singular; valor
+  # alto alargaria o elipsoide e faria o modelo aceitar cor demais)
+  @cov_reg 1.0
   # close de consolidação (~w/40 ≈ 13px em 512) junta a evidência esparsa de cor
   @consolidate_div 40
   # maior componente menor que isto (do quadro) = não há cabelo da cor → vazio
@@ -68,15 +75,16 @@ defmodule Camerex.Parser.Hair do
       cabelo). A cor e a textura restringem ao cacho dentro dela.
     * `labels` — rótulos ATR (usados só para o shape `{h, w}`).
     * `rgb` — a imagem (cor e textura precisam dela); `nil` → máscara vazia.
-    * `color` — `{r, g, b}` da cor real do cabelo na foto; `nil` → máscara vazia
-      (sem pista, este fallback não dispara).
+    * `color` — `{r, g, b}` (1 cor / eyedropper) OU um MODELO `%{mu, cov_inv}` de
+      `learn_model/2` (região marcada, capta as várias tonalidades); `nil` →
+      máscara vazia (sem pista, este fallback não dispara).
     * `opts` — `:sensitivity` (0..1, default 0.5): recall ↔ precisão.
   """
   @spec detect(
           Nx.Tensor.t(),
           Nx.Tensor.t(),
           Nx.Tensor.t() | nil,
-          tuple() | list() | nil,
+          tuple() | list() | map() | nil,
           keyword()
         ) ::
           Nx.Tensor.t()
@@ -154,17 +162,69 @@ defmodule Camerex.Parser.Hair do
     {r, g, b}
   end
 
+  @doc """
+  Aprende um MODELO de cor do cabelo de uma REGIÃO marcada (retângulo em frações
+  `{x0, y0, x1, y1}`, 0..1): média + inversa da covariância no Lab dos pixels
+  TEXTURIZADOS da região (o cabelo, não o fundo liso). A covariância capta a
+  distribuição de tonalidades — não 1 cor só (resolve "ainda tem muitas cores no
+  cabelo"). É serializável e invariante à posição, então serve foto E vídeo (o
+  mesmo modelo segue o cabelo frame a frame). Devolve `%{mu: [3], cov_inv: [9]}`,
+  ou `nil` se a região não tiver textura de cabelo.
+  """
+  @spec learn_model(Nx.Tensor.t(), {number(), number(), number(), number()}) ::
+          %{mu: [float()], cov_inv: [float()]} | nil
+  def learn_model(rgb, {x0f, y0f, x1f, y1f}) do
+    {h, w, _} = Nx.shape(rgb)
+    {x0, x1} = {px(min(x0f, x1f), w), px(max(x0f, x1f), w)}
+    {y0, y1} = {px(min(y0f, y1f), h), px(max(y0f, y1f), h)}
+
+    weight = local_std(rgb) |> Nx.greater(tex_thr(0.5)) |> Nx.as_type(:f32)
+    crop_lab = to_lab(rgb)[[y0..y1, x0..x1, 0..2]]
+    crop_w = weight[[y0..y1, x0..x1]]
+    wsum = crop_w |> Nx.sum() |> Nx.to_number()
+
+    if wsum >= @sample_min_px, do: build_model(crop_lab, crop_w, wsum), else: nil
+  end
+
+  defp px(f, dim), do: (clamp01(f) * (dim - 1)) |> round()
+
+  # média e inversa da covariância (Lab) ponderadas pela máscara de textura
+  defp build_model(crop_lab, crop_w, wsum) do
+    {bh, bw, _} = Nx.shape(crop_lab)
+    w3 = Nx.new_axis(crop_w, -1)
+    mu = crop_lab |> Nx.multiply(w3) |> Nx.sum(axes: [0, 1]) |> Nx.divide(wsum)
+    ctr = Nx.subtract(crop_lab, Nx.reshape(mu, {1, 1, 3}))
+    fc = Nx.reshape(ctr, {bh * bw, 3})
+    fw = ctr |> Nx.multiply(w3) |> Nx.reshape({bh * bw, 3})
+    cov = fw |> Nx.transpose() |> Nx.dot(fc) |> Nx.divide(wsum)
+    cov_inv = Nx.LinAlg.invert(Nx.add(cov, Nx.multiply(Nx.eye(3), @cov_reg)))
+    %{mu: Nx.to_flat_list(mu), cov_inv: Nx.to_flat_list(cov_inv)}
+  end
+
   defp clamp01(s) when is_number(s), do: s |> max(0.0) |> min(1.0)
   defp clamp01(_), do: 0.5
 
-  # evidência = silhueta ∩ cor ∩ textura (sem imagem ou sem cor → vazia)
+  # evidência = silhueta ∩ cor ∩ textura (sem imagem ou sem cor/modelo → vazia)
   defp hair_evidence(person, nil, _color, _s), do: false_like(person)
   defp hair_evidence(person, _rgb, nil, _s), do: false_like(person)
 
-  defp hair_evidence(person, rgb, {_, _, _} = color, s) do
-    near_color = Nx.less(color_dist(to_lab(rgb), lab_of(color)), lab_tol(s))
+  defp hair_evidence(person, rgb, color, s) do
+    near = near_color(to_lab(rgb), color, s)
     textured = Nx.greater(local_std(rgb), tex_thr(s))
-    person |> Nx.logical_and(near_color) |> Nx.logical_and(textured)
+    person |> Nx.logical_and(near) |> Nx.logical_and(textured)
+  end
+
+  # 1 cor: distância euclidiana esférica no Lab (caso simples / eyedropper de clique)
+  defp near_color(lab, {_, _, _} = color, s),
+    do: Nx.less(color_dist(lab, lab_of(color)), lab_tol(s))
+
+  # MODELO da região: distância de Mahalanobis (a covariância capta a distribuição
+  # de tonalidades do cabelo — várias cores, não uma)
+  defp near_color(lab, %{mu: mu, cov_inv: ci}, s) do
+    diff = Nx.subtract(lab, mu |> Nx.tensor(type: :f32) |> Nx.reshape({1, 1, 3}))
+    ci_t = ci |> Nx.tensor(type: :f32) |> Nx.reshape({3, 3})
+    d2 = Nx.sum(Nx.multiply(Nx.dot(diff, ci_t), diff), axes: [-1])
+    Nx.less(d2, maha_thr(s))
   end
 
   # distância euclidiana no Lab (escala u8) a cada pixel até a cor alvo
@@ -259,6 +319,9 @@ defmodule Camerex.Parser.Hair do
   end
 
   # cor vem como {r,g,b} (struct) ou [r,g,b] (manifest/JSON); nil = sem pista
+  # modelo da região (átomos do struct ou string-keyed do manifest) ou 1 cor
+  defp normalize_color(%{mu: mu, cov_inv: ci}), do: %{mu: mu, cov_inv: ci}
+  defp normalize_color(%{"mu" => mu, "cov_inv" => ci}), do: %{mu: mu, cov_inv: ci}
   defp normalize_color([r, g, b]), do: {r, g, b}
   defp normalize_color({_, _, _} = c), do: c
   defp normalize_color(_), do: nil

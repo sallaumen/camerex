@@ -82,6 +82,17 @@ defmodule Camerex.Calibration do
           {0..255, 0..255, 0..255} | nil
   def sample_hair_color(%{rgb: rgb}, {xf, yf}), do: Hair.sample_color(rgb, {xf, yf})
 
+  @doc """
+  Detecção avançada: aprende um MODELO de cor do cabelo a partir de uma REGIÃO
+  marcada na prévia (retângulo em frações `{x0, y0, x1, y1}`). O modelo capta as
+  várias tonalidades (não 1 cor) e é invariante à posição — serve foto E vídeo.
+  Devolve `%{mu: _, cov_inv: _}` ou `nil` (região sem textura). Ver
+  `Hair.learn_model/2`.
+  """
+  @spec learn_hair_model(session(), {number(), number(), number(), number()}) ::
+          %{mu: [float()], cov_inv: [float()]} | nil
+  def learn_hair_model(%{rgb: rgb}, bbox), do: Hair.learn_model(rgb, bbox)
+
   # cor-por-parte (único modo): precisa dos rótulos do parser
   defp render_neon(%{rgb: rgb, mask: mask, fg_full: fg_full, labels: labels}, params)
        when labels != nil do
@@ -94,7 +105,7 @@ defmodule Camerex.Calibration do
         params["detect_hair"],
         mask,
         rgb,
-        params["hair_color"],
+        params["hair_model"] || params["hair_color"],
         params["hair_sensitivity"]
       )
       |> maybe_aerial(
