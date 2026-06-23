@@ -73,6 +73,15 @@ defmodule Camerex.Calibration do
     end
   end
 
+  @doc """
+  Eyedropper: amostra a cor do cabelo a partir de um clique na prévia (frações
+  `{xf, yf}` em 0..1). Devolve `{r, g, b}` ou `nil` se o clique cair no vazio
+  liso (a UI avisa "clique no cabelo"). Ver `Hair.sample_color/3`.
+  """
+  @spec sample_hair_color(session(), {number(), number()}) ::
+          {0..255, 0..255, 0..255} | nil
+  def sample_hair_color(%{rgb: rgb}, {xf, yf}), do: Hair.sample_color(rgb, {xf, yf})
+
   # cor-por-parte (único modo): precisa dos rótulos do parser
   defp render_neon(%{rgb: rgb, mask: mask, fg_full: fg_full, labels: labels}, params)
        when labels != nil do
