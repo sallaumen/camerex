@@ -73,6 +73,7 @@ defmodule CamerexWeb.LibraryLive do
         calib_url: nil,
         calib_error: nil,
         calib_ref: nil,
+        eyedrop_armed: false,
         progress: %{},
         subscribed_jobs: MapSet.new(),
         doctor_problems: Doctor.problems(doctor_module().check())
@@ -301,6 +302,33 @@ defmodule CamerexWeb.LibraryLive do
 
   def handle_event("validate", params, socket) do
     {:noreply, socket |> assign_controls(params) |> rerender_calibration()}
+  end
+
+  # conta-gotas do cabelo: arma/desarma o modo de clique na prévia
+  def handle_event("toggle_eyedrop", _params, socket) do
+    {:noreply, assign(socket, :eyedrop_armed, not socket.assigns.eyedrop_armed)}
+  end
+
+  # clique armado na prévia: amostra a cor do cabelo no ponto e re-renderiza
+  def handle_event("eyedrop_hair", %{"xf" => xf, "yf" => yf}, socket) do
+    case socket.assigns.calib do
+      %{} = calib when is_map(calib) ->
+        case Calibration.sample_hair_color(calib, {xf, yf}) do
+          {_, _, _} = cor ->
+            {:noreply,
+             socket
+             |> put_render_params(hair_color: cor)
+             |> assign(:eyedrop_armed, false)
+             |> rerender_calibration()
+             |> put_flash(:info, "cor do cabelo capturada")}
+
+          nil ->
+            {:noreply, put_flash(socket, :error, "clique no cabelo, não no fundo")}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("convert", params, socket) do
@@ -627,6 +655,7 @@ defmodule CamerexWeb.LibraryLive do
                 <.convert_panel
                   uploads={@uploads}
                   render_params={@render_params}
+                  eyedrop_armed={@eyedrop_armed}
                   calib={@calib}
                   calib_url={@calib_url}
                   calib_error={@calib_error}

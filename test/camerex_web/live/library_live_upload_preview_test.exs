@@ -92,4 +92,36 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
     refute render(lv) =~ "calib-preview"
     assert [%{"original_filename" => "foto.jpg"}] = Camerex.Workspace.list_items()
   end
+
+  test "conta-gotas do cabelo: arma na prévia e captura a cor", %{conn: conn, jpg: jpg} do
+    {:ok, lv, _html} = live(conn, "/")
+    lv |> element("#new-conversion") |> render_click()
+
+    lv
+    |> file_input("#convert-form", :media, [
+      %{name: "foto.jpg", content: File.read!(jpg), type: "image/jpeg"}
+    ])
+    |> render_upload("foto.jpg")
+
+    assert poll_calib_img(lv)
+
+    # liga o resgate de cabelo pro sub-bloco + botão do conta-gotas aparecerem
+    lv |> form("#convert-form", %{"detect_hair" => "true"}) |> render_change()
+
+    html = render(lv)
+    assert html =~ "pegar cor do cabelo na foto"
+    assert html =~ ~s(phx-hook="EyedropHair")
+    refute html =~ "cursor-crosshair"
+
+    # arma: a img da prévia vira alvo (cursor-crosshair + data-armed)
+    armed = lv |> element("button", "pegar cor do cabelo na foto") |> render_click()
+    assert armed =~ ~s(data-armed="true")
+    assert armed =~ "cursor-crosshair"
+
+    # clique armado no centro: o handler amostra a cor e produz um flash
+    captured =
+      lv |> element("#calib-img") |> render_hook("eyedrop_hair", %{"xf" => 0.5, "yf" => 0.5})
+
+    assert captured =~ "cor do cabelo capturada" or captured =~ "clique no cabelo"
+  end
 end

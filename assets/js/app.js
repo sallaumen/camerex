@@ -29,6 +29,25 @@ import topbar from "../vendor/topbar"
 // elemento que o abriu quando ele fecha. O foco inicial fica por conta do
 // phx-mounted={JS.focus()} dos campos. Usado por CamerexWeb.UI.modal/1.
 const Hooks = {
+  // Conta-gotas: no clique na prévia (só quando armado), converte o ponto em
+  // frações {xf,yf} DA IMAGEM (respeitando object-contain) e manda pro servidor.
+  EyedropHair: {
+    mounted() {
+      this.el.addEventListener("click", (e) => {
+        if (this.el.dataset.armed !== "true") return
+        const r = this.el.getBoundingClientRect()
+        const nW = this.el.naturalWidth
+        const nH = this.el.naturalHeight
+        const s = Math.min(r.width / nW, r.height / nH)
+        const dW = nW * s
+        const dH = nH * s
+        const x = e.clientX - r.left - (r.width - dW) / 2
+        const y = e.clientY - r.top - (r.height - dH) / 2
+        if (x < 0 || y < 0 || x > dW || y > dH) return
+        this.pushEvent("eyedrop_hair", {xf: x / dW, yf: y / dH})
+      })
+    },
+  },
   // Comparador antes/depois com handle arrastável (clip-path no "antes" sobre o
   // "depois" de base). Pointer events; respeita o container inteiro como pista.
   BeforeAfter: {

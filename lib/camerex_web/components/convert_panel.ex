@@ -25,6 +25,7 @@ defmodule CamerexWeb.ConvertPanel do
     required: true,
     doc: "struct com todos os campos de render (halo, cores por camada, detecções, fill…)"
 
+  attr :eyedrop_armed, :boolean, default: false, doc: "conta-gotas do cabelo armado?"
   attr :calib, :any, default: nil, doc: ":preparing | sessão da calibragem ao vivo"
   attr :calib_url, :string, default: nil
   attr :calib_error, :string, default: nil
@@ -77,10 +78,16 @@ defmodule CamerexWeb.ConvertPanel do
             </p>
             <img
               :if={@calib_url}
+              id="calib-img"
               src={@calib_url}
               data-role="calib-img"
+              phx-hook="EyedropHair"
+              data-armed={to_string(@eyedrop_armed)}
               alt="prévia ao vivo da calibragem"
-              class="mx-auto max-h-[72vh] w-full rounded-lg object-contain"
+              class={[
+                "mx-auto max-h-[72vh] w-full rounded-lg object-contain",
+                @eyedrop_armed && "cursor-crosshair"
+              ]}
             />
             <p :if={@calib_error} class="mt-1 text-sm text-cx-orange">
               prévia falhou: {@calib_error}
@@ -280,6 +287,16 @@ defmodule CamerexWeb.ConvertPanel do
                       <span class="text-xs text-cx-text-dim">(pra achá-lo)</span>
                     </span>
                   </label>
+                  <.btn
+                    :if={@calib_url}
+                    variant={if @eyedrop_armed, do: "primary", else: "secondary"}
+                    size="sm"
+                    phx-click="toggle_eyedrop"
+                  >
+                    {if @eyedrop_armed,
+                      do: "🎯 clique no cabelo na prévia…",
+                      else: "🎯 pegar cor do cabelo na foto"}
+                  </.btn>
                   <.slider
                     name="hair_sensitivity"
                     label="sensibilidade do cabelo"
