@@ -625,26 +625,7 @@ defmodule CamerexWeb.LibraryLive do
               <% true -> %>
                 <.convert_panel
                   uploads={@uploads}
-                  halo={@render_params.halo}
-                  bloom={@render_params.bloom}
-                  layer_colors={@render_params.layer_colors}
-                  detect_object={@render_params.detect_object}
-                  detect_aerial={@render_params.detect_aerial}
-                  aerial_color={@render_params.aerial_color}
-                  aerial_sensitivity={@render_params.aerial_sensitivity}
-                  detect_hair={@render_params.detect_hair}
-                  hair_color={@render_params.hair_color}
-                  hair_sensitivity={@render_params.hair_sensitivity}
-                  bg_opacity={@render_params.bg_opacity}
-                  transparent_bg={@render_params.transparent_bg}
-                  fill={@render_params.fill}
-                  fill_color={@render_params.fill_color}
-                  fill_texture={@render_params.fill_texture}
-                  floor={@render_params.floor}
-                  glow={@render_params.glow}
-                  spread={@render_params.spread}
-                  trail={@render_params.trail}
-                  detail={@render_params.detail}
+                  render_params={@render_params}
                   calib={@calib}
                   calib_url={@calib_url}
                   calib_error={@calib_error}

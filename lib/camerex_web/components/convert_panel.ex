@@ -16,29 +16,15 @@ defmodule CamerexWeb.ConvertPanel do
   import CamerexWeb.UI
 
   alias Camerex.Parser.Layers
+  alias Camerex.RenderParams
   alias Phoenix.LiveView.JS
 
   attr :uploads, :map, required: true
-  attr :halo, :float, required: true
-  attr :bloom, :float, required: true
-  attr :layer_colors, :map, default: %{}
-  attr :detect_object, :boolean, default: false
-  attr :detect_aerial, :boolean, default: false
-  attr :aerial_color, :any, default: {220, 30, 40}
-  attr :aerial_sensitivity, :float, default: 0.5
-  attr :detect_hair, :boolean, default: false
-  attr :hair_color, :any, default: {60, 45, 40}
-  attr :hair_sensitivity, :float, default: 0.5
-  attr :bg_opacity, :float, default: 0.0
-  attr :transparent_bg, :boolean, default: false
-  attr :fill, :boolean, default: false
-  attr :fill_color, :float, default: 0.45
-  attr :fill_texture, :float, default: 0.15
-  attr :floor, :boolean, default: false
-  attr :glow, :float, default: 0.85
-  attr :spread, :float, default: 0.5
-  attr :trail, :float, required: true
-  attr :detail, :float, required: true
+
+  attr :render_params, RenderParams,
+    required: true,
+    doc: "struct com todos os campos de render (halo, cores por camada, detecções, fill…)"
+
   attr :calib, :any, default: nil, doc: ":preparing | sessão da calibragem ao vivo"
   attr :calib_url, :string, default: nil
   attr :calib_error, :string, default: nil
@@ -143,17 +129,30 @@ defmodule CamerexWeb.ConvertPanel do
             </div>
 
             <.section title="Luz e contorno">
-              <.slider name="halo" label="halo" value={@halo} min={0.0} max={1.0} />
-              <.slider name="bloom" label="brilho atmosférico" value={@bloom} min={0.0} max={1.0} />
+              <.slider name="halo" label="halo" value={@render_params.halo} min={0.0} max={1.0} />
+              <.slider
+                name="bloom"
+                label="brilho atmosférico"
+                value={@render_params.bloom}
+                min={0.0}
+                max={1.0}
+              />
               <.slider
                 :if={not photo_reconvert?(@reconvert_item)}
                 name="trail"
                 label="rastro"
-                value={@trail}
+                value={@render_params.trail}
                 min={0.0}
                 max={0.95}
               />
-              <.slider name="detail" label="detalhe" value={@detail} min={0.0} max={1.0} step="0.02" />
+              <.slider
+                name="detail"
+                label="detalhe"
+                value={@render_params.detail}
+                min={0.0}
+                max={1.0}
+                step="0.02"
+              />
             </.section>
 
             <.section title="Cor por parte">
@@ -162,7 +161,7 @@ defmodule CamerexWeb.ConvertPanel do
                   <.swatch
                     :for={group <- base_groups()}
                     name={"layer_#{group.key}"}
-                    value={Layers.hex(Map.get(@layer_colors, group.key, group.default))}
+                    value={Layers.hex(Map.get(@render_params.layer_colors, group.key, group.default))}
                     label={group.label}
                     aria={"cor da camada #{group.label}"}
                   />
@@ -185,14 +184,18 @@ defmodule CamerexWeb.ConvertPanel do
                   id="object-toggle"
                   name="detect_object"
                   label="objeto/instrumento na mão"
-                  checked={@detect_object}
+                  checked={@render_params.detect_object}
                   hint="usa um 2º modelo (U²-Net) p/ o que a pessoa segura — instrumento, microfone…"
                 />
-                <div :if={@detect_object} class="pl-12">
+                <div :if={@render_params.detect_object} class="pl-12">
                   <.swatch
                     id="object-color"
                     name={"layer_#{object_group().key}"}
-                    value={Layers.hex(Map.get(@layer_colors, :object, object_group().default))}
+                    value={
+                      Layers.hex(
+                        Map.get(@render_params.layer_colors, :object, object_group().default)
+                      )
+                    }
                     label={object_group().label}
                     aria={"cor da camada #{object_group().label}"}
                   />
@@ -204,10 +207,10 @@ defmodule CamerexWeb.ConvertPanel do
                   id="aerial-toggle"
                   name="detect_aerial"
                   label="acrobacia aérea (tecido)"
-                  checked={@detect_aerial}
+                  checked={@render_params.detect_aerial}
                   hint="destaca o tecido vertical (silk) que a pessoa escala, como camada própria"
                 />
-                <div :if={@detect_aerial} class="space-y-2 pl-12">
+                <div :if={@render_params.detect_aerial} class="space-y-2 pl-12">
                   <label
                     id="aerial-photo-color"
                     class="flex items-center gap-2.5 text-sm text-cx-text"
@@ -215,7 +218,7 @@ defmodule CamerexWeb.ConvertPanel do
                     <input
                       type="color"
                       name="aerial_color"
-                      value={Layers.hex(@aerial_color)}
+                      value={Layers.hex(@render_params.aerial_color)}
                       phx-debounce="200"
                       aria-label="cor real do tecido na foto"
                       class="cx-swatch"
@@ -228,7 +231,7 @@ defmodule CamerexWeb.ConvertPanel do
                   <.slider
                     name="aerial_sensitivity"
                     label="sensibilidade do tecido"
-                    value={@aerial_sensitivity}
+                    value={@render_params.aerial_sensitivity}
                     min={0.0}
                     max={1.0}
                   />
@@ -240,7 +243,11 @@ defmodule CamerexWeb.ConvertPanel do
                   <.swatch
                     id="aerial-color"
                     name={"layer_#{apparatus_group().key}"}
-                    value={Layers.hex(Map.get(@layer_colors, :apparatus, apparatus_group().default))}
+                    value={
+                      Layers.hex(
+                        Map.get(@render_params.layer_colors, :apparatus, apparatus_group().default)
+                      )
+                    }
                     label={apparatus_group().label}
                     aria={"cor da camada #{apparatus_group().label}"}
                   />
@@ -252,10 +259,10 @@ defmodule CamerexWeb.ConvertPanel do
                   id="hair-toggle"
                   name="detect_hair"
                   label="resgatar cabelo (poses difíceis)"
-                  checked={@detect_hair}
+                  checked={@render_params.detect_hair}
                   hint="quando o detector de partes não acha a cabeça (pose aérea, de costas), acha o cabelo pela cor que você indicar"
                 />
-                <div :if={@detect_hair} class="space-y-2 pl-12">
+                <div :if={@render_params.detect_hair} class="space-y-2 pl-12">
                   <label
                     id="hair-photo-color"
                     class="flex items-center gap-2.5 text-sm text-cx-text"
@@ -263,7 +270,7 @@ defmodule CamerexWeb.ConvertPanel do
                     <input
                       type="color"
                       name="hair_color"
-                      value={Layers.hex(@hair_color)}
+                      value={Layers.hex(@render_params.hair_color)}
                       phx-debounce="200"
                       aria-label="cor real do cabelo na foto"
                       class="cx-swatch"
@@ -276,7 +283,7 @@ defmodule CamerexWeb.ConvertPanel do
                   <.slider
                     name="hair_sensitivity"
                     label="sensibilidade do cabelo"
-                    value={@hair_sensitivity}
+                    value={@render_params.hair_sensitivity}
                     min={0.0}
                     max={1.0}
                   />
@@ -288,19 +295,24 @@ defmodule CamerexWeb.ConvertPanel do
               </div>
 
               <div class="space-y-2">
-                <.toggle id="fill-toggle" name="fill" label="preencher as partes" checked={@fill} />
-                <div :if={@fill} class="space-y-3 pl-12">
+                <.toggle
+                  id="fill-toggle"
+                  name="fill"
+                  label="preencher as partes"
+                  checked={@render_params.fill}
+                />
+                <div :if={@render_params.fill} class="space-y-3 pl-12">
                   <.slider
                     name="fill_color"
                     label="opacidade da cor"
-                    value={@fill_color}
+                    value={@render_params.fill_color}
                     min={0.0}
                     max={1.0}
                   />
                   <.slider
                     name="fill_texture"
                     label="textura da foto"
-                    value={@fill_texture}
+                    value={@render_params.fill_texture}
                     min={0.0}
                     max={1.0}
                   />
@@ -313,7 +325,7 @@ defmodule CamerexWeb.ConvertPanel do
                 <.slider
                   name="bg_opacity"
                   label="opacidade do fundo"
-                  value={@bg_opacity}
+                  value={@render_params.bg_opacity}
                   min={0.0}
                   max={1.0}
                 />
@@ -322,7 +334,7 @@ defmodule CamerexWeb.ConvertPanel do
                   id="transparent-toggle"
                   name="transparent_bg"
                   label="fundo transparente"
-                  checked={@transparent_bg}
+                  checked={@render_params.transparent_bg}
                   hint="só foto/PNG"
                 />
               </div>
@@ -332,11 +344,17 @@ defmodule CamerexWeb.ConvertPanel do
                   id="floor-toggle"
                   name="floor"
                   label="luz no chão sob os pés"
-                  checked={@floor}
+                  checked={@render_params.floor}
                 />
-                <div :if={@floor} id="floor-controls" class="space-y-3 pl-12">
-                  <.slider name="glow" label="brilho" value={@glow} min={0.0} max={1.0} />
-                  <.slider name="spread" label="espalhamento" value={@spread} min={0.0} max={1.0} />
+                <div :if={@render_params.floor} id="floor-controls" class="space-y-3 pl-12">
+                  <.slider name="glow" label="brilho" value={@render_params.glow} min={0.0} max={1.0} />
+                  <.slider
+                    name="spread"
+                    label="espalhamento"
+                    value={@render_params.spread}
+                    min={0.0}
+                    max={1.0}
+                  />
                 </div>
               </div>
             </.section>
