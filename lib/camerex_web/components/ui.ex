@@ -98,7 +98,7 @@ defmodule CamerexWeb.UI do
     ~H"""
     <div
       id={"#{@id}-overlay"}
-      class="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-black/60 p-4"
+      class="cx-overlay-in fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-black/60 p-4"
       {@rest}
     >
       <div
@@ -108,7 +108,7 @@ defmodule CamerexWeb.UI do
         aria-labelledby={"#{@id}-title"}
         phx-hook="FocusTrap"
         phx-click-away={@on_close}
-        class="w-full max-w-lg space-y-3 rounded-lg border border-cx-border bg-cx-elevated p-5 shadow-xl"
+        class="cx-modal-in w-full max-w-lg space-y-3 rounded-lg border border-cx-border bg-cx-elevated p-5 shadow-xl"
       >
         <div class="flex items-center justify-between gap-2">
           <h2 id={"#{@id}-title"} class="font-serif text-lg font-medium">{@title}</h2>

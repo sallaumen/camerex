@@ -86,15 +86,47 @@
 }
 
 /* glow assinatura + canal teal p/ alpha (sombras compostas — fora do @theme).
-   Uso permitido: CTA primário, :focus-visible/:active de controle, swatch selecionado,
-   badge processing e a arte. Proibido em repouso de swatch/slider/card/botão. */
+   Editorial híbrido: glow REDUZIDO (faísca, não holofote) — a UI quente recua, o neon
+   mora na arte. Uso permitido: CTA primário, :focus-visible/:active de controle, swatch
+   selecionado, badge processing. Proibido em repouso de swatch/slider/card/botão. */
 :root {
   --cx-teal-rgb: 43 196 178;
-  --cx-glow-signature: 0 0 2px rgb(var(--cx-teal-rgb) / 0.8), 0 0 8px rgb(var(--cx-teal-rgb) / 0.42),
-    0 0 22px rgb(var(--cx-teal-rgb) / 0.18);
-  --cx-glow-hover: 0 0 2px rgb(var(--cx-teal-rgb) / 0.9), 0 0 10px rgb(var(--cx-teal-rgb) / 0.55),
-    0 0 28px rgb(var(--cx-teal-rgb) / 0.3);
-  --cx-glow-status: 0 0 6px rgb(232 195 74 / 0.45), 0 0 16px rgb(232 195 74 / 0.22);
+  --cx-glow-signature: 0 0 1px rgb(var(--cx-teal-rgb) / 0.7), 0 0 6px rgb(var(--cx-teal-rgb) / 0.26);
+  --cx-glow-hover: 0 0 2px rgb(var(--cx-teal-rgb) / 0.8), 0 0 9px rgb(var(--cx-teal-rgb) / 0.4);
+  --cx-glow-status: 0 0 5px rgb(232 195 74 / 0.38), 0 0 12px rgb(232 195 74 / 0.18);
+}
+
+/* seleção de texto na faísca teal (editorial híbrido) */
+::selection {
+  background: var(--color-cx-teal);
+  color: var(--color-cx-bg);
+}
+
+/* entrada do modal: fade do overlay + leve subida do painel (o bloco global de
+   reduced-motion zera a duração → vira aparição instantânea, sem movimento) */
+@keyframes cx-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes cx-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.cx-overlay-in {
+  animation: cx-overlay-in var(--cx-dur-base) var(--cx-ease-out);
+}
+.cx-modal-in {
+  animation: cx-modal-in var(--cx-dur-slow) var(--cx-ease-out);
 }
 
 /* base 16px (default do browser): densidade de ferramenta pro. Tudo no Tailwind é em
@@ -441,7 +473,9 @@ html {
   cursor: ew-resize;
 }
 .cx-reveal-handle::after {
-  content: "";
+  content: "⇆";
+  display: grid;
+  place-items: center;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -450,6 +484,9 @@ html {
   transform: translate(-50%, -50%);
   border-radius: 9999px;
   background: var(--color-cx-teal);
+  color: var(--color-cx-bg);
+  font-size: 0.8rem;
+  line-height: 1;
   border: 2px solid var(--color-cx-bg);
   transition: box-shadow var(--cx-dur-fast) var(--cx-ease-out),
     transform var(--cx-dur-fast) var(--cx-ease-out);

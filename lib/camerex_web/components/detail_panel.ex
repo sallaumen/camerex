@@ -69,6 +69,12 @@ defmodule CamerexWeb.DetailPanel do
           phx-hook="BeforeAfter"
           class="cx-reveal mx-auto max-h-[72vh]"
         >
+          <span class="pointer-events-none absolute left-2 top-2 z-10 rounded bg-cx-bg/80 px-1.5 py-0.5 text-xs text-cx-text-dim">
+            antes
+          </span>
+          <span class="neon-badge badge-done pointer-events-none absolute right-2 top-2 z-10">
+            depois · neon
+          </span>
           <img
             id="after"
             src={Workspace.versioned_media_url(@item, @item["output_file"])}
