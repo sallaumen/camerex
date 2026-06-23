@@ -93,6 +93,29 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
     assert [%{"original_filename" => "foto.jpg"}] = Camerex.Workspace.list_items()
   end
 
+  test "toggle de pele do torço nu: liga o sub-bloco de sensibilidade (sem conta-gotas)",
+       %{conn: conn, jpg: jpg} do
+    {:ok, lv, _html} = live(conn, "/")
+    lv |> element("#new-conversion") |> render_click()
+
+    lv
+    |> file_input("#convert-form", :media, [
+      %{name: "foto.jpg", content: File.read!(jpg), type: "image/jpeg"}
+    ])
+    |> render_upload("foto.jpg")
+
+    assert poll_calib_img(lv)
+
+    # o toggle existe desde o início; o sub-bloco (slider) só com a camada ligada
+    assert render(lv) =~ "pele do torço nu"
+    refute render(lv) =~ "sensibilidade da pele"
+
+    html = lv |> form("#convert-form", %{"detect_skin" => "true"}) |> render_change()
+    assert html =~ "sensibilidade da pele"
+    # pele aprende a cor sozinha → NÃO tem picker de cor nem conta-gotas
+    refute html =~ ~s(name="skin_color")
+  end
+
   test "conta-gotas do cabelo: arma na prévia e captura a cor", %{conn: conn, jpg: jpg} do
     {:ok, lv, _html} = live(conn, "/")
     lv |> element("#new-conversion") |> render_click()

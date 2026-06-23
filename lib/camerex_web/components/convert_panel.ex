@@ -313,6 +313,29 @@ defmodule CamerexWeb.ConvertPanel do
 
               <div class="space-y-2">
                 <.toggle
+                  id="skin-toggle"
+                  name="detect_skin"
+                  label="pele do torço nu"
+                  checked={@render_params.detect_skin}
+                  hint="quando a pessoa está sem a parte de cima, re-rotula as costas/tronco (que o detector pinta como roupa) de volta como pele — aprende a cor sozinho dos braços e pernas"
+                />
+                <div :if={@render_params.detect_skin} class="space-y-2 pl-12">
+                  <.slider
+                    name="skin_sensitivity"
+                    label="sensibilidade da pele"
+                    value={@render_params.skin_sensitivity}
+                    min={0.0}
+                    max={1.0}
+                  />
+                  <p class="text-xs text-cx-text-dim">
+                    mais alto re-rotula mais roupa como pele (risco de pegar a calça); mais
+                    baixo fica conservador. só faz diferença em pose sem top (costas/tronco à mostra).
+                  </p>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <.toggle
                   id="fill-toggle"
                   name="fill"
                   label="preencher as partes"
