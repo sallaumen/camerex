@@ -6,16 +6,24 @@ defmodule Camerex.Library do
   """
 
   alias Camerex.{Jobs, Workspace}
+  alias Camerex.Parser.LayerRegistry
 
   @folders_file "folders.json"
   @busy_statuses ~w(processing queued)
-  # mantém em sincronia com panel_params_for/2 da LibraryLive (tudo que o
-  # render lê do manifest); sem isso, reprocessar perde os ajustes novos
-  @param_keys ~w(halo bloom trail detail model
-                 layer_colors detect_object detect_hair hair_color hair_model hair_sensitivity
-                 detect_aerial aerial_color aerial_sensitivity
-                 detect_skin skin_sensitivity
-                 bg_opacity transparent_bg fill fill_color fill_texture floor glow spread)
+
+  # chaves de RENDER (não-camada): o que o pipeline lê do manifest fora as camadas
+  @render_keys ~w(halo bloom trail detail model
+                  layer_colors bg_opacity transparent_bg
+                  fill fill_color fill_texture floor glow spread)
+
+  @doc """
+  Chaves de params persistidas no manifest (allow-list do `Map.take` ao
+  reprocessar). As de camada (`detect_*`, `*_color`, `*_model`, `*_sensitivity`)
+  DERIVAM do `LayerRegistry` — adicionar camada não toca esta lista (era a causa
+  da dessincronia que deixou Skin/hair_model fora do reprocesso).
+  """
+  @spec param_keys() :: [String.t()]
+  def param_keys, do: @render_keys ++ LayerRegistry.param_keys()
 
   defdelegate normalize_folder(path), to: Workspace
 
@@ -153,7 +161,7 @@ defmodule Camerex.Library do
     {:ok, _} =
       Workspace.update_manifest(manifest["id"], fn m ->
         Map.merge(m, %{
-          "params" => Map.take(params, @param_keys),
+          "params" => Map.take(params, param_keys()),
           "status" => "queued",
           "error" => nil,
           "output_file" => Workspace.default_output(String.to_existing_atom(m["type"]))

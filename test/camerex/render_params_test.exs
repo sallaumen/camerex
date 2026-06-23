@@ -2,11 +2,11 @@ defmodule Camerex.RenderParamsTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias Camerex.Parser.Layers
+  alias Camerex.Parser.{LayerRegistry, Layers}
   alias Camerex.RenderParams
 
-  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread aerial_sensitivity hair_sensitivity)a
-  @booleans ~w(detect_object detect_aerial detect_hair transparent_bg fill floor)a
+  @sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread aerial_sensitivity hair_sensitivity skin_sensitivity)a
+  @booleans ~w(detect_object detect_aerial detect_hair detect_skin transparent_bg fill floor)a
 
   describe "default/0" do
     test "traz as cores por camada e os defaults dos controles" do
@@ -61,14 +61,18 @@ defmodule Camerex.RenderParamsTest do
   end
 
   describe "to_manifest/1" do
-    test "produz exatamente as chaves do manifest (sem model)" do
-      keys = RenderParams.default() |> RenderParams.to_manifest() |> Map.keys() |> Enum.sort()
+    test "produz as chaves de render + as do catálogo (sem model de pipeline)" do
+      keys = RenderParams.default() |> RenderParams.to_manifest() |> Map.keys() |> MapSet.new()
 
-      expected =
-        ((@sliders ++ @booleans) |> Enum.map(&to_string/1)) ++
-          ["layer_colors", "aerial_color", "hair_color"]
+      # render keys (não-camada) + layer keys DERIVADAS do catálogo (cor/model
+      # entram em to_manifest pelas chaves :color/:model do LayerRegistry)
+      render_keys =
+        ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread
+           transparent_bg fill floor layer_colors)
 
-      assert keys == Enum.sort(expected)
+      expected = MapSet.new(render_keys ++ LayerRegistry.param_keys())
+
+      assert keys == expected
       refute "model" in keys
     end
 
