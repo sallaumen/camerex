@@ -38,10 +38,16 @@ defmodule Camerex.Neon.Background do
     original
     |> Evision.Mat.from_nx_2d()
     |> Evision.gaussianBlur({k, k}, 0)
-    |> Evision.Mat.to_nx(Nx.BinaryBackend)
+    # devolve no MESMO backend do input: forçar Nx.BinaryBackend num frame 1080p
+    # (vídeo entrega EXLA) jogava o as_type/multiply seguintes pro Elixir puro —
+    # ~500ms/frame. Preservar o backend mantém a conta no acelerador (~20ms).
+    |> Evision.Mat.to_nx(backend_of(original))
   end
 
   defp defocus(original, _blur), do: original
+
+  # módulo de backend do tensor (EXLA.Backend | Nx.BinaryBackend | …)
+  defp backend_of(%Nx.Tensor{data: %backend{}}), do: backend
 
   # kernel gaussiano ÍMPAR (exigência do OpenCV) ∝ largura × força; piso 3 pra o
   # knob sempre fazer algo perceptível quando ligado.
