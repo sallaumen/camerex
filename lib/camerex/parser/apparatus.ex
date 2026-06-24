@@ -154,16 +154,17 @@ defmodule Camerex.Parser.Apparatus do
     if Nx.to_number(Nx.sum(vibrant)) / (h * w) > mono_frac(s), do: empty(h, w), else: vibrant
   end
 
-  # PROTEÇÃO CONTRA MANCHAS por reconstrução: semeia nas fitas verticais finas e
-  # cresce DENTRO da parte fina (não da máscara cheia) — a fita segue ao longo de
-  # si, mas o crescimento para num blob gordo (parede, objeto, membro).
+  # RECONSTRUÇÃO geodésica: semeia nas fitas verticais FINAS (a assinatura que só
+  # o silk tem) e cresce DENTRO da máscara CHEIA — assim o DRAPEADO largo CONTÍGUO
+  # à fita é reincorporado (antes caía fora por ser "gordo"); mancha SEM fita não
+  # semeia, e blob desconexo (parede/mat/rack) é podado depois por keep_top_anchored.
   defp keep_thin_ribbons(mask, h, w) do
     r = ellipse(round(w / @blob_div))
     thick = morph(mask, :open, r)
     thin = Nx.logical_and(mask, Nx.logical_not(dilate_b(thick, r)))
     seeds = morph(thin, :open, vline(round(h / @seed_vrun_div)))
     grow = ellipse(round(w / @grow_div))
-    Enum.reduce(1..@grow_iters, seeds, fn _, acc -> Nx.logical_and(dilate_b(acc, grow), thin) end)
+    Enum.reduce(1..@grow_iters, seeds, fn _, acc -> Nx.logical_and(dilate_b(acc, grow), mask) end)
   end
 
   # INVARIANTE: o tecido pende do topo. Fica só componente alto, de área mínima,
