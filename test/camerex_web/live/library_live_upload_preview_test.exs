@@ -150,4 +150,40 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
 
     assert captured =~ "cor capturada" or captured =~ "clique na área colorida"
   end
+
+  test "região do cabelo (avançado): arma o modo região e aprende o modelo",
+       %{conn: conn, jpg: jpg} do
+    {:ok, lv, _html} = live(conn, "/")
+    lv |> element("#new-conversion") |> render_click()
+
+    lv
+    |> file_input("#convert-form", :media, [
+      %{name: "foto.jpg", content: File.read!(jpg), type: "image/jpeg"}
+    ])
+    |> render_upload("foto.jpg")
+
+    assert poll_calib_img(lv)
+    lv |> form("#convert-form", %{"detect_hair" => "true"}) |> render_change()
+
+    assert render(lv) =~ "Marcar região"
+
+    # arma o modo região pro hair_model: a prévia entra em data-sample-mode=region
+    armed = lv |> element(~s(button[phx-value-target="hair_model"])) |> render_click()
+    assert armed =~ ~s(data-sample-mode="region")
+    assert armed =~ ~s(data-sample-target="hair_model")
+
+    # arraste: o handler tenta aprender o modelo da região e dá um flash
+    done =
+      lv
+      |> element("#calib-img")
+      |> render_hook("sample_region", %{
+        "target" => "hair_model",
+        "x0" => 0.3,
+        "y0" => 0.3,
+        "x1" => 0.7,
+        "y1" => 0.7
+      })
+
+    assert done =~ "modelo de cor aprendido" or done =~ "arraste sobre o cabelo"
+  end
 end

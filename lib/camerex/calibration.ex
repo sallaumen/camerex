@@ -122,8 +122,9 @@ defmodule Camerex.Calibration do
   Devolve `%{mu: _, cov_inv: _}` ou `nil` (região sem textura). Ver
   `Hair.learn_model/2`.
   """
-  @spec learn_hair_model(session(), {number(), number(), number(), number()}) ::
-          %{mu: [float()], cov_inv: [float()]} | nil
+  # devolve o modelo (mu/cov_inv do Lab + prior espacial cx/cy/sigma) ou nil — map()
+  # aberto porque o merge com o prior soma chaves além de mu/cov_inv
+  @spec learn_hair_model(session(), {number(), number(), number(), number()}) :: map() | nil
   def learn_hair_model(%{rgb: rgb}, bbox), do: Hair.learn_model(rgb, bbox)
 
   # cor-por-parte (único modo): precisa dos rótulos do parser. As camadas ATIVAS

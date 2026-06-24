@@ -351,6 +351,41 @@ defmodule CamerexWeb.LibraryLive do
     end
   end
 
+  # arraste armado na prévia: aprende um MODELO de cor da região marcada (avançado).
+  # Captura as várias tonalidades e serve foto E vídeo — tem precedência sobre a cor única.
+  def handle_event(
+        "sample_region",
+        %{"target" => target, "x0" => x0, "y0" => y0, "x1" => x1, "y1" => y1},
+        socket
+      ) do
+    key = String.to_existing_atom(target)
+
+    case socket.assigns.calib do
+      %{} = calib when is_map(calib) ->
+        case Calibration.learn_hair_model(calib, {x0, y0, x1, y1}) do
+          %{} = model ->
+            {:noreply,
+             socket
+             |> put_render_params([{key, model}])
+             |> assign(:eyedrop, nil)
+             |> rerender_calibration()
+             |> put_flash(:info, "modelo de cor aprendido da região")}
+
+          nil ->
+            {:noreply, put_flash(socket, :error, "arraste sobre o cabelo, não no fundo liso")}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  # limpa o modelo de região (volta pra cor única do conta-gotas)
+  def handle_event("clear_sample", %{"target" => target}, socket) do
+    key = String.to_existing_atom(target)
+    {:noreply, socket |> put_render_params([{key, nil}]) |> rerender_calibration()}
+  end
+
   def handle_event("convert", params, socket) do
     socket = assign_controls(socket, params)
 

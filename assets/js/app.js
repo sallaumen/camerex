@@ -30,8 +30,10 @@ import topbar from "../vendor/topbar"
 // phx-mounted={JS.focus()} dos campos. Usado por CamerexWeb.UI.modal/1.
 const Hooks = {
   // Amostragem na prévia: converte clique/arraste em frações DA IMAGEM (respeitando
-  // object-contain) e manda pro servidor. Modo via data-sample-mode: "point"
-  // (clique → cor) | "off". (Região/arraste entra como modo "region".)
+  // object-contain) e manda pro servidor. Modo via data-sample-mode:
+  //   "point"  → clique amostra a cor no ponto (sample_point)
+  //   "region" → arraste marca um retângulo e aprende um modelo (sample_region)
+  //   "off"    → nada.
   EyedropHair: {
     mounted() {
       this.el.addEventListener("click", (e) => {
@@ -40,18 +42,61 @@ const Hooks = {
         if (!p) return
         this.pushEvent("sample_point", {target: this.el.dataset.sampleTarget, xf: p.x, yf: p.y})
       })
+      this.el.addEventListener("pointerdown", (e) => {
+        if (this.el.dataset.sampleMode !== "region") return
+        e.preventDefault()
+        this.start = {x: e.clientX, y: e.clientY}
+        this.box = document.createElement("div")
+        this.box.style.cssText =
+          "position:fixed;border:2px solid #2bc4b2;background:rgba(43,196,178,.18);pointer-events:none;z-index:50"
+        document.body.appendChild(this.box)
+        this.onMove = (ev) => this.drawBox(ev.clientX, ev.clientY)
+        this.onUp = (ev) => this.endRegion(ev.clientX, ev.clientY)
+        window.addEventListener("pointermove", this.onMove)
+        window.addEventListener("pointerup", this.onUp)
+      })
     },
-    // ponto do cursor → fração {x,y} 0..1 da imagem renderizada (null se cair fora)
-    frac(clientX, clientY) {
+    drawBox(cx, cy) {
+      this.box.style.left = Math.min(this.start.x, cx) + "px"
+      this.box.style.top = Math.min(this.start.y, cy) + "px"
+      this.box.style.width = Math.abs(cx - this.start.x) + "px"
+      this.box.style.height = Math.abs(cy - this.start.y) + "px"
+    },
+    endRegion(cx, cy) {
+      window.removeEventListener("pointermove", this.onMove)
+      window.removeEventListener("pointerup", this.onUp)
+      if (this.box) { this.box.remove(); this.box = null }
+      const a = this.frac(this.start.x, this.start.y, true)
+      const b = this.frac(cx, cy, true)
+      // ignora marcação minúscula (clique sem arrasto de verdade)
+      if (Math.abs(b.x - a.x) < 0.02 || Math.abs(b.y - a.y) < 0.02) return
+      this.pushEvent("sample_region", {
+        target: this.el.dataset.sampleTarget,
+        x0: a.x, y0: a.y, x1: b.x, y1: b.y,
+      })
+    },
+    destroyed() {
+      if (this.box) this.box.remove()
+      window.removeEventListener("pointermove", this.onMove)
+      window.removeEventListener("pointerup", this.onUp)
+    },
+    // ponto do cursor → fração {x,y} 0..1 da imagem renderizada. clamp=true prende às
+    // bordas (arraste); clamp=false devolve null se cair fora (clique).
+    frac(clientX, clientY, clamp = false) {
       const r = this.el.getBoundingClientRect()
       const nW = this.el.naturalWidth
       const nH = this.el.naturalHeight
       const s = Math.min(r.width / nW, r.height / nH)
       const dW = nW * s
       const dH = nH * s
-      const x = clientX - r.left - (r.width - dW) / 2
-      const y = clientY - r.top - (r.height - dH) / 2
-      if (x < 0 || y < 0 || x > dW || y > dH) return null
+      let x = clientX - r.left - (r.width - dW) / 2
+      let y = clientY - r.top - (r.height - dH) / 2
+      if (clamp) {
+        x = Math.max(0, Math.min(dW, x))
+        y = Math.max(0, Math.min(dH, y))
+      } else if (x < 0 || y < 0 || x > dW || y > dH) {
+        return null
+      }
       return {x: x / dW, y: y / dH}
     },
   },

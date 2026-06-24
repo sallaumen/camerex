@@ -413,15 +413,18 @@ defmodule CamerexWeb.ConvertPanel do
   defp layer_block(assigns) do
     bool = param_of(assigns.layer, :bool)
     color = param_of(assigns.layer, :color)
+    model = param_of(assigns.layer, :model)
 
     assigns =
       assign(assigns,
         bool: bool,
         color: color,
+        model: model,
         slider: param_of(assigns.layer, :slider),
         base: layer_base(bool.key),
         on: Map.get(assigns.render_params, bool.key),
-        point_armed: color && assigns.eyedrop == %{mode: :point, target: color.key}
+        point_armed: color && assigns.eyedrop == %{mode: :point, target: color.key},
+        region_armed: model && assigns.eyedrop == %{mode: :region, target: model.key}
       )
 
     ~H"""
@@ -463,6 +466,34 @@ defmodule CamerexWeb.ConvertPanel do
           <.icon name="hero-eye-dropper" class="size-4" />
           {if @point_armed, do: "Clique na prévia…", else: "Pegar cor"}
         </.btn>
+
+        <div :if={@model && @calib_url} class="space-y-1">
+          <.btn
+            variant={if @region_armed, do: "primary", else: "secondary"}
+            size="sm"
+            phx-click="arm_sample"
+            phx-value-mode="region"
+            phx-value-target={to_string(@model.key)}
+            title="Arraste um retângulo sobre o cabelo na prévia: aprende um modelo de cor (capta várias tonalidades) que serve foto e vídeo. Tem precedência sobre a cor única."
+          >
+            <.icon name="hero-viewfinder-circle" class="size-4" />
+            {if @region_armed, do: "Arraste sobre o cabelo…", else: "Marcar região (avançado)"}
+          </.btn>
+          <p
+            :if={Map.get(@render_params, @model.key)}
+            class="flex items-center gap-2 text-xs text-cx-text-dim"
+          >
+            <span class="text-cx-teal">✓ modelo de região ativo</span>
+            <button
+              type="button"
+              phx-click="clear_sample"
+              phx-value-target={to_string(@model.key)}
+              class="underline underline-offset-2 hover:text-cx-text"
+            >
+              limpar
+            </button>
+          </p>
+        </div>
 
         <.slider
           :if={@slider}
