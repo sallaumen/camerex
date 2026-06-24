@@ -18,8 +18,14 @@ defmodule Mix.Tasks.Camerex.Eval do
     * `--glob`   — padrão das fotos (default `workspace/items/*/original.png`)
     * `--params` — caminho de um JSON com params de render (default: neon simples)
     * `--out`    — PNG de saída (default `scripts/spikes/out/eval/sheet.png`)
-    * `--width`  — largura de cada tile (default 360)
+    * `--width`  — largura de cada tile (default 480 = a prévia ao vivo)
     * `--cols`   — colunas do grid (default 4)
+
+  > ATENÇÃO — o contact sheet é pra OVERVIEW (composição, cor, layout) em VÁRIAS
+  > fotos. Detalhe FINO sensível à resolução (escama/textura, espessura de traço)
+  > muda com a largura — valide isso na resolução de PRODUÇÃO (prévia 480 OU export
+  > nativo), não numa miniatura. O default é 480 (a prévia) justo pra não enganar:
+  > um efeito que só aparece em ~360px é artefato de resolução, não de produção.
   """
   use Mix.Task
 
@@ -35,7 +41,7 @@ defmodule Mix.Tasks.Camerex.Eval do
 
     glob = Keyword.get(opts, :glob, "workspace/items/*/original.png")
     out = Keyword.get(opts, :out, "scripts/spikes/out/eval/sheet.png")
-    width = Keyword.get(opts, :width, 360)
+    width = Keyword.get(opts, :width, 480)
     cols = Keyword.get(opts, :cols, 4)
     render_opts = render_opts(opts[:params])
 
