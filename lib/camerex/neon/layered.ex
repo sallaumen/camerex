@@ -65,11 +65,6 @@ defmodule Camerex.Neon.Layered do
   # que sobrevive ao mean-shift. O resto já está limpo, então pode ser firme.
   @density_sigma_div 60.0
   @density_threshold 0.34
-  # a PELE recebe uma supressão por densidade MAIS FIRME (limiar menor = corta
-  # mais cedo): a escama muscular/sombra é um adensamento de traços curtos, então
-  # some; a curva esparsa real (separação de membro, sombra-mestra) é rala e
-  # sobrevive. É o passo que tira o "escamoso" sem apagar a definição que importa.
-  @skin_density_threshold 0.16
   # preenchimento: DUAS opacidades independentes — `color` (intensidade do tom
   # chapado da parte) e `texture` (quanto a LUMINÂNCIA da foto modula por cima,
   # dando volume/dobras). texture baixo = quase chapado mesmo com a cor forte.
@@ -173,20 +168,16 @@ defmodule Camerex.Neon.Layered do
       skin = Layers.mask(labels, skin_ids())
       area = h * w
 
-      # pele com detalhe amortecido (traços longos só) E supressão por densidade
-      # firme (mata a escama densa, mantém a curva esparsa); o resto com detalhe cheio
+      # pele com detalhe amortecido (traços longos só); o resto com detalhe cheio
       on_skin =
-        edges
-        |> Nx.min(skin)
-        |> drop_small_components(stroke_min_area(skin_detail(detail), area))
-        |> suppress_dense(w, @skin_density_threshold)
+        edges |> Nx.min(skin) |> drop_small_components(stroke_min_area(skin_detail(detail), area))
 
       off_skin =
         edges
         |> Nx.min(Nx.subtract(255, skin))
         |> drop_small_components(stroke_min_area(detail, area))
 
-      on_skin |> Nx.max(off_skin) |> suppress_dense(w, @density_threshold)
+      on_skin |> Nx.max(off_skin) |> suppress_dense(w)
     end
   end
 
@@ -237,10 +228,9 @@ defmodule Camerex.Neon.Layered do
     [hc, sc, v] |> Evision.merge() |> Evision.cvtColor(Evision.Constant.cv_COLOR_HSV2RGB())
   end
 
-  # textura densa (renda, paetê, escama de pele) faz uma região de borda DENSA;
-  # vinco/feição é esparso. Borra o mapa, apaga onde a densidade local passa do
-  # `threshold` (menor = corta mais cedo, mais agressivo).
-  defp suppress_dense(edges, w, threshold) do
+  # textura densa (renda, paetê) faz uma região de borda DENSA; vinco/feição é
+  # esparso. Borra o mapa, apaga onde a densidade local passa do limiar.
+  defp suppress_dense(edges, w) do
     density =
       edges
       |> Nx.as_type(:f32)
@@ -249,7 +239,7 @@ defmodule Camerex.Neon.Layered do
       |> Evision.gaussianBlur({0, 0}, max(w / @density_sigma_div, 5.0))
       |> Evision.Mat.to_nx(Nx.BinaryBackend)
 
-    Nx.multiply(edges, density |> Nx.less(threshold) |> Nx.as_type(:u8))
+    Nx.multiply(edges, density |> Nx.less(@density_threshold) |> Nx.as_type(:u8))
   end
 
   @doc """
