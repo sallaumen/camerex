@@ -35,6 +35,15 @@ defmodule Camerex.Doctor do
       # em pose aérea com borda precisa — ver Camerex.Parser.PersonFill
       md5: "4fab47adc4ff364be1713e97b7e66334",
       url: "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/main/onnx/model.onnx"
+    },
+    %{
+      id: "schp-lip-20-int8",
+      file: "schp-lip-20-int8.onnx",
+      # human parsing SCHP (LIP, 20 classes, int8 MIT) — 2ª opinião do ATR p/
+      # recuperar a cabeça em pose aérea (ver Camerex.Parser.HeadFusion)
+      md5: "ec98cb7f69985f9def80b4f73008855a",
+      url:
+        "https://huggingface.co/pirocheto/schp-lip-20/resolve/main/onnx/schp-lip-20-int8-static.onnx"
     }
   ]
 

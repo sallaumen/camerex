@@ -10,9 +10,22 @@ defmodule Camerex.Parser.LayerRegistry do
   daqui — sem listas paralelas mantidas à mão.
   """
 
-  alias Camerex.Parser.{Apparatus, Hair, LayerSpec, Object, PersonFill, Skin}
+  alias Camerex.Parser.{Apparatus, Hair, HeadFusion, LayerSpec, Object, PersonFill, Skin}
 
   @layers [
+    %LayerSpec{
+      id: :head_fusion,
+      module: HeadFusion,
+      label: "Recuperar cabeça (multi-parser, pose aérea)",
+      class: 2,
+      group: nil,
+      fg_spec: %{model: "u2netp", kind: :full},
+      color_mode: :none,
+      gate: :always,
+      params: [%{key: :detect_head_fusion, kind: :bool, default: false}],
+      sampleable?: false,
+      order_band: :baseline
+    },
     %LayerSpec{
       id: :person_fill,
       module: PersonFill,

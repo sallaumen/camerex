@@ -16,6 +16,7 @@ defmodule Camerex.Application do
       {Phoenix.PubSub, name: Camerex.PubSub},
       Camerex.Segmenter.Ortex,
       Camerex.Parser.Segformer,
+      Camerex.Parser.Schp,
       {Task.Supervisor, name: Camerex.TaskSupervisor},
       Camerex.Jobs,
       CamerexWeb.Endpoint
