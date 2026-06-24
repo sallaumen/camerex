@@ -66,41 +66,6 @@ defmodule CamerexWeb.LibraryLiveTest do
     end
   end
 
-  describe "card-herói (última conversão)" do
-    test "biblioteca destaca a última conversão pronta", %{conn: conn, tmp: tmp} do
-      create_photo_item!(tmp, %{status: "done"})
-      {:ok, lv, html} = live(conn, "/")
-
-      assert html =~ ~s(id="hero")
-      assert has_element?(lv, "#hero", "fonte.png")
-      assert has_element?(lv, ~s(#hero [phx-click="open_item"]))
-    end
-
-    test "herói some com filtro ativo (é a vitrine da biblioteca pura)",
-         %{conn: conn, tmp: tmp} do
-      create_photo_item!(tmp, %{status: "done"})
-      {:ok, lv, _} = live(conn, "/")
-      assert has_element?(lv, "#hero")
-
-      lv |> form("#filter-form", %{"q" => "zzz", "status" => ""}) |> render_change()
-      refute has_element?(lv, "#hero")
-    end
-
-    test "herói some com o detalhe aberto", %{conn: conn, tmp: tmp} do
-      id = create_photo_item!(tmp, %{status: "done"})
-      {:ok, lv, _} = live(conn, "/?item=#{id}")
-
-      assert has_element?(lv, "#detail-panel")
-      refute has_element?(lv, "#hero")
-    end
-
-    test "sem item pronto não há herói", %{conn: conn, tmp: tmp} do
-      create_photo_item!(tmp)
-      {:ok, lv, _} = live(conn, "/")
-      refute has_element?(lv, "#hero")
-    end
-  end
-
   describe "editar em um passo (merge abrir + reprocessar)" do
     test "lápis na galeria abre o reprocesso direto, sem passar pelo detalhe",
          %{conn: conn, tmp: tmp} do

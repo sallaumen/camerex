@@ -213,9 +213,9 @@ defmodule CamerexWeb.UI do
 
   @doc """
   Barra de parâmetro read-only: rótulo + valor (mono) + mini-trilho preenchido.
-  Mostra a magnitude de um ajuste em `0..max` no detalhe e no card-herói (não editável —
-  para editar, use o `slider` do painel de conversão). O preenchimento é warm/neutro de
-  propósito (teal fica racionado p/ CTA/foco). Função de view.
+  Mostra a magnitude de um ajuste em `0..max` no detalhe (não editável — para editar,
+  use o `slider` do painel de conversão). O preenchimento é warm/neutro de propósito
+  (teal fica racionado p/ CTA/foco). Função de view.
   """
   attr :label, :string, required: true
   attr :value, :any, required: true, doc: "valor numérico (float/int/string) em 0..max"

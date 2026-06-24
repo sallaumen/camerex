@@ -135,8 +135,13 @@ defmodule CamerexWeb.LibraryLive do
   # só o render mais recente vale; refs antigas são descartadas em silêncio
   def handle_info({:calib_render, ref, result}, %{assigns: %{calib_ref: ref}} = socket) do
     case result do
-      {:ok, data_url} -> {:noreply, assign(socket, calib_url: data_url, calib_error: nil)}
-      {:error, reason} -> {:noreply, assign(socket, :calib_error, error_message(reason))}
+      # guarda a sessão devolvida: ela carrega os caches preguiçosos (BiRefNet,
+      # head_fusion) preenchidos neste render, pro próximo reusar sem re-computar
+      {:ok, data_url, session} ->
+        {:noreply, assign(socket, calib: session, calib_url: data_url, calib_error: nil)}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, :calib_error, error_message(reason))}
     end
   end
 
@@ -756,10 +761,6 @@ defmodule CamerexWeb.LibraryLive do
             <% end %>
           </section>
 
-          <%= if hero = featured(assigns) do %>
-            <.hero_card item={hero} />
-          <% end %>
-
           <.filter_bar
             :if={@items != []}
             query={@query}
@@ -916,22 +917,6 @@ defmodule CamerexWeb.LibraryLive do
     %{items: items, query: query, status_filter: status} = socket.assigns
     assign(socket, :visible_items, filter_items(items, query, status))
   end
-
-  # destaque da última conversão: 1º item :done (items vêm recente-primeiro), só na
-  # biblioteca "pura" — sem painel aberto nem filtro ativo. nil = não renderiza o herói.
-  defp featured(
-         %{
-           current_item: nil,
-           reconvert_item: nil,
-           convert_open: false,
-           query: "",
-           status_filter: ""
-         } = assigns
-       ) do
-    Enum.find(assigns.items, &(&1["status"] == "done"))
-  end
-
-  defp featured(_assigns), do: nil
 
   # opções do select de concorrência: degraus úteis + o valor atual (caso seja um
   # ímpar antigo fora dos degraus), sempre ordenado e sem repetir
