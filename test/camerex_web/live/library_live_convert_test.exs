@@ -220,6 +220,23 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
       assert has_element?(view, "#head-fusion-toggle")
     end
 
+    test "acordeão agrupa por tag (1ª aberta, demais colapsadas) e alterna no clique",
+         %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      # grupos derivam do catálogo (tags); Acrobacia (1ª) aberta, Música colapsada
+      assert has_element?(view, ~s(button[phx-value-tag="Acrobacia"][aria-expanded="true"]))
+      assert has_element?(view, ~s(button[phx-value-tag="Música"][aria-expanded="false"]))
+
+      # toggle de camada fica no DOM mesmo em grupo colapsado (object ∈ Música)
+      assert has_element?(view, "#object-toggle")
+
+      # clicar no cabeçalho expande a Música
+      view |> element(~s(button[phx-value-tag="Música"])) |> render_click()
+      assert has_element?(view, ~s(button[phx-value-tag="Música"][aria-expanded="true"]))
+    end
+
     test "reprocesso de foto oferece os dois toggles", %{conn: conn, tmp: tmp} do
       id = create_photo_item!(tmp, %{status: "done"})
       {:ok, view, _} = live(conn, "/?item=#{id}")

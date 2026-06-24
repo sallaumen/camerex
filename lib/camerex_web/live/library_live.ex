@@ -25,7 +25,7 @@ defmodule CamerexWeb.LibraryLive do
   }
 
   alias Camerex.Library.Import, as: LibraryImport
-  alias Camerex.Parser.Layers
+  alias Camerex.Parser.{LayerRegistry, Layers}
   alias Camerex.Pipeline.Video
 
   @video_exts ~w(.mp4 .mov .m4v .webm)
@@ -74,6 +74,8 @@ defmodule CamerexWeb.LibraryLive do
         calib_error: nil,
         calib_ref: nil,
         eyedrop_armed: false,
+        # acordeão de camadas extras: 1ª tag aberta, demais colapsadas
+        collapsed_layer_tags: LayerRegistry.tags() |> Enum.drop(1) |> MapSet.new(),
         progress: %{},
         subscribed_jobs: MapSet.new(),
         doctor_problems: Doctor.problems(doctor_module().check())
@@ -307,6 +309,18 @@ defmodule CamerexWeb.LibraryLive do
   # conta-gotas do cabelo: arma/desarma o modo de clique na prévia
   def handle_event("toggle_eyedrop", _params, socket) do
     {:noreply, assign(socket, :eyedrop_armed, not socket.assigns.eyedrop_armed)}
+  end
+
+  # colapsa/expande um grupo (tag) do acordeão de camadas extras
+  def handle_event("toggle_layer_group", %{"tag" => tag}, socket) do
+    collapsed = socket.assigns.collapsed_layer_tags
+
+    collapsed =
+      if MapSet.member?(collapsed, tag),
+        do: MapSet.delete(collapsed, tag),
+        else: MapSet.put(collapsed, tag)
+
+    {:noreply, assign(socket, :collapsed_layer_tags, collapsed)}
   end
 
   # clique armado na prévia: amostra a cor do cabelo no ponto e re-renderiza
@@ -696,6 +710,7 @@ defmodule CamerexWeb.LibraryLive do
                   reconvert_item={@reconvert_item}
                   user_presets={@user_presets}
                   preset_name={@preset_name}
+                  collapsed_tags={@collapsed_layer_tags}
                 />
             <% end %>
           </section>

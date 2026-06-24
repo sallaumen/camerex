@@ -34,7 +34,8 @@ defmodule Camerex.Parser.LayerRegistry do
       ],
       sampleable?: false,
       order_band: :baseline,
-      tags: ["Acrobacia"]
+      tags: ["Acrobacia"],
+      photo_only?: true
     },
     %LayerSpec{
       id: :person_fill,

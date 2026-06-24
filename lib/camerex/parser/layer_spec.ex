@@ -29,6 +29,8 @@ defmodule Camerex.Parser.LayerSpec do
                        Skin destrutivo por último).
     * `tags`         — categorias de uso (ex.: `["Acrobacia"]`, `["Música"]`) pra
                        UI agrupar as camadas; `[]` cai num grupo "Outros".
+    * `photo_only?`  — true sse a camada é no-op em vídeo (custo proibitivo por
+                       frame, ex.: HeadFusion); a UI a esconde no reprocesso de vídeo.
   """
 
   @type fg_spec :: %{model: String.t(), kind: :largest | :full} | :none
@@ -53,7 +55,8 @@ defmodule Camerex.Parser.LayerSpec do
           params: [param()],
           sampleable?: boolean(),
           order_band: :baseline | :overlay | :destructive,
-          tags: [String.t()]
+          tags: [String.t()],
+          photo_only?: boolean()
         }
 
   defstruct [
@@ -68,7 +71,8 @@ defmodule Camerex.Parser.LayerSpec do
     :params,
     :sampleable?,
     :order_band,
-    tags: []
+    tags: [],
+    photo_only?: false
   ]
 
   @doc """

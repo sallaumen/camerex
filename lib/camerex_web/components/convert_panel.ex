@@ -18,7 +18,7 @@ defmodule CamerexWeb.ConvertPanel do
   import CamerexWeb.CoreComponents, only: [icon: 1]
   import CamerexWeb.UI
 
-  alias Camerex.Parser.Layers
+  alias Camerex.Parser.{LayerRegistry, Layers}
   alias Camerex.RenderParams
   alias Phoenix.LiveView.JS
 
@@ -37,6 +37,10 @@ defmodule CamerexWeb.ConvertPanel do
   attr :reconvert_item, :map, default: nil, doc: "manifest quando em modo reprocesso"
   attr :user_presets, :list, default: []
   attr :preset_name, :string, default: ""
+
+  attr :collapsed_tags, :any,
+    required: true,
+    doc: "MapSet de tags de camada colapsadas no acordeão"
 
   def convert_panel(assigns) do
     ~H"""
@@ -198,161 +202,41 @@ defmodule CamerexWeb.ConvertPanel do
               </div>
             </.section>
 
-            <.section title="Camadas extras" class="space-y-4">
-              <div class="space-y-2">
-                <.toggle
-                  id="object-toggle"
-                  name="detect_object"
-                  label="Objeto na mão"
-                  title="Destaca o que a pessoa segura — instrumento, microfone — com um segundo modelo (U²-Net)."
-                  checked={@render_params.detect_object}
-                />
-                <div :if={@render_params.detect_object} class="pl-12">
-                  <.swatch
-                    id="object-color"
-                    name={"layer_#{object_group().key}"}
-                    value={
-                      Layers.hex(
-                        Map.get(@render_params.layer_colors, :object, object_group().default)
-                      )
-                    }
-                    label={cap(object_group().label)}
-                    aria={"cor da camada #{object_group().label}"}
+            <.section title="Camadas extras" class="space-y-3">
+              <%!-- data-driven do LayerRegistry, agrupado por tag (acordeão). Camada nova
+                    no catálogo aparece aqui sozinha, sob sua categoria. --%>
+              <div
+                :for={{tag, specs} <- layer_groups(@reconvert_item)}
+                class="overflow-hidden rounded-card border border-cx-border"
+              >
+                <button
+                  type="button"
+                  phx-click="toggle_layer_group"
+                  phx-value-tag={tag}
+                  aria-expanded={to_string(tag not in @collapsed_tags)}
+                  class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-cx-elevated"
+                >
+                  <span>{tag}</span>
+                  <span class="flex items-center gap-2 font-mono text-xs text-cx-text-faint">
+                    {length(specs)}
+                    <span aria-hidden="true">{if tag in @collapsed_tags, do: "▸", else: "▾"}</span>
+                  </span>
+                </button>
+                <div class={[
+                  "space-y-4 border-t border-cx-border p-3",
+                  tag in @collapsed_tags && "hidden"
+                ]}>
+                  <.layer_block
+                    :for={spec <- specs}
+                    layer={spec}
+                    render_params={@render_params}
+                    calib_url={@calib_url}
+                    eyedrop_armed={@eyedrop_armed}
                   />
                 </div>
               </div>
 
-              <div class="space-y-2">
-                <.toggle
-                  id="aerial-toggle"
-                  name="detect_aerial"
-                  label="Acrobacia aérea (tecido)"
-                  title="Destaca o tecido vertical (silk) que a pessoa escala, como uma camada própria."
-                  checked={@render_params.detect_aerial}
-                />
-                <div :if={@render_params.detect_aerial} class="space-y-2 pl-12">
-                  <label
-                    id="aerial-photo-color"
-                    title="A cor real do tecido na foto original, para o detector localizá-lo."
-                    class="flex items-center gap-2.5 text-sm text-cx-text"
-                  >
-                    <input
-                      type="color"
-                      name="aerial_color"
-                      value={Layers.hex(@render_params.aerial_color)}
-                      phx-debounce="200"
-                      aria-label="cor real do tecido na foto"
-                      class="cx-swatch"
-                    />
-                    <span>Cor do tecido na foto</span>
-                  </label>
-                  <.slider
-                    name="aerial_sensitivity"
-                    label="Sensibilidade do tecido"
-                    title="Mais alto pega mais tecido (e mais risco de mancha); mais baixo fica limpo. Tecido vívido sobre fundo da mesma cor pede valor baixo; tecido sutil sobre fundo limpo pede alto."
-                    value={@render_params.aerial_sensitivity}
-                    min={0.0}
-                    max={1.0}
-                  />
-                  <.swatch
-                    id="aerial-color"
-                    name={"layer_#{apparatus_group().key}"}
-                    value={
-                      Layers.hex(
-                        Map.get(@render_params.layer_colors, :apparatus, apparatus_group().default)
-                      )
-                    }
-                    label={cap(apparatus_group().label)}
-                    aria={"cor da camada #{apparatus_group().label}"}
-                  />
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <.toggle
-                  id="hair-toggle"
-                  name="detect_hair"
-                  label="Resgatar cabelo"
-                  title="Quando o detector não acha a cabeça (pose aérea ou de costas), localiza o cabelo pela cor que você indicar."
-                  checked={@render_params.detect_hair}
-                />
-                <div :if={@render_params.detect_hair} class="space-y-2 pl-12">
-                  <label
-                    id="hair-photo-color"
-                    title="A cor real do cabelo na foto original, para o detector localizá-lo."
-                    class="flex items-center gap-2.5 text-sm text-cx-text"
-                  >
-                    <input
-                      type="color"
-                      name="hair_color"
-                      value={Layers.hex(@render_params.hair_color)}
-                      phx-debounce="200"
-                      aria-label="cor real do cabelo na foto"
-                      class="cx-swatch"
-                    />
-                    <span>Cor do cabelo na foto</span>
-                  </label>
-                  <.btn
-                    :if={@calib_url}
-                    variant={if @eyedrop_armed, do: "primary", else: "secondary"}
-                    size="sm"
-                    phx-click="toggle_eyedrop"
-                    title="Clique num ponto do cabelo na prévia para capturar a cor exata."
-                  >
-                    <.icon name="hero-eye-dropper" class="size-4" />
-                    {if @eyedrop_armed, do: "Clique no cabelo na prévia…", else: "Pegar cor do cabelo"}
-                  </.btn>
-                  <.slider
-                    name="hair_sensitivity"
-                    label="Sensibilidade do cabelo"
-                    title="Mais alto resgata mais cabelo (e mais risco de pegar fundo parecido); mais baixo fica conservador. Use quando a cabeça some em pose aérea ou de costas."
-                    value={@render_params.hair_sensitivity}
-                    min={0.0}
-                    max={1.0}
-                  />
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <.toggle
-                  id="skin-toggle"
-                  name="detect_skin"
-                  label="Pele do torso nu"
-                  title="Quando a pessoa está sem a parte de cima, re-rotula costas e tronco (que o detector pinta como roupa) de volta como pele, aprendendo a cor dos braços e pernas."
-                  checked={@render_params.detect_skin}
-                />
-                <div :if={@render_params.detect_skin} class="space-y-2 pl-12">
-                  <.slider
-                    name="skin_sensitivity"
-                    label="Sensibilidade da pele"
-                    title="Mais alto re-rotula mais roupa como pele (risco de pegar a calça); mais baixo fica conservador. Só afeta poses sem top (costas/tronco à mostra)."
-                    value={@render_params.skin_sensitivity}
-                    min={0.0}
-                    max={1.0}
-                  />
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <.toggle
-                  id="person-fill-toggle"
-                  name="detect_person_fill"
-                  label="Preencher silhueta (pose aérea)"
-                  title="Em pose aérea/invertida o detector às vezes joga partes da pessoa no fundo e ela some; isto fecha esses buracos com uma silhueta robusta (BiRefNet). Pesado em vídeo (~5s/frame)."
-                  checked={@render_params.detect_person_fill}
-                />
-              </div>
-
-              <div :if={not video_reconvert?(@reconvert_item)} class="space-y-2">
-                <.toggle
-                  id="head-fusion-toggle"
-                  name="detect_head_fusion"
-                  label="Recuperar cabeça (pose aérea)"
-                  title="Quando o cabelo/rosto somem em pose invertida, funde um segundo modelo (SCHP) em várias rotações para recuperá-los. Mais lento e só para foto."
-                  checked={@render_params.detect_head_fusion}
-                />
-              </div>
-
+              <%!-- preenchimento é estilo de render (não é camada-detector do catálogo) --%>
               <div class="space-y-2">
                 <.toggle
                   id="fill-toggle"
@@ -493,13 +377,118 @@ defmodule CamerexWeb.ConvertPanel do
     """
   end
 
+  # ── camadas extras: render data-driven do LayerRegistry ───────────
+
+  # grupos {tag, [ui_spec]} na ordem das tags; sem camadas só-foto no reprocesso de
+  # vídeo e sem grupos vazios. Camada nova no catálogo entra aqui sozinha.
+  defp layer_groups(reconvert_item) do
+    specs =
+      Enum.reject(
+        LayerRegistry.ui_specs(),
+        &(&1.photo_only? and video_reconvert?(reconvert_item))
+      )
+
+    LayerRegistry.tags()
+    |> Enum.map(fn tag -> {tag, Enum.filter(specs, &(tag in &1.tags))} end)
+    |> Enum.reject(fn {_tag, group} -> group == [] end)
+  end
+
+  # base do id DOM derivada do bool (detect_aerial → "aerial"): casa os ids históricos
+  # (aerial-toggle / aerial-photo-color / aerial-color) sem acoplar ao id da camada.
+  defp layer_base(bool_key) do
+    bool_key |> to_string() |> String.replace_prefix("detect_", "") |> String.replace("_", "-")
+  end
+
+  defp param_of(spec, kind), do: Enum.find(spec.params, &(&1.kind == kind))
+
+  attr :layer, :map, required: true, doc: "ui_spec da camada (LayerRegistry.ui_specs/0)"
+  attr :render_params, RenderParams, required: true
+  attr :calib_url, :string, default: nil
+  attr :eyedrop_armed, :boolean, default: false
+
+  # uma camada-detector: toggle (bool) + sub-controles derivados dos params só quando
+  # ligada — cor de detecção (color), conta-gotas (sampleable?), slider, swatch de saída
+  # (group). A copy toda vem do catálogo; camada nova renderiza sozinha.
+  defp layer_block(assigns) do
+    bool = param_of(assigns.layer, :bool)
+
+    assigns =
+      assign(assigns,
+        bool: bool,
+        color: param_of(assigns.layer, :color),
+        slider: param_of(assigns.layer, :slider),
+        base: layer_base(bool.key),
+        on: Map.get(assigns.render_params, bool.key)
+      )
+
+    ~H"""
+    <div class="space-y-2">
+      <.toggle
+        id={"#{@base}-toggle"}
+        name={to_string(@bool.key)}
+        label={@bool.label}
+        title={@bool[:ui_hint]}
+        checked={@on}
+      />
+      <div :if={@on} class="space-y-2 pl-12">
+        <label
+          :if={@color}
+          id={"#{@base}-photo-color"}
+          title={@color[:ui_hint]}
+          class="flex items-center gap-2.5 text-sm text-cx-text"
+        >
+          <input
+            type="color"
+            name={to_string(@color.key)}
+            value={Layers.hex(Map.get(@render_params, @color.key))}
+            phx-debounce="200"
+            aria-label={@color.label}
+            class="cx-swatch"
+          />
+          <span>{@color.label}</span>
+        </label>
+
+        <.btn
+          :if={@layer.sampleable? and @calib_url}
+          variant={if @eyedrop_armed, do: "primary", else: "secondary"}
+          size="sm"
+          phx-click="toggle_eyedrop"
+          title="Clique num ponto do cabelo na prévia para capturar a cor exata."
+        >
+          <.icon name="hero-eye-dropper" class="size-4" />
+          {if @eyedrop_armed, do: "Clique no cabelo na prévia…", else: "Pegar cor do cabelo"}
+        </.btn>
+
+        <.slider
+          :if={@slider}
+          name={to_string(@slider.key)}
+          label={@slider.label}
+          title={@slider[:ui_hint]}
+          value={Map.get(@render_params, @slider.key)}
+          min={0.0}
+          max={1.0}
+        />
+
+        <.swatch
+          :if={@layer.group}
+          id={"#{@base}-color"}
+          name={"layer_#{@layer.group.key}"}
+          value={
+            Layers.hex(Map.get(@render_params.layer_colors, @layer.group.key, @layer.group.default))
+          }
+          label={cap(@layer.group.label)}
+          aria={"cor da camada #{@layer.group.label}"}
+        />
+      </div>
+    </div>
+    """
+  end
+
   # ── dados das camadas ─────────────────────────────────────────────
 
-  # :object e :apparatus são camadas opt-in (2º modelo): saem do grid de cores
-  # fixas e ganham picker próprio só quando ligadas
+  # :object e :apparatus são camadas opt-in com picker próprio no acordeão de camadas
+  # extras (layer_block via group); o grid fixo de "Cor por parte" exclui as duas.
   defp base_groups, do: Enum.reject(Layers.groups(), &(&1.key in [:object, :apparatus]))
-  defp object_group, do: Enum.find(Layers.groups(), &(&1.key == :object))
-  defp apparatus_group, do: Enum.find(Layers.groups(), &(&1.key == :apparatus))
 
   # rastro só afeta vídeo (decaimento entre frames); num reprocesso de foto é
   # no-op, então some — não confunde com um controle que não faz nada.
