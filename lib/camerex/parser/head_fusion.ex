@@ -26,13 +26,19 @@ defmodule Camerex.Parser.HeadFusion do
   @behaviour Camerex.Parser.Layer
 
   alias Camerex.Parser
-  alias Camerex.Parser.{LayerContext, Schp}
+  alias Camerex.Parser.{LayerContext, Layers, Schp}
 
   # ATR (SegFormer ATR): cabelo 2, rosto 11. SCHP (LIP): cabelo 2, rosto 13.
   @hair_atr 2
   @face_atr 11
   @hair_lip 2
   @face_lip 13
+
+  # Classes que a cabeça PODE reivindicar de volta: o grupo "Acessórios" do
+  # `Layers` — óculos(3), sapatos(9,10), bolsa(16). Na pose invertida o ATR (em
+  # pé) confunde cabelo pendurado ↔ bolsa e rosto ↔ óculos; sob a máscara-cabeça
+  # esses rótulos são sempre misfire. Derivado da definição (sem duplicar ids).
+  @reclaim_classes Layers.groups() |> Enum.find(&(&1.key == :accessories)) |> Map.fetch!(:ids)
 
   @impl Camerex.Parser.Layer
   @spec run(LayerContext.t()) :: Nx.Tensor.t()
@@ -57,10 +63,20 @@ defmodule Camerex.Parser.HeadFusion do
   @impl Camerex.Parser.Layer
   @spec into_labels(Nx.Tensor.t(), Nx.Tensor.t()) :: Nx.Tensor.t()
   def into_labels(labels, mask) do
-    # injeta a cabeça (mask ∈ {0,2,11}) só onde o ATR deixou FUNDO — não sobrescreve
-    # roupa/membro já corretos (regressão zero em pose em pé)
-    where = Nx.logical_and(Nx.greater(mask, 0), Nx.equal(labels, 0))
+    # injeta cabelo(2)/rosto(11) onde o ATR deixou FUNDO **ou** rotulou um acessório
+    # (misfire de pose). Confinado a `mask>0` (a cabeça) — não sobrescreve roupa/
+    # pele/membro, nem acessório GENUÍNO fora da cabeça (ex.: sapato no pé fica a
+    # `mask==0`). Resolve o contorno duplo "Acessórios × cabelo" da pose invertida.
+    reclaimable = Nx.logical_or(Nx.equal(labels, 0), member?(labels, @reclaim_classes))
+    where = Nx.logical_and(Nx.greater(mask, 0), reclaimable)
     Nx.select(where, mask, labels)
+  end
+
+  # máscara booleana dos pixels cujo rótulo está em `ids` (união, sem morfologia)
+  defp member?(labels, ids) do
+    Enum.reduce(ids, Nx.broadcast(Nx.u8(0), Nx.shape(labels)), fn id, acc ->
+      Nx.logical_or(acc, Nx.equal(labels, id))
+    end)
   end
 
   # --- fusão pura (tensor entra, tensor sai) --------------------------------
