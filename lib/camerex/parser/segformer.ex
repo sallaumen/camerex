@@ -21,9 +21,23 @@ defmodule Camerex.Parser.Segformer do
 
   @impl Camerex.Parser
   def parse(rgb, _opts \\ []) do
-    with {:ok, model} <- GenServer.call(__MODULE__, :fetch_model, :infinity) do
+    with {:ok, model} <- fetch_model(__MODULE__) do
       run_inference(model, rgb)
     end
+  end
+
+  # `GenServer.call` a um processo morto/ausente LEVANTA `exit` (não é valor de
+  # retorno) — derrubaria o chamador (ex.: a Task da prévia ao vivo). Capturamos
+  # e devolvemos o contrato {:error,_} pra a with-chain degradar com graça: o
+  # parser indisponível vira labels nil na calibragem (a UI avisa), em vez de
+  # crashar. Dispara, p.ex., quando um child novo foi adicionado à árvore mas o
+  # servidor ainda não reiniciou.
+  @doc false
+  @spec fetch_model(GenServer.server()) :: {:ok, term()} | {:error, term()}
+  def fetch_model(server) do
+    GenServer.call(server, :fetch_model, :infinity)
+  catch
+    :exit, reason -> {:error, {:parser_unavailable, reason}}
   end
 
   @impl GenServer

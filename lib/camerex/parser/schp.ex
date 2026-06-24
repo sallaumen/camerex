@@ -28,9 +28,23 @@ defmodule Camerex.Parser.Schp do
   @doc "Parseia `{h,w,3}` u8 RGB → `{:ok, {h,w}}` u8 com a classe LIP (0..19) por pixel."
   @spec parse(Nx.Tensor.t()) :: {:ok, Nx.Tensor.t()} | {:error, term()}
   def parse(rgb) do
-    with {:ok, model} <- GenServer.call(__MODULE__, :fetch_model, :infinity) do
+    with {:ok, model} <- fetch_model(__MODULE__) do
       run_inference(model, rgb)
     end
+  end
+
+  # `GenServer.call` a um processo morto/ausente LEVANTA `exit` (não é valor de
+  # retorno) — derrubaria o chamador (a Task da prévia ao vivo, via HeadFusion).
+  # Capturamos e devolvemos {:error,_} pra a with-chain degradar com graça: o
+  # `HeadFusion.parse_at` trata o erro como "orientação não contribuiu" e segue
+  # só com o ATR. Dispara, p.ex., quando o child Schp foi adicionado à árvore mas
+  # o servidor ainda não reiniciou.
+  @doc false
+  @spec fetch_model(GenServer.server()) :: {:ok, term()} | {:error, term()}
+  def fetch_model(server) do
+    GenServer.call(server, :fetch_model, :infinity)
+  catch
+    :exit, reason -> {:error, {:parser_unavailable, reason}}
   end
 
   @impl GenServer
