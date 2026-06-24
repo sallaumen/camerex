@@ -95,16 +95,20 @@ defmodule Camerex.Neon.Layered do
       mechas de cabelo, do Canny sobre a imagem POSTERIZADA (mean-shift) — traz
       definição sem os "quadrados" da textura do tecido.
 
-  opts: `detail:` 0..1 (quanto detalhe interno; 0 = só contornos, default 0.5).
+  opts: `detail:` 0..1 (quanto detalhe interno; 0 = só contornos, default 0.5) ·
+  `edges:` mapa de bordas posterizadas pré-computado de `posterized_edges/1`
+  (o mean-shift é caro e depende SÓ do rgb — a calibragem ao vivo o computa 1×
+  por sessão e reusa a cada ajuste, em vez de re-rodar o mean-shift por slider).
   """
   @spec line_art(Nx.Tensor.t(), Nx.Tensor.t(), keyword()) :: Nx.Tensor.t()
   def line_art(rgb, labels, opts \\ []) do
     detail = Keyword.get(opts, :detail, 0.5)
+    edges = Keyword.get(opts, :edges)
     {_h, w, _} = Nx.shape(rgb)
 
     labels
     |> semantic_contours(w)
-    |> Nx.max(internal_detail(rgb, labels, detail))
+    |> Nx.max(internal_detail(rgb, labels, detail, edges))
     |> smooth_tube()
   end
 
@@ -144,7 +148,8 @@ defmodule Camerex.Neon.Layered do
 
   # detalhe interno (u8 {h,w}): Canny sobre a imagem posterizada, confinado à
   # figura (erodida), com a textura densa suprimida. detail <= 0 → só contornos.
-  defp internal_detail(rgb, labels, detail) do
+  # `precomp` = bordas posterizadas já prontas (calibragem ao vivo); nil → computa.
+  defp internal_detail(rgb, labels, detail, precomp) do
     {h, w, _} = Nx.shape(rgb)
 
     if detail <= 0.0 do
@@ -159,7 +164,7 @@ defmodule Camerex.Neon.Layered do
         |> Evision.erode(kernel(5))
         |> Evision.Mat.to_nx(Nx.BinaryBackend)
 
-      edges = rgb |> posterized_edges() |> Nx.min(eroded)
+      edges = (precomp || posterized_edges(rgb)) |> Nx.min(eroded)
       skin = Layers.mask(labels, skin_ids())
       area = h * w
 
@@ -186,10 +191,16 @@ defmodule Camerex.Neon.Layered do
   defp stroke_min_area(detail, area),
     do: round(area * @stroke_max_frac * :math.pow(1.0 - detail, @stroke_curve)) + 4
 
+  @doc """
+  Bordas posterizadas `{h, w}` u8 (mean-shift → Canny). Depende SÓ do rgb — caro
+  (o mean-shift), então a calibragem ao vivo computa 1× por sessão e passa via
+  `line_art(.., edges: _)`, evitando re-rodar o mean-shift a cada slider.
+  """
+  @spec posterized_edges(Nx.Tensor.t()) :: Nx.Tensor.t()
   # mean-shift (em resolução reduzida, por custo) → Canny → volta ao tamanho
   # cheio. Parâmetros fixos: o mapa de traços é sempre o mesmo (o slider só
   # decide QUANTOS sobrevivem, via stroke_min_area).
-  defp posterized_edges(rgb) do
+  def posterized_edges(rgb) do
     {h, w, _} = Nx.shape(rgb)
     scale = min(@ms_work_width / w, 1.0)
     {tw, th} = {max(round(w * scale), 2), max(round(h * scale), 2)}

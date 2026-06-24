@@ -62,7 +62,9 @@ defmodule Camerex.Pipeline.Photo do
     colors = Keyword.get(opts, :layer_colors, Layers.default_colors())
     {_h, w, _} = Nx.shape(rgb)
 
-    line = Layered.line_art(rgb, labels, detail: detail)
+    # `edges` opcional: bordas posterizadas pré-computadas (calibragem ao vivo).
+    # No caminho normal (full-res) é nil → o line_art recomputa o mean-shift.
+    line = Layered.line_art(rgb, labels, detail: detail, edges: Keyword.get(opts, :edges))
     field = Layered.color_field(labels, colors, w)
 
     Neon.compose(line, halo: halo, bloom: bloom, color_field: field)

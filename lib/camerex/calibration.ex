@@ -1,26 +1,39 @@
 defmodule Camerex.Calibration do
   @moduledoc """
-  Sessão de calibragem ao vivo: parseia a prévia **uma vez** (a parte cara
-  do pipeline, ~300ms) e recompõe a cada ajuste de controle via
-  `Photo.render_with_labels` (milissegundos). A prévia trabalha reduzida a
-  #{480}px de largura — calibragem é sobre proporções de halo/detalhe/cor,
-  não sobre resolução.
+  Sessão de calibragem ao vivo: parseia a prévia **uma vez** e recompõe a cada
+  ajuste de controle via `Photo.render_with_labels`. A prévia trabalha reduzida a
+  #{480}px de largura — calibragem é sobre proporções de halo/detalhe/cor, não
+  sobre resolução.
+
+  Três artefatos caros são cacheados na sessão pra a prévia ficar ágil:
+
+    * **`edges`** — as bordas posterizadas (mean-shift, depende SÓ do rgb).
+      Computadas 1× no `prepare` e reusadas a cada slider (sem isto, todo ajuste
+      re-rodava o mean-shift, ~2s).
+    * **`fg_cache`** — as segmentações SOD que as camadas pedem, computadas
+      PREGUIÇOSAMENTE (só quando a camada é ligada). Assim a sessão típica não
+      paga o BiRefNet do `person_fill` (~5s) sem nunca ligá-lo.
+    * **`head_cache`** — a máscara-cabeça do `HeadFusion` (7 inferências), que
+      independe de slider: roda 1× quando ligado e é reaplicada a cada ajuste,
+      em vez de re-inferir por slider (era ~15s/render).
+
+  `render/2` devolve a sessão (possivelmente com caches novos) pra a LiveView
+  guardar e o próximo render reusar.
   """
 
   alias Camerex.{Mask, Parser}
-  alias Camerex.Parser.{Hair, LayerRegistry, Layers}
+  alias Camerex.Neon.Layered
+  alias Camerex.Parser.{Hair, HeadFusion, LayerContext, LayerRegistry, Layers}
   alias Camerex.Pipeline.{FramePreview, LayerRunner, Photo}
 
   @preview_width 480
 
-  # `fg_cache` guarda as segmentações U²-Net que QUALQUER camada pode pedir
-  # (`{model, kind} => tensor`), pré-computadas UMA vez na prepare. Como a UI
-  # liga/desliga camadas ao vivo, o cache fica pronto pra qualquer combinação —
-  # `render_neon` recompõe a cada ajuste SEM rodar o U²-Net de novo.
   @type session :: %{
           rgb: Nx.Tensor.t(),
           labels: Nx.Tensor.t() | nil,
-          fg_cache: %{{String.t(), :largest | :full} => Nx.Tensor.t()}
+          edges: Nx.Tensor.t() | nil,
+          fg_cache: %{{String.t(), :largest | :full} => Nx.Tensor.t()},
+          head_cache: Nx.Tensor.t() | nil
         }
 
   @doc """
@@ -36,49 +49,94 @@ defmodule Camerex.Calibration do
     with {:ok, rgb} <- read_rgb(path), do: prepare(rgb)
   end
 
-  @doc "Reduz a imagem e roda as segmentações da sessão (1× por {model, kind})."
-  @spec prepare(Nx.Tensor.t()) :: {:ok, session()} | {:error, term()}
+  @doc """
+  Reduz a imagem, parseia as partes e pré-computa o mean-shift (caro, depende só
+  do rgb). As segmentações SOD ficam preguiçosas (`fg_cache` vazio) — só rodam
+  quando a camada que as pede é ligada.
+  """
+  @spec prepare(Nx.Tensor.t()) :: {:ok, session()}
   def prepare(rgb) do
     rgb = shrink(rgb)
-    segmenter = Application.fetch_env!(:camerex, :segmenter)
-    pairs = LayerRegistry.required_segmentations(LayerRegistry.all())
 
-    with {:ok, fg_cache} <- segment_pairs(segmenter, rgb, pairs) do
-      # parseia as partes (cor-por-parte é o ÚNICO modo); parser ausente → labels
-      # nil e a prévia avisa que o parser está indisponível
-      labels =
-        case Parser.parse(rgb) do
-          {:ok, l} -> l
-          {:error, _} -> nil
-        end
-
-      {:ok, %{rgb: rgb, labels: labels, fg_cache: fg_cache}}
-    end
-  end
-
-  # roda o segmenter 1× por {model, kind} e extrai o tensor (largest/full)
-  defp segment_pairs(segmenter, rgb, pairs) do
-    Enum.reduce_while(pairs, {:ok, %{}}, fn {model, kind}, {:ok, acc} ->
-      case segmenter.segment(rgb, model: model) do
-        {:ok, raw} -> {:cont, {:ok, Map.put(acc, {model, kind}, extract_fg(raw, kind))}}
-        {:error, _} = err -> {:halt, err}
+    # parseia as partes (cor-por-parte é o ÚNICO modo); parser ausente → labels
+    # nil e a prévia avisa que o parser está indisponível
+    labels =
+      case Parser.parse(rgb) do
+        {:ok, l} -> l
+        {:error, _} -> nil
       end
-    end)
+
+    edges = if labels, do: Layered.posterized_edges(rgb), else: nil
+
+    {:ok, %{rgb: rgb, labels: labels, edges: edges, fg_cache: %{}, head_cache: nil}}
   end
 
   defp extract_fg(raw, :largest), do: Mask.largest_component(raw)
   defp extract_fg(raw, :full), do: raw |> Nx.greater(0) |> Nx.multiply(255) |> Nx.as_type(:u8)
 
   @doc """
-  Recompõe a prévia cor-por-parte com os params do painel (`%{"halo" => _,
-  "detail" => _, "layer_colors" => _, …}`) e devolve um data URL PNG.
+  Recompõe a prévia cor-por-parte com os params do painel e devolve um data URL
+  PNG **mais a sessão** (com os caches preguiçosos preenchidos no caminho).
   """
-  @spec render(session(), map()) :: {:ok, String.t()} | {:error, term()}
+  @spec render(session(), map()) :: {:ok, String.t(), session()} | {:error, term()}
   def render(session, params) do
-    with {:ok, neon} <- render_neon(session, params) do
-      encode_data_url(neon)
+    session = ensure_caches(session, params)
+
+    with {:ok, neon} <- render_neon(session, params),
+         {:ok, url} <- encode_data_url(neon) do
+      {:ok, url, session}
     end
   end
+
+  # preenche preguiçosamente o que as camadas ATIVAS pedem e ainda falta no cache:
+  # as segmentações SOD (fg) e a máscara-cabeça do head_fusion.
+  defp ensure_caches(%{labels: nil} = session, _params), do: session
+
+  defp ensure_caches(session, params) do
+    active = LayerRegistry.active(params)
+    session |> ensure_fg(active) |> ensure_head(params)
+  end
+
+  # roda o segmenter SÓ pelos {model, kind} que as camadas ativas exigem e ainda
+  # não estão no cache (ex.: BiRefNet do person_fill só quando ele é ligado).
+  defp ensure_fg(%{rgb: rgb, fg_cache: cache} = session, active) do
+    segmenter = Application.fetch_env!(:camerex, :segmenter)
+
+    filled =
+      active
+      |> LayerRegistry.required_segmentations()
+      |> Enum.reject(&Map.has_key?(cache, &1))
+      |> Enum.reduce(cache, fn {model, kind} = pair, acc ->
+        case segmenter.segment(rgb, model: model) do
+          {:ok, raw} -> Map.put(acc, pair, extract_fg(raw, kind))
+          {:error, _} -> acc
+        end
+      end)
+
+    %{session | fg_cache: filled}
+  end
+
+  # head_fusion independe de slider (só do rgb): roda as 7 inferências 1× e cacheia
+  # a máscara-cabeça; render_neon a reaplica a cada ajuste.
+  defp ensure_head(
+         %{head_cache: nil, rgb: rgb, labels: labels, fg_cache: cache} = session,
+         params
+       ) do
+    if params["detect_head_fusion"] == true do
+      ctx = %LayerContext{
+        rgb: rgb,
+        labels: labels,
+        fg: Map.get(cache, {"u2netp", :full}),
+        video?: false
+      }
+
+      %{session | head_cache: HeadFusion.run(ctx)}
+    else
+      session
+    end
+  end
+
+  defp ensure_head(session, _params), do: session
 
   @doc """
   Eyedropper genérico: amostra a cor de um param `:color` a partir de um clique na
@@ -128,12 +186,17 @@ defmodule Camerex.Calibration do
   def learn_hair_model(%{rgb: rgb}, bbox), do: Hair.learn_model(rgb, bbox)
 
   # cor-por-parte (único modo): precisa dos rótulos do parser. As camadas ATIVAS
-  # reusam o `fg_cache` da sessão via o `fg_provider` — render recompõe sem rodar
-  # U²-Net por slider (mantém a prévia ao vivo em ms).
-  defp render_neon(%{rgb: rgb, labels: labels, fg_cache: fg_cache}, params)
+  # reusam o `fg_cache` da sessão; o head_fusion (cacheado) é APLICADO aqui e tirado
+  # dos params, pra o LayerRunner não re-rodar as 7 inferências por slider. As bordas
+  # posterizadas (mean-shift) vêm prontas da sessão.
+  defp render_neon(
+         %{rgb: rgb, labels: labels, fg_cache: fg_cache, edges: edges, head_cache: head},
+         params
+       )
        when labels != nil do
+    {base, params} = apply_head_cache(labels, head, params)
     fg_provider = fn pair -> Map.get(fg_cache, pair) end
-    labels = LayerRunner.run(labels, rgb, params, fg_provider: fg_provider, video?: false)
+    labels = LayerRunner.run(base, rgb, params, fg_provider: fg_provider, video?: false)
 
     opts =
       [
@@ -143,13 +206,24 @@ defmodule Camerex.Calibration do
         layer_colors: Layers.normalize_colors(params["layer_colors"]),
         fill: params["fill"] || false,
         fill_color: params["fill_color"] || 0.45,
-        fill_texture: params["fill_texture"] || 0.15
+        fill_texture: params["fill_texture"] || 0.15,
+        edges: edges
       ] ++ bg_opts(params) ++ floor_opts(params)
 
     {:ok, Photo.render_with_labels(rgb, labels, opts)}
   end
 
   defp render_neon(_session, _params), do: {:error, "parser de partes indisponível"}
+
+  # aplica a máscara-cabeça cacheada e desliga a flag (head_fusion já injetado);
+  # sem cache (camada off ou ainda não computada) deixa os params intactos.
+  defp apply_head_cache(labels, head, params) do
+    if params["detect_head_fusion"] == true and head != nil do
+      {HeadFusion.into_labels(labels, head), Map.put(params, "detect_head_fusion", false)}
+    else
+      {labels, params}
+    end
+  end
 
   defp bg_opts(params) do
     [

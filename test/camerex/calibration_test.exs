@@ -25,12 +25,14 @@ defmodule Camerex.CalibrationTest do
     Map.merge(%{"halo" => 0.6, "detail" => 0.5}, overrides)
   end
 
-  test "prepare reduz para largura 480 preservando proporção e segmenta" do
-    assert {:ok, %{rgb: rgb, fg_cache: fg_cache}} = Calibration.prepare(scene(750, 1000))
-    assert Nx.shape(rgb) == {360, 480, 3}
-    # cache pré-computado com {model, kind} de todas as camadas; mask u2net largest
-    assert Nx.shape(fg_cache[{"u2net", :largest}]) == {360, 480}
-    assert Map.has_key?(fg_cache, {"u2netp", :full})
+  test "prepare reduz para 480 preservando proporção, parseia e cacheia o mean-shift" do
+    assert {:ok, session} = Calibration.prepare(scene(750, 1000))
+    assert Nx.shape(session.rgb) == {360, 480, 3}
+    # fg PREGUIÇOSO: prepare não segmenta (só quando a camada é ligada no render)
+    assert session.fg_cache == %{}
+    assert session.head_cache == nil
+    # mean-shift (caro) pré-computado 1× aqui
+    assert session.edges != nil
   end
 
   test "prepare preserva imagens que já cabem na prévia" do
@@ -38,18 +40,20 @@ defmodule Camerex.CalibrationTest do
     assert Nx.shape(rgb) == {64, 100, 3}
   end
 
-  test "render devolve data URL de PNG decodificável" do
+  test "render devolve {data URL de PNG decodificável, sessão}" do
     {:ok, session} = Calibration.prepare(scene(64, 64))
 
-    assert {:ok, "data:image/png;base64," <> b64} = Calibration.render(session, params())
+    assert {:ok, "data:image/png;base64," <> b64, %{} = _session} =
+             Calibration.render(session, params())
+
     assert <<137, "PNG", _rest::binary>> = Base.decode64!(b64)
   end
 
   test "halo muda a prévia renderizada" do
     {:ok, session} = Calibration.prepare(scene(64, 64))
 
-    {:ok, fraco} = Calibration.render(session, params(%{"halo" => 0.1}))
-    {:ok, forte} = Calibration.render(session, params(%{"halo" => 0.9}))
+    {:ok, fraco, _} = Calibration.render(session, params(%{"halo" => 0.1}))
+    {:ok, forte, _} = Calibration.render(session, params(%{"halo" => 0.9}))
 
     assert fraco != forte
   end
@@ -57,8 +61,8 @@ defmodule Camerex.CalibrationTest do
   test "bloom muda a prévia renderizada" do
     {:ok, session} = Calibration.prepare(scene(64, 64))
 
-    {:ok, sem} = Calibration.render(session, params())
-    {:ok, com} = Calibration.render(session, params(%{"bloom" => 0.9}))
+    {:ok, sem, _} = Calibration.render(session, params())
+    {:ok, com, _} = Calibration.render(session, params(%{"bloom" => 0.9}))
 
     assert sem != com
   end
@@ -85,9 +89,9 @@ defmodule Camerex.CalibrationTest do
     assert session.labels != nil
 
     base = params(%{"layer_colors" => %{"clothing" => [43, 196, 178]}})
-    {:ok, teal} = Calibration.render(session, base)
+    {:ok, teal, _} = Calibration.render(session, base)
 
-    {:ok, azul} =
+    {:ok, azul, _} =
       Calibration.render(session, put_in(base["layer_colors"], %{"clothing" => [0, 0, 255]}))
 
     assert teal != azul
@@ -96,32 +100,47 @@ defmodule Camerex.CalibrationTest do
   test "chão ligado muda a prévia (e anexa o piso)" do
     {:ok, session} = Calibration.prepare(scene(64, 64))
 
-    {:ok, sem} = Calibration.render(session, params())
-    {:ok, com} = Calibration.render(session, params(%{"floor" => true}))
+    {:ok, sem, _} = Calibration.render(session, params())
+    {:ok, com, _} = Calibration.render(session, params(%{"floor" => true}))
 
     assert sem != com
   end
 
-  test "render NÃO roda U²-Net por ajuste — a prévia ao vivo reusa o fg_cache" do
+  test "fg preguiçoso: segmenta 1× na 1ª render e REUSA a sessão devolvida nas seguintes" do
     prev = Application.get_env(:camerex, :segmenter)
     Application.put_env(:camerex, :segmenter, CountingSegmenter)
     start_supervised!(CountingSegmenter)
     on_exit(fn -> Application.put_env(:camerex, :segmenter, prev) end)
 
     {:ok, session} = Calibration.prepare(scene(64, 64))
-    after_prepare = CountingSegmenter.count()
-    assert after_prepare > 0
+    # prepare NÃO segmenta (fg preguiçoso)
+    assert CountingSegmenter.count() == 0
 
-    # múltiplos render com camadas que usam U²-Net ligadas — NÃO pode segmentar de novo
-    for halo <- [0.1, 0.5, 0.9] do
-      {:ok, _} =
-        Calibration.render(
-          session,
-          params(%{"halo" => halo, "detect_object" => true, "detect_aerial" => true})
-        )
-    end
+    active = params(%{"detect_object" => true, "detect_aerial" => true})
+    {:ok, _, session} = Calibration.render(session, active)
+    after_first = CountingSegmenter.count()
+    assert after_first > 0, "1ª render deveria segmentar as camadas ligadas"
 
-    assert CountingSegmenter.count() == after_prepare,
-           "render rodou o segmenter (prévia ao vivo regrediria): #{CountingSegmenter.count()} > #{after_prepare}"
+    # renders seguintes REUSAM o fg_cache da sessão devolvida — não segmenta de novo
+    {:ok, _, session} = Calibration.render(session, Map.put(active, "halo", 0.1))
+    {:ok, _, _} = Calibration.render(session, Map.put(active, "halo", 0.9))
+
+    assert CountingSegmenter.count() == after_first,
+           "render re-segmentou (prévia ao vivo regrediria): #{CountingSegmenter.count()} > #{after_first}"
+  end
+
+  test "head_fusion: cacheia a máscara-cabeça na sessão (não re-infere por slider)" do
+    {:ok, session} = Calibration.prepare(scene(64, 64))
+    assert session.head_cache == nil
+
+    hf = params(%{"detect_head_fusion" => true})
+    {:ok, _, session} = Calibration.render(session, hf)
+    # rodou as inferências 1× e guardou a máscara-cabeça
+    assert session.head_cache != nil
+    cached = session.head_cache
+
+    # render seguinte reusa o MESMO cache (ensure_head só roda com head_cache nil)
+    {:ok, _, session} = Calibration.render(session, Map.put(hf, "halo", 0.9))
+    assert session.head_cache == cached
   end
 end
