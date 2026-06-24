@@ -42,19 +42,21 @@ defmodule Camerex.Parser.HeadFusionTest do
       assert Nx.to_flat_list(out) == [2, 4, 0, 11, 0, 0]
     end
 
-    test "reivindica classes de Acessório (bag=16, óculos=3) sob a máscara, preservando roupa real e acessório fora" do
-      # na pose invertida o ATR rotula o cabelo como bag(16) e o rosto como óculos(3).
-      # (0,0)=bag misfire, (0,1)=óculos misfire, (0,2)=ROUPA real(4),
-      # (1,0)=bag FORA da máscara, (1,1)=fundo, (1,2)=rosto sem máscara
-      labels = Nx.tensor([[16, 3, 4], [16, 0, 11]], type: :u8)
-      # máscara-cabeça: (0,0)=cabelo, (0,1)=rosto, (0,2)=cabelo[mas é roupa], (1,1)=cabelo
-      mask = Nx.tensor([[2, 11, 2], [0, 2, 0]], type: :u8)
+    test "reivindica Acessórios (bag/óculos) E Boné(1) sob a máscara; preserva roupa e classe FORA" do
+      # pose invertida: o ATR rotula o cabelo como bag(16)/boné(1) e o rosto como óculos(3).
+      # (0,*) ficam SOB a máscara-cabeça; (1,*) FORA dela (salvo o fundo em (1,1)).
+      # (0,0)=bag (0,1)=óculos (0,2)=boné (0,3)=ROUPA real(4)
+      # (1,0)=bag FORA (1,1)=fundo (1,2)=rosto livre (1,3)=boné FORA
+      labels = Nx.tensor([[16, 3, 1, 4], [16, 0, 11, 1]], type: :u8)
+      mask = Nx.tensor([[2, 11, 2, 2], [0, 2, 0, 0]], type: :u8)
 
       out = HeadFusion.into_labels(labels, mask)
 
-      # bag/óculos SOB a máscara → reivindicados (2/11); ROUPA(4) preservada;
-      # bag FORA da máscara preservada (16); fundo→cabelo(2); rosto livre inalterado
-      assert Nx.to_flat_list(out) == [2, 11, 4, 16, 2, 11]
+      # SOB a máscara: bag→cabelo(2), óculos→rosto(11), boné→cabelo(2); ROUPA(4) preservada.
+      # FORA: bag(16) e boné(1) intactos; fundo→cabelo(2); rosto livre inalterado.
+      # TRADEOFF documentado: acessório/boné GENUÍNO que caísse sob a máscara seria
+      # reivindicado — aceitável p/ camada opt-in/só-foto pensada p/ pose aérea.
+      assert Nx.to_flat_list(out) == [2, 11, 2, 4, 16, 2, 11, 1]
     end
   end
 

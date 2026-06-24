@@ -34,11 +34,18 @@ defmodule Camerex.Parser.HeadFusion do
   @hair_lip 2
   @face_lip 13
 
-  # Classes que a cabeça PODE reivindicar de volta: o grupo "Acessórios" do
-  # `Layers` — óculos(3), sapatos(9,10), bolsa(16). Na pose invertida o ATR (em
-  # pé) confunde cabelo pendurado ↔ bolsa e rosto ↔ óculos; sob a máscara-cabeça
-  # esses rótulos são sempre misfire. Derivado da definição (sem duplicar ids).
-  @reclaim_classes Layers.groups() |> Enum.find(&(&1.key == :accessories)) |> Map.fetch!(:ids)
+  # Classes que a cabeça PODE reivindicar de volta: os grupos "Acessórios"
+  # (óculos 3, sapatos 9/10, bolsa 16) e "Boné" (1) do `Layers`. Na pose invertida
+  # o ATR (treinado em pé) confunde o cabelo pendurado com bolsa/BONÉ e o rosto com
+  # óculos; sob a máscara-cabeça (que o SCHP recuperou como cabelo/rosto em alguma
+  # rotação) esses rótulos são misfire. O boné é o MAIOR ofensor (tecido-2: 1090px
+  # de boné∩cabeça vs 315px de acessórios) — sem ele o contorno duplo só troca de
+  # cor (roxo→amarelo). TRADEOFF: um boné GENUÍNO só seria reivindicado se o SCHP o
+  # lesse como cabelo (improvável); a camada é opt-in/só-foto/pensada p/ pose aérea.
+  @reclaim_groups [:accessories, :hat]
+  @reclaim_classes Layers.groups()
+                   |> Enum.filter(&(&1.key in @reclaim_groups))
+                   |> Enum.flat_map(& &1.ids)
 
   @impl Camerex.Parser.Layer
   @spec run(LayerContext.t()) :: Nx.Tensor.t()
