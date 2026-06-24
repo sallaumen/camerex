@@ -82,7 +82,9 @@ defmodule Camerex.Neon.Layered do
   # CORPO ao traço, e o blur anti-aliasa a escada → tubos fluidos e contínuos.
   # norm levanta o brilho do núcleo do tubo (o blur espalha a energia).
   @tube_close 3
-  @tube_dilate 3
+  # corpo do tubo (dilate) ∝ largura: ~1px em foto pequena (428w nativo), ~3px a
+  # 1200w. Era 3px FIXO — fração enorme numa foto de 428px → contorno gordo. Agora
+  # a espessura é a MESMA fração em toda resolução (prévia 480 ≈ export nativo).
   @tube_blur 1.2
   @tube_norm 0.8
 
@@ -109,22 +111,25 @@ defmodule Camerex.Neon.Layered do
     labels
     |> semantic_contours(w)
     |> Nx.max(internal_detail(rgb, labels, detail, edges))
-    |> smooth_tube()
+    |> smooth_tube(w)
   end
 
   # transforma os traços (u8 0/255) em TUBOS fluidos f32 0..1: fecha quebras,
-  # engrossa num corpo e anti-aliasa a escada de pixel do Canny.
-  defp smooth_tube(line_u8) do
+  # engrossa num corpo (∝ largura) e anti-aliasa a escada de pixel do Canny.
+  defp smooth_tube(line_u8, w) do
     line_u8
     |> Evision.Mat.from_nx()
     |> Evision.morphologyEx(Evision.Constant.cv_MORPH_CLOSE(), kernel(@tube_close))
-    |> Evision.dilate(kernel(@tube_dilate))
+    |> Evision.dilate(kernel(tube_dilate(w)))
     |> Evision.gaussianBlur({0, 0}, @tube_blur)
     |> Evision.Mat.to_nx(Nx.BinaryBackend)
     |> Nx.as_type(:f32)
     |> Nx.divide(255.0 * @tube_norm)
     |> Nx.min(1.0)
   end
+
+  # corpo do tubo ∝ largura (ref.: ~3px a 1200w ≈ 0,25%); piso 1px
+  defp tube_dilate(w), do: max(round(w / 430), 1)
 
   # contorno de cada rótulo presente (limpo de ilhas e suavizado) somado por
   # máximo à silhueta externa (contorno da união). Despeckle no fim remove os
@@ -161,7 +166,7 @@ defmodule Camerex.Neon.Layered do
         |> Nx.multiply(255)
         |> Nx.as_type(:u8)
         |> Evision.Mat.from_nx()
-        |> Evision.erode(kernel(5))
+        |> Evision.erode(kernel(fig_erode(w)))
         |> Evision.Mat.to_nx(Nx.BinaryBackend)
 
       edges = (precomp || posterized_edges(rgb)) |> Nx.min(eroded)
@@ -190,6 +195,10 @@ defmodule Camerex.Neon.Layered do
   # mínimo alto → só os traços longos; detalhe alto → mínimo ~0 → todos.
   defp stroke_min_area(detail, area),
     do: round(area * @stroke_max_frac * :math.pow(1.0 - detail, @stroke_curve)) + 4
+
+  # inset (erode) que confina o detalhe interno à figura, ∝ largura (ímpar): ~3px
+  # a 428w (era 5px FIXO — comia mão/pé/joelho em foto pequena), ~7px a 1200w
+  defp fig_erode(w), do: max(round(w / 430), 1) * 2 + 1
 
   @doc """
   Bordas posterizadas `{h, w}` u8 (mean-shift → Canny). Depende SÓ do rgb — caro
