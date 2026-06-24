@@ -48,6 +48,14 @@ defmodule Camerex.Neon.Layered do
   # da imagem (invariante à resolução).
   @stroke_max_frac 0.0006
   @stroke_curve 1.3
+  # a PELE (rosto/braços/pernas) deve ler LISA — tubo de LED, não escama. O
+  # problema: a definição muscular e as sombras dos membros são gradientes REAIS
+  # (não textura de tecido), então sobrevivem ao mean-shift e viram um chuvisco
+  # denso de traços curtos justo na pele. Roupa e cabelo, ao contrário, GANHAM
+  # com detalhe (dobras, mechas). Solução: o detalhe interno na pele roda com um
+  # `detail` AMORTECIDO (só os traços longos — separação de membro, sombra-mestra
+  # — sobrevivem); o resto da figura mantém o `detail` cheio do usuário.
+  @skin_detail_damp 0.35
   # CLAHE no canal de valor (V) antes do mean-shift: realça o micro-contraste
   # LOCAL, então os vincos de roupa preta (e o boné) — que o tecido escuro
   # esconde — sobem acima do raio de cor do mean-shift e viram traço. Em região
@@ -151,13 +159,27 @@ defmodule Camerex.Neon.Layered do
         |> Evision.erode(kernel(5))
         |> Evision.Mat.to_nx(Nx.BinaryBackend)
 
-      rgb
-      |> posterized_edges()
-      |> Nx.min(eroded)
-      |> drop_small_components(stroke_min_area(detail, h * w))
-      |> suppress_dense(w)
+      edges = rgb |> posterized_edges() |> Nx.min(eroded)
+      skin = Layers.mask(labels, skin_ids())
+      area = h * w
+
+      # pele com detalhe amortecido (traços longos só); o resto com detalhe cheio
+      on_skin =
+        edges |> Nx.min(skin) |> drop_small_components(stroke_min_area(skin_detail(detail), area))
+
+      off_skin =
+        edges
+        |> Nx.min(Nx.subtract(255, skin))
+        |> drop_small_components(stroke_min_area(detail, area))
+
+      on_skin |> Nx.max(off_skin) |> suppress_dense(w)
     end
   end
+
+  # ids do grupo "pele" (derivado do catálogo, sem duplicar a lista)
+  defp skin_ids, do: Layers.groups() |> Enum.find(&(&1.key == :skin)) |> Map.fetch!(:ids)
+
+  defp skin_detail(detail), do: detail * @skin_detail_damp
 
   # tamanho mínimo de traço pro slider: cai com o detalhe. Detalhe baixo →
   # mínimo alto → só os traços longos; detalhe alto → mínimo ~0 → todos.

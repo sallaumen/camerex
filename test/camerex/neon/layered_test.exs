@@ -52,6 +52,44 @@ defmodule Camerex.Neon.LayeredTest do
       assert com_detalhe > so_contorno
     end
 
+    test "a PELE lê mais LISA que a roupa: mesmo textura, menos detalhe interno" do
+      # músculo/sombra dos membros vira chuvisco de traços curtos; a pele (11)
+      # roda com detalhe AMORTECIDO, a roupa (4) com o cheio. Mesma textura fina
+      # (pontos claros 6px espaçados 24px) sob o bloco → a pele acende bem menos.
+      h = 400
+      w = 400
+      rows = Nx.iota({h, w}, axis: 0)
+      cols = Nx.iota({h, w}, axis: 1)
+
+      block = fn id ->
+        inside =
+          Nx.logical_and(
+            Nx.logical_and(Nx.greater_equal(rows, 20), Nx.less(rows, 380)),
+            Nx.logical_and(Nx.greater_equal(cols, 20), Nx.less(cols, 380))
+          )
+
+        Nx.select(inside, id, 0) |> Nx.as_type(:u8)
+      end
+
+      spot =
+        Nx.logical_and(Nx.less(Nx.remainder(rows, 24), 6), Nx.less(Nx.remainder(cols, 24), 6))
+
+      rgb =
+        Nx.select(spot, 220, 25) |> Nx.as_type(:u8) |> Nx.new_axis(-1) |> Nx.broadcast({h, w, 3})
+
+      lit = fn id ->
+        Layered.line_art(rgb, block.(id), detail: 0.9) |> Nx.sum() |> Nx.to_number()
+      end
+
+      clothing = lit.(4)
+      skin = lit.(11)
+
+      # a pele mantém ALGO (contornos + traços longos), mas bem menos chuvisco que
+      # a roupa na MESMA textura (medido ~0.29×; 0.75 dá folga ampla, sem fragilidade)
+      assert skin > 0.0
+      assert skin < clothing * 0.75
+    end
+
     test "sem nenhuma parte (labels só fundo) → tudo zero" do
       empty = Nx.broadcast(Nx.u8(0), {40, 40})
 
