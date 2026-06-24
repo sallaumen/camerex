@@ -222,7 +222,7 @@ defmodule Camerex.Pipeline.Video do
         current_edges: p.line
       )
       |> fill_frame(opts, p.frame, p.labels, field)
-      |> Background.behind(p.frame, opts.bg_opacity)
+      |> Background.behind(p.frame, opts.bg_opacity, opts.bg_blur)
 
     with :ok <- Encoder.write_frame(enc, neon) do
       {:ok,
@@ -288,6 +288,7 @@ defmodule Camerex.Pipeline.Video do
       trail_decay: p["trail"],
       layer_colors: Layers.normalize_colors(p["layer_colors"]),
       bg_opacity: p["bg_opacity"] || 0.0,
+      bg_blur: p["bg_blur"] || 0.0,
       fill: p["fill"] == true,
       fill_color: p["fill_color"] || 0.45,
       fill_texture: p["fill_texture"] || 0.15,

@@ -69,7 +69,11 @@ defmodule Camerex.Pipeline.Photo do
 
     Neon.compose(line, halo: halo, bloom: bloom, color_field: field)
     |> with_fill(rgb, field, labels, opts)
-    |> Background.behind(rgb, Keyword.get(opts, :bg_opacity, 0.0) || 0.0)
+    |> Background.behind(
+      rgb,
+      Keyword.get(opts, :bg_opacity, 0.0) || 0.0,
+      Keyword.get(opts, :bg_blur, 0.0) || 0.0
+    )
     |> with_floor(opts)
     |> Background.cutout(Keyword.get(opts, :transparent_bg, false))
   end
@@ -171,6 +175,7 @@ defmodule Camerex.Pipeline.Photo do
       detect_skin: p["detect_skin"],
       skin_sensitivity: p["skin_sensitivity"],
       bg_opacity: p["bg_opacity"],
+      bg_blur: p["bg_blur"],
       transparent_bg: p["transparent_bg"],
       fill: p["fill"],
       fill_color: p["fill_color"],

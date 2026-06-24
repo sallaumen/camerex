@@ -228,6 +228,7 @@ defmodule Camerex.Calibration do
   defp bg_opts(params) do
     [
       bg_opacity: params["bg_opacity"] || 0.0,
+      bg_blur: params["bg_blur"] || 0.0,
       transparent_bg: params["transparent_bg"] || false
     ]
   end

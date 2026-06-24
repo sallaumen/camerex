@@ -22,7 +22,7 @@ defmodule Camerex.RenderParams do
   alias Camerex.Parser.{LayerRegistry, Layers}
 
   # params de RENDER (não-camada): nunca mudam ao adicionar uma camada.
-  @render_sliders ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread)a
+  @render_sliders ~w(halo bloom trail detail bg_opacity bg_blur fill_color fill_texture glow spread)a
   @render_booleans ~w(transparent_bg fill floor)a
 
   # params das CAMADAS: DERIVADOS do LayerRegistry por kind — FONTE ÚNICA. Some o
@@ -47,6 +47,7 @@ defmodule Camerex.RenderParams do
           trail: float(),
           detail: float(),
           bg_opacity: float(),
+          bg_blur: float(),
           fill_color: float(),
           fill_texture: float(),
           glow: float(),
@@ -76,6 +77,7 @@ defmodule Camerex.RenderParams do
     trail: 0.7,
     detail: 0.5,
     bg_opacity: 0.0,
+    bg_blur: 0.0,
     fill_color: 0.45,
     fill_texture: 0.15,
     glow: 0.85,

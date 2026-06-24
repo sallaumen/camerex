@@ -277,6 +277,14 @@ defmodule CamerexWeb.ConvertPanel do
                   min={0.0}
                   max={1.0}
                 />
+                <.slider
+                  name="bg_blur"
+                  label="Desfoque do fundo"
+                  title="Borra a cena de fundo (escada, parede) pra ela recuar e o traço saltar — separa a corda do que está atrás. Combina com a opacidade."
+                  value={@render_params.bg_blur}
+                  min={0.0}
+                  max={1.0}
+                />
                 <.toggle
                   id="transparent-toggle"
                   name="transparent_bg"

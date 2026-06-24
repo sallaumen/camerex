@@ -67,7 +67,7 @@ defmodule Camerex.RenderParamsTest do
       # render keys (não-camada) + layer keys DERIVADAS do catálogo (cor/model
       # entram em to_manifest pelas chaves :color/:model do LayerRegistry)
       render_keys =
-        ~w(halo bloom trail detail bg_opacity fill_color fill_texture glow spread
+        ~w(halo bloom trail detail bg_opacity bg_blur fill_color fill_texture glow spread
            transparent_bg fill floor layer_colors)
 
       expected = MapSet.new(render_keys ++ LayerRegistry.param_keys())
