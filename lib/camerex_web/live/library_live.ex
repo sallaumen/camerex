@@ -73,7 +73,8 @@ defmodule CamerexWeb.LibraryLive do
         calib_url: nil,
         calib_error: nil,
         calib_ref: nil,
-        eyedrop_armed: false,
+        # amostragem na prévia: nil | %{mode: :point | :region, target: param_atom}
+        eyedrop: nil,
         # acordeão de camadas extras: 1ª tag aberta, demais colapsadas
         collapsed_layer_tags: LayerRegistry.tags() |> Enum.drop(1) |> MapSet.new(),
         progress: %{},
@@ -306,9 +307,12 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply, socket |> assign_controls(params) |> rerender_calibration()}
   end
 
-  # conta-gotas do cabelo: arma/desarma o modo de clique na prévia
-  def handle_event("toggle_eyedrop", _params, socket) do
-    {:noreply, assign(socket, :eyedrop_armed, not socket.assigns.eyedrop_armed)}
+  # arma/desarma a amostragem na prévia pra um param (clicar de novo no mesmo
+  # alvo desarma). mode :point (clique→cor) | :region (arraste→modelo); target = atom do param
+  def handle_event("arm_sample", %{"mode" => mode, "target" => target}, socket) do
+    want = %{mode: String.to_existing_atom(mode), target: String.to_existing_atom(target)}
+    eyedrop = if socket.assigns.eyedrop == want, do: nil, else: want
+    {:noreply, assign(socket, :eyedrop, eyedrop)}
   end
 
   # colapsa/expande um grupo (tag) do acordeão de camadas extras
@@ -323,21 +327,23 @@ defmodule CamerexWeb.LibraryLive do
     {:noreply, assign(socket, :collapsed_layer_tags, collapsed)}
   end
 
-  # clique armado na prévia: amostra a cor do cabelo no ponto e re-renderiza
-  def handle_event("eyedrop_hair", %{"xf" => xf, "yf" => yf}, socket) do
+  # clique armado na prévia: amostra a cor do param-alvo no ponto e re-renderiza
+  def handle_event("sample_point", %{"target" => target, "xf" => xf, "yf" => yf}, socket) do
+    key = String.to_existing_atom(target)
+
     case socket.assigns.calib do
       %{} = calib when is_map(calib) ->
-        case Calibration.sample_hair_color(calib, {xf, yf}) do
+        case Calibration.sample_color(calib, key, {xf, yf}) do
           {_, _, _} = cor ->
             {:noreply,
              socket
-             |> put_render_params(hair_color: cor)
-             |> assign(:eyedrop_armed, false)
+             |> put_render_params([{key, cor}])
+             |> assign(:eyedrop, nil)
              |> rerender_calibration()
-             |> put_flash(:info, "cor do cabelo capturada")}
+             |> put_flash(:info, "cor capturada")}
 
           nil ->
-            {:noreply, put_flash(socket, :error, "clique no cabelo, não no fundo")}
+            {:noreply, put_flash(socket, :error, "clique na área colorida, não no fundo liso")}
         end
 
       _ ->
@@ -701,7 +707,7 @@ defmodule CamerexWeb.LibraryLive do
                 <.convert_panel
                   uploads={@uploads}
                   render_params={@render_params}
-                  eyedrop_armed={@eyedrop_armed}
+                  eyedrop={@eyedrop}
                   calib={@calib}
                   calib_url={@calib_url}
                   calib_error={@calib_error}

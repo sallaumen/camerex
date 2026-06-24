@@ -29,23 +29,30 @@ import topbar from "../vendor/topbar"
 // elemento que o abriu quando ele fecha. O foco inicial fica por conta do
 // phx-mounted={JS.focus()} dos campos. Usado por CamerexWeb.UI.modal/1.
 const Hooks = {
-  // Conta-gotas: no clique na prévia (só quando armado), converte o ponto em
-  // frações {xf,yf} DA IMAGEM (respeitando object-contain) e manda pro servidor.
+  // Amostragem na prévia: converte clique/arraste em frações DA IMAGEM (respeitando
+  // object-contain) e manda pro servidor. Modo via data-sample-mode: "point"
+  // (clique → cor) | "off". (Região/arraste entra como modo "region".)
   EyedropHair: {
     mounted() {
       this.el.addEventListener("click", (e) => {
-        if (this.el.dataset.armed !== "true") return
-        const r = this.el.getBoundingClientRect()
-        const nW = this.el.naturalWidth
-        const nH = this.el.naturalHeight
-        const s = Math.min(r.width / nW, r.height / nH)
-        const dW = nW * s
-        const dH = nH * s
-        const x = e.clientX - r.left - (r.width - dW) / 2
-        const y = e.clientY - r.top - (r.height - dH) / 2
-        if (x < 0 || y < 0 || x > dW || y > dH) return
-        this.pushEvent("eyedrop_hair", {xf: x / dW, yf: y / dH})
+        if (this.el.dataset.sampleMode !== "point") return
+        const p = this.frac(e.clientX, e.clientY)
+        if (!p) return
+        this.pushEvent("sample_point", {target: this.el.dataset.sampleTarget, xf: p.x, yf: p.y})
       })
+    },
+    // ponto do cursor → fração {x,y} 0..1 da imagem renderizada (null se cair fora)
+    frac(clientX, clientY) {
+      const r = this.el.getBoundingClientRect()
+      const nW = this.el.naturalWidth
+      const nH = this.el.naturalHeight
+      const s = Math.min(r.width / nW, r.height / nH)
+      const dW = nW * s
+      const dH = nH * s
+      const x = clientX - r.left - (r.width - dW) / 2
+      const y = clientY - r.top - (r.height - dH) / 2
+      if (x < 0 || y < 0 || x > dW || y > dH) return null
+      return {x: x / dW, y: y / dH}
     },
   },
   // Comparador antes/depois com handle arrastável (clip-path no "antes" sobre o

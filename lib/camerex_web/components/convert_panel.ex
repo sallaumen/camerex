@@ -28,7 +28,7 @@ defmodule CamerexWeb.ConvertPanel do
     required: true,
     doc: "struct com todos os campos de render (halo, cores por camada, detecções, fill…)"
 
-  attr :eyedrop_armed, :boolean, default: false, doc: "conta-gotas do cabelo armado?"
+  attr :eyedrop, :any, default: nil, doc: "amostragem armada: nil | %{mode, target}"
   attr :calib, :any, default: nil, doc: ":preparing | sessão da calibragem ao vivo"
   attr :calib_url, :string, default: nil
   attr :calib_error, :string, default: nil
@@ -89,11 +89,12 @@ defmodule CamerexWeb.ConvertPanel do
               src={@calib_url}
               data-role="calib-img"
               phx-hook="EyedropHair"
-              data-armed={to_string(@eyedrop_armed)}
+              data-sample-mode={if @eyedrop, do: to_string(@eyedrop.mode), else: "off"}
+              data-sample-target={if @eyedrop, do: to_string(@eyedrop.target), else: ""}
               alt="prévia ao vivo da calibragem"
               class={[
                 "mx-auto max-h-[72vh] w-full rounded-lg object-contain",
-                @eyedrop_armed && "cursor-crosshair"
+                @eyedrop && "cursor-crosshair"
               ]}
             />
             <p :if={@calib_error} class="mt-1 text-sm text-cx-orange">
@@ -231,7 +232,7 @@ defmodule CamerexWeb.ConvertPanel do
                     layer={spec}
                     render_params={@render_params}
                     calib_url={@calib_url}
-                    eyedrop_armed={@eyedrop_armed}
+                    eyedrop={@eyedrop}
                   />
                 </div>
               </div>
@@ -404,21 +405,23 @@ defmodule CamerexWeb.ConvertPanel do
   attr :layer, :map, required: true, doc: "ui_spec da camada (LayerRegistry.ui_specs/0)"
   attr :render_params, RenderParams, required: true
   attr :calib_url, :string, default: nil
-  attr :eyedrop_armed, :boolean, default: false
+  attr :eyedrop, :any, default: nil, doc: "amostragem armada: nil | %{mode, target}"
 
   # uma camada-detector: toggle (bool) + sub-controles derivados dos params só quando
-  # ligada — cor de detecção (color), conta-gotas (sampleable?), slider, swatch de saída
-  # (group). A copy toda vem do catálogo; camada nova renderiza sozinha.
+  # ligada — cor de detecção (color) + conta-gotas, slider, swatch de saída (group).
+  # A copy toda vem do catálogo; camada nova renderiza sozinha.
   defp layer_block(assigns) do
     bool = param_of(assigns.layer, :bool)
+    color = param_of(assigns.layer, :color)
 
     assigns =
       assign(assigns,
         bool: bool,
-        color: param_of(assigns.layer, :color),
+        color: color,
         slider: param_of(assigns.layer, :slider),
         base: layer_base(bool.key),
-        on: Map.get(assigns.render_params, bool.key)
+        on: Map.get(assigns.render_params, bool.key),
+        point_armed: color && assigns.eyedrop == %{mode: :point, target: color.key}
       )
 
     ~H"""
@@ -449,14 +452,16 @@ defmodule CamerexWeb.ConvertPanel do
         </label>
 
         <.btn
-          :if={@layer.sampleable? and @calib_url}
-          variant={if @eyedrop_armed, do: "primary", else: "secondary"}
+          :if={@color && @calib_url}
+          variant={if @point_armed, do: "primary", else: "secondary"}
           size="sm"
-          phx-click="toggle_eyedrop"
-          title="Clique num ponto do cabelo na prévia para capturar a cor exata."
+          phx-click="arm_sample"
+          phx-value-mode="point"
+          phx-value-target={to_string(@color.key)}
+          title="Clique num ponto na prévia para capturar a cor exata da foto."
         >
           <.icon name="hero-eye-dropper" class="size-4" />
-          {if @eyedrop_armed, do: "Clique no cabelo na prévia…", else: "Pegar cor do cabelo"}
+          {if @point_armed, do: "Clique na prévia…", else: "Pegar cor"}
         </.btn>
 
         <.slider

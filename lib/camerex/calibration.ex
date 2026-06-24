@@ -81,13 +81,39 @@ defmodule Camerex.Calibration do
   end
 
   @doc """
-  Eyedropper: amostra a cor do cabelo a partir de um clique na prévia (frações
-  `{xf, yf}` em 0..1). Devolve `{r, g, b}` ou `nil` se o clique cair no vazio
-  liso (a UI avisa "clique no cabelo"). Ver `Hair.sample_color/3`.
+  Eyedropper genérico: amostra a cor de um param `:color` a partir de um clique na
+  prévia (frações `{xf, yf}` em 0..1). `:hair_color` usa o amostrador texturizado do
+  cabelo (devolve `nil` no vazio liso — a UI avisa); os demais params de cor (ex.:
+  `:aerial_color`) usam a média da janela (cor sólida, sempre devolve `{r,g,b}`).
+  Ver `Hair.sample_color/3`.
   """
-  @spec sample_hair_color(session(), {number(), number()}) ::
+  @spec sample_color(session(), atom(), {number(), number()}) ::
           {0..255, 0..255, 0..255} | nil
-  def sample_hair_color(%{rgb: rgb}, {xf, yf}), do: Hair.sample_color(rgb, {xf, yf})
+  def sample_color(%{rgb: rgb}, :hair_color, point), do: Hair.sample_color(rgb, point)
+  def sample_color(%{rgb: rgb}, _color_key, point), do: avg_point(rgb, point)
+
+  # média de RGB numa janela ao redor do ponto (frações 0..1), sem o gate de textura
+  # do cabelo — serve cores sólidas (tecido). Sempre devolve {r,g,b}.
+  defp avg_point(rgb, {xf, yf}) do
+    {h, w, _} = Nx.shape(rgb)
+    r = max(round(w / 40), 2)
+    cx = round(clamp01(xf) * (w - 1))
+    cy = round(clamp01(yf) * (h - 1))
+    {x0, y0} = {max(cx - r, 0), max(cy - r, 0)}
+    {x1, y1} = {min(cx + r, w - 1), min(cy + r, h - 1)}
+
+    [rr, gg, bb] =
+      rgb[[y0..y1, x0..x1, 0..2]]
+      |> Nx.as_type(:f32)
+      |> Nx.mean(axes: [0, 1])
+      |> Nx.round()
+      |> Nx.as_type(:s32)
+      |> Nx.to_flat_list()
+
+    {rr, gg, bb}
+  end
+
+  defp clamp01(s), do: s |> max(0.0) |> min(1.0)
 
   @doc """
   Detecção avançada: aprende um MODELO de cor do cabelo a partir de uma REGIÃO

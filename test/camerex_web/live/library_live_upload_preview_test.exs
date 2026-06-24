@@ -132,19 +132,22 @@ defmodule CamerexWeb.LibraryLiveUploadPreviewTest do
     lv |> form("#convert-form", %{"detect_hair" => "true"}) |> render_change()
 
     html = render(lv)
-    assert html =~ "Pegar cor do cabelo"
+    assert html =~ "Pegar cor"
     assert html =~ ~s(phx-hook="EyedropHair")
     refute html =~ "cursor-crosshair"
 
-    # arma: a img da prévia vira alvo (cursor-crosshair + data-armed)
-    armed = lv |> element("button", "Pegar cor do cabelo") |> render_click()
-    assert armed =~ ~s(data-armed="true")
+    # arma o ponto pro hair_color: a img da prévia vira alvo (cursor + data-sample-mode)
+    armed = lv |> element(~s(button[phx-value-target="hair_color"])) |> render_click()
+    assert armed =~ ~s(data-sample-mode="point")
+    assert armed =~ ~s(data-sample-target="hair_color")
     assert armed =~ "cursor-crosshair"
 
-    # clique armado no centro: o handler amostra a cor e produz um flash
+    # clique armado no centro: o handler amostra a cor do alvo e produz um flash
     captured =
-      lv |> element("#calib-img") |> render_hook("eyedrop_hair", %{"xf" => 0.5, "yf" => 0.5})
+      lv
+      |> element("#calib-img")
+      |> render_hook("sample_point", %{"target" => "hair_color", "xf" => 0.5, "yf" => 0.5})
 
-    assert captured =~ "cor do cabelo capturada" or captured =~ "clique no cabelo"
+    assert captured =~ "cor capturada" or captured =~ "clique na área colorida"
   end
 end
