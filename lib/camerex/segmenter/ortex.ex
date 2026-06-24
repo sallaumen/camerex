@@ -81,7 +81,9 @@ defmodule Camerex.Segmenter.Ortex do
       |> elem(0)
       |> Nx.backend_transfer()
 
-    {:ok, d0 |> postprocess_for(model_id, {h, w}) |> U2Net.binarize()}
+    # model_id PRIMEIRO (igual o preprocess_for): postprocess_for despacha pelo
+    # modelo, não pelo tensor — pipar d0 trocaria os args (d0 viraria o model_id)
+    {:ok, model_id |> postprocess_for(d0, {h, w}) |> U2Net.binarize()}
     # fronteira de inferência: catch-all INTENCIONAL — falha nativa (Ortex/Nx) vira
     # o contrato {:error, _} pras with-chains tratarem com graça. Não é silêncio: o
     # item fica "failed" com a mensagem da exceção (bug inclusive).

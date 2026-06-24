@@ -42,6 +42,28 @@ defmodule Camerex.Segmenter.OrtexTest do
     assert only_binary == 1
   end
 
+  # guarda de roteamento: cada modelo válido tem seu próprio pré/pós-processamento
+  # (u2net/u2netp min-max; birefnet-lite sigmoid+1024²). Um arg trocado entre
+  # `model_id` e `d0` no segment/2 quebra SÓ aqui (o gate exclui :model), então
+  # varremos os três e exigimos {:ok, máscara binária do tamanho do input}.
+  for model <- ~w(u2net u2netp birefnet-lite) do
+    test "#{model}: segment/2 devolve máscara binária u8 do tamanho do input" do
+      rgb = Nx.broadcast(Nx.u8(200), {16, 16, 3})
+
+      assert {:ok, mask} = Segmenter.segment(rgb, model: unquote(model))
+      assert Nx.shape(mask) == {16, 16}
+      assert Nx.type(mask) == {:u, 8}
+
+      only_binary =
+        Nx.equal(mask, 0)
+        |> Nx.logical_or(Nx.equal(mask, 255))
+        |> Nx.all()
+        |> Nx.to_number()
+
+      assert only_binary == 1
+    end
+  end
+
   test "carrega modelos lazy, um por id, e roda inferências CONCORRENTES" do
     pid = Process.whereis(Camerex.Segmenter.Ortex)
     assert :sys.get_state(pid).models == %{}
