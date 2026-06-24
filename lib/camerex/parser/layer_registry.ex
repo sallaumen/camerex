@@ -22,9 +22,19 @@ defmodule Camerex.Parser.LayerRegistry do
       fg_spec: %{model: "u2netp", kind: :full},
       color_mode: :none,
       gate: :always,
-      params: [%{key: :detect_head_fusion, kind: :bool, default: false}],
+      params: [
+        %{
+          key: :detect_head_fusion,
+          kind: :bool,
+          default: false,
+          label: "Recuperar cabeça (pose aérea)",
+          ui_hint:
+            "Quando o cabelo/rosto somem em pose invertida, funde um segundo modelo (SCHP) em várias rotações para recuperá-los. Mais lento e só para foto."
+        }
+      ],
       sampleable?: false,
-      order_band: :baseline
+      order_band: :baseline,
+      tags: ["Acrobacia"]
     },
     %LayerSpec{
       id: :person_fill,
@@ -35,9 +45,19 @@ defmodule Camerex.Parser.LayerRegistry do
       fg_spec: %{model: "birefnet-lite", kind: :full},
       color_mode: :none,
       gate: :always,
-      params: [%{key: :detect_person_fill, kind: :bool, default: false}],
+      params: [
+        %{
+          key: :detect_person_fill,
+          kind: :bool,
+          default: false,
+          label: "Preencher silhueta (pose aérea)",
+          ui_hint:
+            "Em pose aérea/invertida o detector às vezes joga partes da pessoa no fundo e ela some; isto fecha esses buracos com uma silhueta robusta (BiRefNet). Pesado em vídeo (~5s/frame)."
+        }
+      ],
       sampleable?: false,
-      order_band: :baseline
+      order_band: :baseline,
+      tags: ["Acrobacia"]
     },
     %LayerSpec{
       id: :object,
@@ -48,9 +68,19 @@ defmodule Camerex.Parser.LayerRegistry do
       fg_spec: %{model: "u2net", kind: :largest},
       color_mode: :none,
       gate: :always,
-      params: [%{key: :detect_object, kind: :bool, default: false}],
+      params: [
+        %{
+          key: :detect_object,
+          kind: :bool,
+          default: false,
+          label: "Objeto na mão",
+          ui_hint:
+            "Destaca o que a pessoa segura — instrumento, microfone — com um segundo modelo (U²-Net)."
+        }
+      ],
       sampleable?: false,
-      order_band: :baseline
+      order_band: :baseline,
+      tags: ["Música"]
     },
     %LayerSpec{
       id: :apparatus,
@@ -62,12 +92,33 @@ defmodule Camerex.Parser.LayerRegistry do
       color_mode: :optional,
       gate: :always,
       params: [
-        %{key: :detect_aerial, kind: :bool, default: false},
-        %{key: :aerial_color, kind: :color, default: {220, 30, 40}},
-        %{key: :aerial_sensitivity, kind: :slider, default: 0.5}
+        %{
+          key: :detect_aerial,
+          kind: :bool,
+          default: false,
+          label: "Acrobacia aérea (tecido)",
+          ui_hint:
+            "Destaca o tecido vertical (silk) que a pessoa escala, como uma camada própria."
+        },
+        %{
+          key: :aerial_color,
+          kind: :color,
+          default: {220, 30, 40},
+          label: "Cor do tecido na foto",
+          ui_hint: "A cor real do tecido na foto original, para o detector localizá-lo."
+        },
+        %{
+          key: :aerial_sensitivity,
+          kind: :slider,
+          default: 0.5,
+          label: "Sensibilidade do tecido",
+          ui_hint:
+            "Mais alto pega mais tecido (e mais risco de mancha); mais baixo fica limpo. Tecido vívido sobre fundo da mesma cor pede valor baixo; tecido sutil sobre fundo limpo pede alto."
+        }
       ],
       sampleable?: false,
-      order_band: :baseline
+      order_band: :baseline,
+      tags: ["Acrobacia"]
     },
     %LayerSpec{
       id: :hair,
@@ -79,13 +130,34 @@ defmodule Camerex.Parser.LayerRegistry do
       color_mode: :required,
       gate: :run_when_atr_blind,
       params: [
-        %{key: :detect_hair, kind: :bool, default: false},
-        %{key: :hair_color, kind: :color, default: {60, 45, 40}},
+        %{
+          key: :detect_hair,
+          kind: :bool,
+          default: false,
+          label: "Resgatar cabelo",
+          ui_hint:
+            "Quando o detector não acha a cabeça (pose aérea ou de costas), localiza o cabelo pela cor que você indicar."
+        },
+        %{
+          key: :hair_color,
+          kind: :color,
+          default: {60, 45, 40},
+          label: "Cor do cabelo na foto",
+          ui_hint: "A cor real do cabelo na foto original, para o detector localizá-lo."
+        },
         %{key: :hair_model, kind: :model, default: nil},
-        %{key: :hair_sensitivity, kind: :slider, default: 0.5}
+        %{
+          key: :hair_sensitivity,
+          kind: :slider,
+          default: 0.5,
+          label: "Sensibilidade do cabelo",
+          ui_hint:
+            "Mais alto resgata mais cabelo (e mais risco de pegar fundo parecido); mais baixo fica conservador. Use quando a cabeça some em pose aérea ou de costas."
+        }
       ],
       sampleable?: true,
-      order_band: :overlay
+      order_band: :overlay,
+      tags: ["Acrobacia"]
     },
     %LayerSpec{
       id: :skin,
@@ -97,11 +169,26 @@ defmodule Camerex.Parser.LayerRegistry do
       color_mode: :auto,
       gate: :always,
       params: [
-        %{key: :detect_skin, kind: :bool, default: false},
-        %{key: :skin_sensitivity, kind: :slider, default: 0.5}
+        %{
+          key: :detect_skin,
+          kind: :bool,
+          default: false,
+          label: "Pele do torso nu",
+          ui_hint:
+            "Quando a pessoa está sem a parte de cima, re-rotula costas e tronco (que o detector pinta como roupa) de volta como pele, aprendendo a cor dos braços e pernas."
+        },
+        %{
+          key: :skin_sensitivity,
+          kind: :slider,
+          default: 0.5,
+          label: "Sensibilidade da pele",
+          ui_hint:
+            "Mais alto re-rotula mais roupa como pele (risco de pegar a calça); mais baixo fica conservador. Só afeta poses sem top (costas/tronco à mostra)."
+        }
       ],
       sampleable?: false,
-      order_band: :destructive
+      order_band: :destructive,
+      tags: ["Acrobacia"]
     }
   ]
 
@@ -148,6 +235,13 @@ defmodule Camerex.Parser.LayerRegistry do
   def param_keys do
     all() |> Enum.flat_map(& &1.params) |> Enum.map(&to_string(&1.key))
   end
+
+  @doc """
+  Tags de uso presentes, na ordem de 1ª aparição (que segue a ordem das camadas).
+  Sem repetição; tags vazias não entram. A UI agrupa as camadas por estas.
+  """
+  @spec tags() :: [String.t()]
+  def tags, do: all() |> Enum.flat_map(& &1.tags) |> Enum.uniq()
 
   @doc "Projeção sem `:module` — segura pra ir pros assigns da UI sem vazar captures."
   @spec ui_specs() :: [map()]

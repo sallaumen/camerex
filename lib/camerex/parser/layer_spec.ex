@@ -20,11 +20,15 @@ defmodule Camerex.Parser.LayerSpec do
                        (Skin) | `:none` (Object).
     * `gate`         — `:always` (Object/Apparatus/Skin) | `:run_when_atr_blind`
                        (Hair: roda só se `Hair.present?(labels)==false`).
-    * `params`       — `[%{key, kind, default, ui_hint}]` (`kind` ∈
-                       `:bool|:slider|:color|:model`).
+    * `params`       — `[%{key, kind, default, label, ui_hint}]` (`kind` ∈
+                       `:bool|:slider|:color|:model`). `label` é o rótulo curto na
+                       UI e `ui_hint` o tooltip; ambos opcionais (a UI data-driven
+                       cai pro `label` da camada / sem tooltip quando faltam).
     * `sampleable?`  — true sse o módulo implementa `Layer.Sampleable`.
     * `order_band`   — `:baseline | :overlay | :destructive` (ordena o reduce;
                        Skin destrutivo por último).
+    * `tags`         — categorias de uso (ex.: `["Acrobacia"]`, `["Música"]`) pra
+                       UI agrupar as camadas; `[]` cai num grupo "Outros".
   """
 
   @type fg_spec :: %{model: String.t(), kind: :largest | :full} | :none
@@ -33,6 +37,7 @@ defmodule Camerex.Parser.LayerSpec do
           required(:key) => atom(),
           required(:kind) => :bool | :slider | :color | :model,
           required(:default) => any(),
+          optional(:label) => String.t(),
           optional(:ui_hint) => String.t()
         }
 
@@ -47,7 +52,8 @@ defmodule Camerex.Parser.LayerSpec do
           gate: :always | :run_when_atr_blind,
           params: [param()],
           sampleable?: boolean(),
-          order_band: :baseline | :overlay | :destructive
+          order_band: :baseline | :overlay | :destructive,
+          tags: [String.t()]
         }
 
   defstruct [
@@ -61,7 +67,8 @@ defmodule Camerex.Parser.LayerSpec do
     :gate,
     :params,
     :sampleable?,
-    :order_band
+    :order_band,
+    tags: []
   ]
 
   @doc """
