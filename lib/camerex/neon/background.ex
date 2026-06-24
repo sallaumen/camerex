@@ -38,9 +38,13 @@ defmodule Camerex.Neon.Background do
     original
     |> Evision.Mat.from_nx_2d()
     |> Evision.gaussianBlur({k, k}, 0)
-    # devolve no MESMO backend do input: forçar Nx.BinaryBackend num frame 1080p
-    # (vídeo entrega EXLA) jogava o as_type/multiply seguintes pro Elixir puro —
-    # ~500ms/frame. Preservar o backend mantém a conta no acelerador (~20ms).
+    # devolve no MESMO backend do input (não força o de referência): o cálculo de
+    # `bg` seguinte (as_type/multiply) roda no backend do `original`. Forçar
+    # Nx.BinaryBackend num tensor GRANDE em EXLA jogaria isso pro Elixir puro
+    # (lento). NB: o vídeo HOSPEDA os frames em BinaryBackend de propósito (cruzar
+    # a fronteira de Task), então lá a conta já é pura — o gargalo do vídeo é
+    # separado deste fix (ver memória nx-evision-backend-cliff). Preservar o
+    # backend é o contrato correto e não muda nenhum valor.
     |> Evision.Mat.to_nx(backend_of(original))
   end
 
