@@ -335,6 +335,26 @@ defmodule CamerexWeb.ConvertPanel do
 
               <div class="space-y-2">
                 <.toggle
+                  id="person-fill-toggle"
+                  name="detect_person_fill"
+                  label="Preencher silhueta (pose aérea)"
+                  title="Em pose aérea/invertida o detector às vezes joga partes da pessoa no fundo e ela some; isto fecha esses buracos com uma silhueta robusta (BiRefNet). Pesado em vídeo (~5s/frame)."
+                  checked={@render_params.detect_person_fill}
+                />
+              </div>
+
+              <div :if={not video_reconvert?(@reconvert_item)} class="space-y-2">
+                <.toggle
+                  id="head-fusion-toggle"
+                  name="detect_head_fusion"
+                  label="Recuperar cabeça (pose aérea)"
+                  title="Quando o cabelo/rosto somem em pose invertida, funde um segundo modelo (SCHP) em várias rotações para recuperá-los. Mais lento e só para foto."
+                  checked={@render_params.detect_head_fusion}
+                />
+              </div>
+
+              <div class="space-y-2">
+                <.toggle
                   id="fill-toggle"
                   name="fill"
                   label="Preencher as partes"
@@ -485,6 +505,12 @@ defmodule CamerexWeb.ConvertPanel do
   # no-op, então some — não confunde com um controle que não faz nada.
   defp photo_reconvert?(%{"type" => "photo"}), do: true
   defp photo_reconvert?(_), do: false
+
+  # espelho de photo_reconvert?/1: true só ao reprocessar um vídeo existente. Usado p/
+  # esconder camadas SÓ-FOTO (ex.: head_fusion, no-op por frame no vídeo). Numa conversão
+  # nova (reconvert_item nil) é false — o upload ainda pode ser foto.
+  defp video_reconvert?(%{"type" => "video"}), do: true
+  defp video_reconvert?(_), do: false
 
   # maiúscula só na 1ª letra (preserva o resto — não baixa caixa como String.capitalize/1)
   defp cap(<<first::utf8, rest::binary>>), do: String.upcase(<<first::utf8>>) <> rest

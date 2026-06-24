@@ -211,6 +211,36 @@ defmodule CamerexWeb.LibraryLiveConvertTest do
     end
   end
 
+  describe "camadas de pose aérea (preencher silhueta / recuperar cabeça)" do
+    test "nova conversão oferece os dois toggles", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-conversion") |> render_click()
+
+      assert has_element?(view, "#person-fill-toggle")
+      assert has_element?(view, "#head-fusion-toggle")
+    end
+
+    test "reprocesso de foto oferece os dois toggles", %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, view, _} = live(conn, "/?item=#{id}")
+      view |> element("#reconvert-button") |> render_click()
+
+      assert has_element?(view, "#person-fill-toggle")
+      assert has_element?(view, "#head-fusion-toggle")
+    end
+
+    test "reprocesso de vídeo esconde 'recuperar cabeça' (só-foto) e mantém 'preencher silhueta'",
+         %{conn: conn, tmp: tmp} do
+      id = create_photo_item!(tmp, %{status: "done"})
+      {:ok, _} = Workspace.update_manifest(id, &Map.put(&1, "type", "video"))
+      {:ok, view, _} = live(conn, "/?item=#{id}")
+      view |> element("#reconvert-button") |> render_click()
+
+      refute has_element?(view, "#head-fusion-toggle")
+      assert has_element?(view, "#person-fill-toggle")
+    end
+  end
+
   describe "dashboard de performance" do
     test "presente no canto e ajusta threads/frame do vídeo", %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/")
